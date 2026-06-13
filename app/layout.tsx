@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk, Instrument_Serif } from "next/font/google";
 import "./globals.css";
+import AuthGate from "@/components/auth/AuthGate";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -29,7 +30,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${inter.variable} ${grotesk.variable} ${serif.variable}`}>
-      <body>{children}</body>
+      <body>
+        <AuthGate>{children}</AuthGate>
+      </body>
     </html>
   );
 }

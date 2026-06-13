@@ -14,6 +14,7 @@ import { PROVIDERS, modelLabel, providerById, type ProviderDef } from "@/lib/aiP
 import { fsSupported } from "@/lib/fileSystem";
 import { pickWorkspace, clearWorkspace } from "@/lib/workspace";
 import ConnectModal from "@/components/github/ConnectModal";
+import AccountSettings from "@/components/auth/AccountSettings";
 
 function Row({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
@@ -151,6 +152,9 @@ export default function Settings() {
       </header>
 
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-8 sm:px-8">
+        {/* Account & invites — only renders when Supabase auth is configured */}
+        <AccountSettings />
+
         <Section icon={<HardDrive size={14} />} title="Storage">
           <Row
             title="On-device storage"
