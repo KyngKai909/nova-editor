@@ -3,13 +3,14 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plus, Loader2, FolderOpen, Settings as SettingsIcon } from "lucide-react";
+import { Plus, Loader2, Settings as SettingsIcon, GitBranch, FolderUp, Play, ArrowRight, BookOpen } from "lucide-react";
 import { useProjects, type ProjectRecord } from "@/store/projectsStore";
 import { useEditor } from "@/store/editorStore";
 import { importGithub } from "@/lib/importFlow";
 import { useGitHub } from "@/store/githubStore";
 import { importRepoFilesAuth } from "@/lib/githubApi";
 import { reopenFolder } from "@/lib/deviceProject";
+import { toSourceFiles } from "@/lib/importUtils";
 import ProjectCard from "./ProjectCard";
 import NewProjectModal from "./NewProjectModal";
 import AccountChip from "@/components/github/AccountChip";
@@ -47,6 +48,18 @@ export default function Dashboard() {
       router.push("/editor");
     } catch (e) {
       setOpening(null);
+      alert((e as Error).message);
+    }
+  };
+
+  const tryDemo = async () => {
+    try {
+      const content = await (await fetch("/samples/landing.html")).text();
+      const files = toSourceFiles([{ path: "landing.html", content }]);
+      const rec = addProject({ name: "Sample landing", kind: "sample", files, status: { published: false, github: false } });
+      loadFiles(files, {}, null, rec.id);
+      router.push("/editor");
+    } catch (e) {
       alert((e as Error).message);
     }
   };
@@ -99,6 +112,9 @@ export default function Dashboard() {
           </div>
         </div>
 
+        {projects.length === 0 ? (
+          <Onboarding onNew={() => setShowNew(true)} onDemo={tryDemo} />
+        ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {/* new project tile */}
           <button
@@ -137,18 +153,45 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
-
-        {!projects.length && (
-          <div className="mt-12 flex flex-col items-center gap-3 rounded-2xl border border-line bg-surface/40 py-16 text-center">
-            <FolderOpen size={28} className="text-ink-3" />
-            <p className="max-w-xs text-[13px] leading-relaxed text-ink-3">
-              Import a folder, pull a public GitHub repo, or paste a component to get started.
-            </p>
-          </div>
         )}
       </main>
 
       {showNew && <NewProjectModal onClose={() => setShowNew(false)} />}
+    </div>
+  );
+}
+
+// First-run onboarding shown when the user has no projects yet.
+function Onboarding({ onNew, onDemo }: { onNew: () => void; onDemo: () => void }) {
+  const cards = [
+    { icon: <GitBranch size={18} />, title: "Import a GitHub repo", body: "Paste a public repo URL — or connect to import private repos.", onClick: onNew, cta: "New project" },
+    { icon: <FolderUp size={18} />, title: "Open a folder", body: "Edit a local project on disk (Chrome, Edge, or Arc).", onClick: onNew, cta: "Choose source" },
+    { icon: <Play size={18} />, title: "Try the sample", body: "Jump straight into the editor with a demo page.", onClick: onDemo, cta: "Open sample" },
+  ];
+  return (
+    <div className="rounded-2xl border border-line bg-surface/40 px-6 py-12 sm:px-10 sm:py-16">
+      <div className="mx-auto max-w-2xl text-center">
+        <p className="mb-3 text-[12px] uppercase tracking-[0.25em] text-ink-3">Get started</p>
+        <h2 className="font-display text-[clamp(1.6rem,4vw,2.4rem)] font-semibold tracking-tightest">Open your first project</h2>
+        <p className="mx-auto mt-3 max-w-md text-[14px] leading-relaxed text-ink-2">
+          Nova turns a repo, folder, or pasted component into an editable canvas — tweak it visually, then push clean code back. Pick a way in:
+        </p>
+      </div>
+      <div className="mx-auto mt-8 grid max-w-3xl gap-4 sm:grid-cols-3">
+        {cards.map((c) => (
+          <button key={c.title} onClick={c.onClick} className="group flex flex-col items-start gap-2 rounded-xl border border-line bg-bg p-5 text-left transition-colors hover:border-accent/50 hover:bg-accent/[0.03]">
+            <span className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent transition-colors group-hover:border-accent/40">{c.icon}</span>
+            <span className="mt-1 font-display text-[15px] font-semibold tracking-tight">{c.title}</span>
+            <span className="text-[12.5px] leading-relaxed text-ink-3">{c.body}</span>
+            <span className="mt-1 flex items-center gap-1 text-[12px] font-medium text-accent opacity-0 transition-opacity group-hover:opacity-100">{c.cta} <ArrowRight size={13} /></span>
+          </button>
+        ))}
+      </div>
+      <div className="mt-8 text-center">
+        <Link href="/docs" className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 transition-colors hover:text-ink">
+          <BookOpen size={14} /> New to Nova? Read the 2-minute guide <ArrowRight size={13} />
+        </Link>
+      </div>
     </div>
   );
 }
