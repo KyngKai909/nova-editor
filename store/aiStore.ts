@@ -1,0 +1,91 @@
+"use client";
+
+import { create } from "zustand";
+import { persist } from "zustand/middleware";
+
+// Canonical transcript = Anthropic content-block format. The OpenAI-shape
+// transport converts to/from this at request time, so we persist one shape.
+export interface AiBlock {
+  type: "text" | "tool_use" | "tool_result";
+  text?: string;
+  id?: string; // tool_use id
+  name?: string; // tool name
+  input?: any; // tool input
+  tool_use_id?: string; // links a tool_result to its tool_use
+  content?: string; // tool_result content
+  is_error?: boolean;
+}
+
+export interface AiMessage {
+  role: "user" | "assistant";
+  content: AiBlock[];
+}
+
+export interface Selection {
+  provider: string; // ProviderDef id
+  model: string; // model id (catalog or custom)
+}
+
+interface AiState {
+  keys: Record<string, string>; // providerId -> API key
+  customModels: Record<string, string>; // providerId -> remembered custom model id
+  selected: Selection;
+  conversations: Record<string, AiMessage[]>; // keyed by projectId
+  open: boolean;
+
+  setKey: (providerId: string, key: string) => void;
+  setCustomModel: (providerId: string, model: string) => void;
+  select: (sel: Selection) => void;
+  setOpen: (v: boolean) => void;
+
+  getMessages: (projectId: string) => AiMessage[];
+  setMessages: (projectId: string, msgs: AiMessage[]) => void;
+  clearConversation: (projectId: string) => void;
+}
+
+export const useAi = create<AiState>()(
+  persist(
+    (set, get) => ({
+      keys: {},
+      customModels: {},
+      selected: { provider: "anthropic", model: "claude-sonnet-4-6" },
+      conversations: {},
+      open: false,
+
+      setKey: (providerId, key) => set({ keys: { ...get().keys, [providerId]: key.trim() } }),
+      setCustomModel: (providerId, model) => set({ customModels: { ...get().customModels, [providerId]: model } }),
+      select: (selected) => set({ selected }),
+      setOpen: (open) => set({ open }),
+
+      getMessages: (projectId) => get().conversations[projectId] || [],
+      setMessages: (projectId, msgs) => set({ conversations: { ...get().conversations, [projectId]: msgs } }),
+      clearConversation: (projectId) => {
+        const next = { ...get().conversations };
+        delete next[projectId];
+        set({ conversations: next });
+      },
+    }),
+    {
+      name: "nova-ai",
+      version: 1,
+      partialize: (s) => ({
+        keys: s.keys,
+        customModels: s.customModels,
+        selected: s.selected,
+        conversations: s.conversations,
+      }),
+      // migrate the v0 shape ({ provider, model:{anthropic,openai}, keys:{anthropic,openai} })
+      migrate: (persisted: any, version) => {
+        if (version === 0 && persisted) {
+          const keys: Record<string, string> = {};
+          if (persisted.keys?.anthropic) keys.anthropic = persisted.keys.anthropic;
+          if (persisted.keys?.openai) keys.openai = persisted.keys.openai;
+          const provider = persisted.provider || "anthropic";
+          const model = persisted.model?.[provider] || "claude-sonnet-4-6";
+          return { keys, customModels: {}, selected: { provider, model }, conversations: persisted.conversations || {} };
+        }
+        return persisted as any;
+      },
+    }
+  )
+);

@@ -1,0 +1,29 @@
+# dependencies
+node_modules
+.pnp
+.pnp.js
+
+# next.js / build output
+.next
+/out
+/build
+/dist
+*.tsbuildinfo
+
+# caches
+.npmcache
+.cache
+.vercel
+
+# env / secrets
+.env
+.env.local
+.env.*.local
+
+# editor / agent config
+.claude/
+
+# misc
+.DS_Store
+*.log
+npm-debug.log*

@@ -1,0 +1,303 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import dynamic from "next/dynamic";
+import { gsap } from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import AlphaPill from "@/components/AlphaPill";
+import {
+  ArrowUpRight, MousePointerClick, Layers, Smartphone, GitPullRequest,
+  Code2, FolderUp, Menu, X, Sparkles,
+  Play, ShieldCheck, Bot, Zap, GitBranch, Boxes,
+} from "lucide-react";
+
+const ThreeHero = dynamic(() => import("./ThreeHero"), { ssr: false });
+
+const NAV = [
+  { label: "Why Nova", href: "#why" },
+  { label: "Features", href: "#features" },
+  { label: "How it works", href: "#how" },
+  { label: "Docs", href: "/docs" },
+];
+
+const MARQUEE = [
+  "HTML", "JSX", "TSX", "Tailwind", "Any repo", "Run it live",
+  "Your code", "Your Git", "Your AI keys", "No lock-in", "In-browser",
+];
+
+const STEPS = [
+  { n: "01", icon: <FolderUp size={18} />, title: "Import", body: "Clone a full GitHub repo, open a folder from disk, or paste a component. Nova works in your browser — no upload, no account." },
+  { n: "02", icon: <MousePointerClick size={18} />, title: "Edit visually — or with AI", body: "Click any element and shape real CSS with a full inspector, or ask the built-in AI to make the change. Edits round-trip to source." },
+  { n: "03", icon: <GitPullRequest size={18} />, title: "Run it, then ship", body: "Boot the whole app live in the browser, review a clean diff, then commit, push, or open a pull request — without leaving the tab." },
+];
+
+// The differentiators — what makes Nova distinct from AI builders, visual
+// builders, and traditional IDEs.
+const DIFF = [
+  { icon: <Boxes size={18} />, title: "Edit anything, not just React", body: "HTML, JSX, TSX and Tailwind — any framework, any repo, even a single pasted component. Not locked to one stack." },
+  { icon: <Play size={18} />, title: "Run the real app, live", body: "Boot the entire project in the browser and edit it as it actually runs — not a faked preview of a static mock." },
+  { icon: <ShieldCheck size={18} />, title: "Your code, your Git, your keys", body: "Local-first and fully open source. Files live on your disk, changes go through your Git, AI runs on your own key. No backend, no lock-in." },
+  { icon: <Bot size={18} />, title: "Bring your own AI", body: "Connect any model with your own API key. The assistant reads and edits your real files — and the canvas updates instantly." },
+  { icon: <Zap size={18} />, title: "Visual edits stay free", body: "Direct manipulation never burns a token. Use AI when you want leverage, your mouse when you don't — you choose the cost." },
+  { icon: <GitBranch size={18} />, title: "One tab, the whole loop", body: "Design, code, run, and commit in a single place. No export step, no handoff, no context-switch between tools." },
+];
+
+const FEATURES = [
+  { icon: <MousePointerClick size={18} />, title: "Direct manipulation", body: "Select, restyle, and rewrite text right on the rendered page — what you see is the real DOM." },
+  { icon: <Layers size={18} />, title: "Layer tree + code", body: "Navigate nested structure, collapse branches, and jump straight to the source line in the built-in editor." },
+  { icon: <Smartphone size={18} />, title: "Responsive by design", body: "Design across desktop, tablet, and mobile breakpoints, then flip into a true preview mode." },
+  { icon: <Code2 size={18} />, title: "Code, not lock-in", body: "Nova edits your files, not a proprietary format. Leave any time with code that reads like you wrote it." },
+];
+
+const WORKS = [
+  { name: "Landing pages", tag: "Marketing", grad: "from-[#ccff02]/25 to-[#0e0e11]" },
+  { name: "Component libraries", tag: "JSX / TSX", grad: "from-[#7af]/22 to-[#0e0e11]" },
+  { name: "Docs & content", tag: "Static HTML", grad: "from-[#f5a]/18 to-[#0e0e11]" },
+  { name: "Whole repositories", tag: "GitHub", grad: "from-white/12 to-[#0e0e11]" },
+];
+
+export default function Landing() {
+  const root = useRef<HTMLDivElement>(null);
+  const [menu, setMenu] = useState(false);
+
+  useEffect(() => {
+    gsap.registerPlugin(ScrollTrigger);
+    const ctx = gsap.context(() => {
+      gsap.from(".hero-line", { yPercent: 120, opacity: 0, duration: 1.1, ease: "expo.out", stagger: 0.12, delay: 0.15 });
+      gsap.from(".hero-fade", { opacity: 0, y: 16, duration: 0.9, ease: "power3.out", stagger: 0.08, delay: 0.7 });
+      gsap.utils.toArray<HTMLElement>(".reveal").forEach((el) => {
+        gsap.from(el, { opacity: 0, y: 40, duration: 0.9, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 85%" } });
+      });
+      ScrollTrigger.batch(".tile", {
+        start: "top 88%",
+        onEnter: (els) => gsap.from(els, { opacity: 0, y: 50, duration: 0.9, ease: "power3.out", stagger: 0.1, overwrite: true }),
+      });
+    }, root);
+    return () => ctx.revert();
+  }, []);
+
+  return (
+    <div ref={root} className="relative overflow-x-clip bg-bg">
+      <div className="grain" />
+
+      {/* nav */}
+      <nav className="fixed inset-x-0 top-0 z-50">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
+          <Link href="/" className="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-accent-ink">✦</span>
+            Nova
+            <AlphaPill />
+          </Link>
+          <div className="hidden items-center gap-8 md:flex">
+            {NAV.map((n) => (
+              <a key={n.href} href={n.href} className="text-[13px] text-ink-2 transition-colors hover:text-ink">{n.label}</a>
+            ))}
+            <Link href="/dashboard" className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
+              Start building <ArrowUpRight size={14} />
+            </Link>
+          </div>
+          <button onClick={() => setMenu((m) => !m)} className="grid h-9 w-9 place-items-center rounded-lg border border-line text-ink md:hidden">
+            {menu ? <X size={18} /> : <Menu size={18} />}
+          </button>
+        </div>
+        {menu && (
+          <div className="mx-5 rounded-2xl border border-line bg-surface/95 p-4 backdrop-blur md:hidden">
+            {NAV.map((n) => (
+              <a key={n.href} href={n.href} onClick={() => setMenu(false)} className="block py-2.5 text-[15px] text-ink-2">{n.label}</a>
+            ))}
+            <Link href="/dashboard" className="mt-2 block rounded-full bg-accent py-3 text-center text-[14px] font-semibold text-accent-ink">Start building</Link>
+          </div>
+        )}
+      </nav>
+
+      {/* hero */}
+      <section className="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden px-5 sm:px-8">
+        <div className="absolute inset-0 z-0">
+          <ThreeHero />
+          <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_60%,transparent,var(--bg)_78%)]" />
+        </div>
+
+        <div className="relative z-10 mx-auto w-full max-w-7xl">
+          <p className="hero-fade mb-6 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3">
+            <span className="h-px w-8 bg-accent" /> The visual editor for real code
+          </p>
+          <h1 className="font-display text-[clamp(2.6rem,9vw,7.5rem)] font-semibold leading-[0.92] tracking-tightest">
+            <span className="block overflow-hidden"><span className="hero-line block">Design in</span></span>
+            <span className="block overflow-hidden"><span className="hero-line block">the <span className="font-serif italic text-accent">browser</span>,</span></span>
+            <span className="block overflow-hidden"><span className="hero-line block">ship the code.</span></span>
+          </h1>
+          <p className="hero-fade mt-7 max-w-xl text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+            Nova turns any repo or site into an editable canvas. Restyle visually, ask AI on your own
+            key, run the real app live — all on code that stays yours. Open source, local-first, no lock-in.
+          </p>
+          <div className="hero-fade mt-9 flex flex-wrap items-center gap-3">
+            <Link href="/dashboard" className="group flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 text-[15px] font-semibold text-accent-ink transition-transform hover:scale-[1.02]">
+              Start building free
+              <ArrowUpRight size={17} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </Link>
+            <a href="#how" className="rounded-full border border-line-2 px-6 py-3.5 text-[15px] font-medium text-ink transition-colors hover:bg-surface">
+              See how it works
+            </a>
+          </div>
+        </div>
+
+        <div className="hero-fade absolute bottom-7 left-1/2 z-10 -translate-x-1/2 text-[11px] uppercase tracking-[0.3em] text-ink-3">Scroll</div>
+      </section>
+
+      {/* marquee */}
+      <div className="relative border-y border-line bg-surface/40 py-5">
+        <div className="flex w-max animate-marquee gap-10 whitespace-nowrap will-change-transform">
+          {[...MARQUEE, ...MARQUEE].map((s, i) => (
+            <span key={i} className="flex items-center gap-10 font-display text-[18px] text-ink-2">{s} <span className="text-accent">✦</span></span>
+          ))}
+        </div>
+      </div>
+
+      {/* why nova — differentiators */}
+      <section id="why" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+        <div className="reveal mb-14 max-w-2xl">
+          <p className="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><Sparkles size={14} className="text-accent" /> Why Nova</p>
+          <h2 className="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+            AI builders lock you in. IDEs make you type.<br /><span className="font-serif italic text-accent">Nova does neither.</span>
+          </h2>
+          <p className="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+            Most tools force a trade: a prompt box that hides your code, or an editor with no canvas.
+            Nova gives you the canvas, the code, the live app, and AI — over files that never stop being yours.
+          </p>
+        </div>
+        <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+          {DIFF.map((d) => (
+            <div key={d.title} className="tile bg-bg p-7">
+              <div className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent">{d.icon}</div>
+              <h3 className="mt-5 font-display text-[18px] font-semibold tracking-tight">{d.title}</h3>
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{d.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* how it works */}
+      <section id="how" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+        <div className="reveal mb-14 max-w-2xl">
+          <p className="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><Sparkles size={14} className="text-accent" /> How it works</p>
+          <h2 className="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+            From import to <span className="font-serif italic text-accent">pull request</span>, in your browser.
+          </h2>
+        </div>
+        <div className="grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
+          {STEPS.map((s) => (
+            <div key={s.n} className="tile bg-bg p-7">
+              <div className="flex items-center justify-between">
+                <span className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent">{s.icon}</span>
+                <span className="font-serif text-[26px] italic text-ink-3">{s.n}</span>
+              </div>
+              <h3 className="mt-5 font-display text-[20px] font-semibold tracking-tight">{s.title}</h3>
+              <p className="mt-2 text-[14px] leading-relaxed text-ink-2">{s.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* product mock + features */}
+      <section id="features" className="relative border-y border-line bg-surface/30">
+        <div className="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+          <div className="reveal max-w-2xl">
+            <h2 className="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+              A real editor, <span className="font-serif italic text-accent">not a toy</span>.
+            </h2>
+            <p className="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+              Webflow-grade controls over live code. Layout, spacing, typography, color, effects —
+              with a layer tree, breakpoints, preview, and a built-in code editor.
+            </p>
+          </div>
+
+          <div className="reveal mt-14 overflow-hidden rounded-2xl border border-line-2 bg-bg shadow-2xl">
+            <div className="flex items-center gap-2 border-b border-line bg-surface px-4 py-3">
+              <span className="h-3 w-3 rounded-full bg-[#ff5f57]" /><span className="h-3 w-3 rounded-full bg-[#febc2e]" /><span className="h-3 w-3 rounded-full bg-[#28c840]" />
+              <span className="ml-3 font-mono text-[12px] text-ink-3">nova · editor</span>
+            </div>
+            <div className="grid grid-cols-[1fr] sm:grid-cols-[180px_1fr_200px]">
+              <div className="hidden flex-col gap-2 border-r border-line p-4 sm:flex">
+                {["section", "  nav", "  hero", "    h1", "    p", "  footer"].map((l) => (
+                  <div key={l} className="whitespace-pre font-mono text-[11px] text-ink-3">{l}</div>
+                ))}
+              </div>
+              <div className="grid place-items-center bg-[radial-gradient(circle_at_50%_0%,rgba(204,255,2,0.06),transparent_60%)] p-8 sm:p-14">
+                <div className="w-full max-w-sm rounded-xl border border-line bg-surface p-8 text-center">
+                  <div className="mx-auto mb-4 h-10 w-10 rounded-full bg-accent" />
+                  <div className="mx-auto h-3 w-3/4 rounded bg-ink/80" /><div className="mx-auto mt-2 h-3 w-1/2 rounded bg-ink-3" />
+                  <div className="mx-auto mt-5 h-8 w-28 rounded-full bg-accent" />
+                </div>
+              </div>
+              <div className="hidden flex-col gap-3 border-l border-line p-4 sm:flex">
+                {["Layout", "Spacing", "Typography", "Color"].map((l) => (
+                  <div key={l}><div className="mb-1.5 text-[9px] uppercase tracking-wide text-ink-3">{l}</div><div className="h-6 rounded-md border border-line bg-bg" /></div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-16 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.map((f) => (
+              <div key={f.title} className="tile bg-bg p-6">
+                <div className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent">{f.icon}</div>
+                <h3 className="mt-4 font-display text-[17px] font-semibold tracking-tight">{f.title}</h3>
+                <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">{f.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* works with */}
+      <section id="works" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+        <div className="reveal mb-12 flex items-end justify-between gap-6">
+          <h2 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-semibold leading-none tracking-tightest">Built for real sites</h2>
+          <span className="hidden text-[13px] text-ink-3 sm:block">HTML · JSX · Tailwind</span>
+        </div>
+        <div className="grid gap-5 sm:grid-cols-2">
+          {WORKS.map((w) => (
+            <div key={w.name} className="tile relative aspect-[16/9] overflow-hidden rounded-2xl border border-line">
+              <div className={`absolute inset-0 bg-gradient-to-br ${w.grad}`} />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,255,255,0.07),transparent_55%)]" />
+              <div className="relative flex h-full flex-col justify-between p-6 sm:p-8">
+                <span className="text-[12px] uppercase tracking-[0.2em] text-ink-2">{w.tag}</span>
+                <span className="font-display text-[clamp(1.6rem,5vw,2.8rem)] font-semibold tracking-tightest">{w.name}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="relative mx-auto max-w-7xl px-5 py-28 text-center sm:px-8 sm:py-40">
+        <p className="reveal mb-6 text-[13px] uppercase tracking-[0.3em] text-ink-3">Start free · no account</p>
+        <h2 className="reveal mx-auto max-w-4xl font-display text-[clamp(2.4rem,8vw,6rem)] font-semibold leading-[0.95] tracking-tightest">
+          Turn any site into a <span className="font-serif italic text-accent">canvas</span>.
+        </h2>
+        <div className="reveal mt-10">
+          <Link href="/dashboard" className="group inline-flex items-center gap-2.5 rounded-full bg-accent px-8 py-4 text-[16px] font-semibold text-accent-ink transition-transform hover:scale-[1.03]">
+            Start building free
+            <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </Link>
+        </div>
+      </section>
+
+      {/* footer */}
+      <footer className="border-t border-line">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 py-8 text-[13px] text-ink-3 sm:flex-row sm:px-8">
+          <span className="flex items-center gap-2 font-display font-semibold text-ink">
+            <span className="grid h-6 w-6 place-items-center rounded-md bg-accent text-accent-ink">✦</span> Nova
+            <AlphaPill />
+          </span>
+          <div className="flex items-center gap-5">
+            <Link href="/docs" className="transition-colors hover:text-ink">Docs</Link>
+            <Link href="/dashboard" className="transition-colors hover:text-ink">Dashboard</Link>
+            <span>© 2026</span>
+          </div>
+        </div>
+      </footer>
+    </div>
+  );
+}
