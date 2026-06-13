@@ -42,8 +42,25 @@ export const useAuth = create<AuthState>((set, get) => ({
     const apply = async (session: any) => {
       const email = session?.user?.email ?? null;
       set({ signedIn: !!session, email });
-      if (session) await get().refreshProfile();
-      else set({ profile: null });
+      if (session) {
+        await get().refreshProfile();
+        // After a "Connect GitHub" OAuth redirect, the GitHub access token
+        // arrives here as provider_token — capture it for repo access.
+        if (session.provider_token) {
+          try {
+            const [{ getAuthUser }, { useGitHub }] = await Promise.all([
+              import("@/lib/githubApi"),
+              import("@/store/githubStore"),
+            ]);
+            const user = await getAuthUser(session.provider_token);
+            useGitHub.getState().setSession(session.provider_token, user);
+          } catch {
+            /* not a usable GitHub token */
+          }
+        }
+      } else {
+        set({ profile: null });
+      }
     };
     supabase.auth.getSession().then(async ({ data }) => {
       await apply(data.session);

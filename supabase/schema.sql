@@ -126,6 +126,14 @@ drop policy if exists "cloud_projects: own" on public.cloud_projects;
 create policy "cloud_projects: own" on public.cloud_projects
   for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 
+-- Enable realtime so cross-device sync updates live. (Safe to run on its own if
+-- you already ran the rest of the schema.)
+do $$
+begin
+  alter publication supabase_realtime add table public.cloud_projects;
+exception when duplicate_object then null;
+end $$;
+
 -- ─────────────────────────────────────────────────────────────────────────────
 -- ADMIN: seed the first invite codes to hand to friends, e.g.
 --   insert into public.invites (code) values ('NOVA-ALPHA-1'), ('NOVA-ALPHA-2');

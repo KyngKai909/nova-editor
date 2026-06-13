@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useAuth } from "@/store/authStore";
 import Welcome from "./Welcome";
+import SyncManager from "@/components/sync/SyncManager";
 
 // Routes that stay public even when auth is enabled.
 const PUBLIC = new Set(["/", "/docs"]);
@@ -36,5 +37,10 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   if (!signedIn) return <Welcome mode="signin" />;
   if (!profile) return <Loader />; // session present, profile still loading
   if (!profile.activated && !profile.is_admin) return <Welcome mode="redeem" />;
-  return <>{children}</>;
+  return (
+    <>
+      <SyncManager />
+      {children}
+    </>
+  );
 }
