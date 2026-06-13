@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor, DEVICE_WIDTH } from "@/store/editorStore";
 import { instrument } from "@/lib/htmlParser";
 import { injectJsxIds, prepareJsxModule } from "@/lib/jsxCanvas";
-import { setIframe, highlight, hoverElement, setPreview, BRIDGE_SCRIPT } from "@/lib/canvasBridge";
+import { setIframe, highlight, hoverElement, setPreview, markCanvasReady, resetCanvasReady, BRIDGE_SCRIPT } from "@/lib/canvasBridge";
 import { bundleComponent, needsBundling } from "@/lib/bundler";
 import { getDragComponent, setDragComponent } from "@/lib/dnd";
 
@@ -138,17 +138,28 @@ export default function Canvas() {
         const comp = getDragComponent();
         if (comp && d.id) insertComponent(comp, d.id, "after");
         setDragComponent(null);
+      } else if (d.type === "wfc-ready") {
+        // the iframe's bridge is up — flush queued commands and re-apply state
+        markCanvasReady();
+        const st = useEditor.getState();
+        highlight(st.selectedId);
+        setPreview(st.previewMode);
       }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, [selectNode, hoverNode, updateText, insertComponent]);
 
-  const onLoad = () => {
+  // register the iframe element once (its contentWindow is read fresh per post)
+  useEffect(() => {
     setIframe(iframeRef.current);
-    setPreview(previewMode);
-    highlight(selectedId);
-  };
+    return () => setIframe(null);
+  }, []);
+
+  // a new srcDoc is about to load — invalidate readiness until wfc-ready
+  useEffect(() => {
+    resetCanvasReady();
+  }, [doc]);
 
   useEffect(() => {
     const elc = containerRef.current;
@@ -220,9 +231,10 @@ export default function Canvas() {
               <iframe
                 ref={iframeRef}
                 title="canvas"
-                onLoad={onLoad}
+                // No allow-same-origin: the canvas runs untrusted code in an
+                // opaque origin and cannot reach the parent (where keys live).
                 className={`h-full w-full border-0 ${isolate ? "bg-transparent" : "bg-white"}`}
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+                sandbox="allow-scripts"
                 srcDoc={doc}
               />
               {bundling && (

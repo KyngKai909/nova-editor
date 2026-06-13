@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, FolderCog, HardDrive, Check, GitBranch, Trash2, Loader2, Database, FolderOpen, Wand2,
@@ -115,6 +115,11 @@ export default function Settings() {
   const [connectOpen, setConnectOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // File System Access support differs between server (always false) and client,
+  // so only evaluate it after mount to avoid a hydration mismatch.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  const fsOk = mounted && fsSupported();
 
   const choose = async () => {
     setErr(null);
@@ -150,12 +155,12 @@ export default function Settings() {
           <Row
             title="Projects folder"
             desc={
-              fsSupported()
+              fsOk
                 ? "New projects (including GitHub imports) get their own subfolder created here and save to disk like a normal IDE."
                 : "This browser doesn't support saving to disk folders. Projects are stored in the browser. (Use Chrome, Edge, or Arc for folder storage.)"
             }
           >
-            {fsSupported() ? (
+            {fsOk ? (
               <div className="flex items-center gap-2">
                 {workspaceName && (
                   <span className="flex items-center gap-1.5 rounded-md border border-line bg-bg px-2.5 py-1.5 text-[12px] text-ink-2">
@@ -180,7 +185,7 @@ export default function Settings() {
               <span className="text-[12px] text-ink-3">Not supported</span>
             )}
           </Row>
-          {fsSupported() && (
+          {fsOk && (
             <Row title="Auto-save to disk" desc="Write changes to the project's folder automatically as you edit (folder-backed projects only).">
               <Toggle on={autoSaveToDisk} onChange={setAutoSaveToDisk} />
             </Row>

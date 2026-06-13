@@ -1,23 +1,59 @@
-// Coordinates between the parent app and the canvas iframe. Because the iframe
-// is rendered from srcDoc (same-origin) we can read its live DOM directly to
-// pull computed styles, and mirror edits into it without a reload (no flicker).
+// Coordinates between the parent app and the canvas iframe.
+//
+// SECURITY: the canvas renders user-imported (potentially untrusted) code, so
+// the iframe is sandboxed WITHOUT `allow-same-origin` → it runs in an opaque
+// origin and physically cannot reach `window.parent` (where API keys live).
+// Because of that, the parent can't touch the iframe's `contentDocument` either,
+// so ALL communication goes over postMessage: the parent sends commands
+// (select / hover / style / class / text / get-styles / preview) and the iframe
+// sends events (select / hover / text-commit / drop / styles-response / ready).
 
 let iframeEl: HTMLIFrameElement | null = null;
+let ready = false;
+const queue: any[] = [];
+const pending = new Map<number, (s: Record<string, string>) => void>();
+let reqSeq = 0;
 
-export function setIframe(el: HTMLIFrameElement | null) {
-  iframeEl = el;
-}
-
-function doc(): Document | null {
+function win(): Window | null {
   try {
-    return iframeEl?.contentDocument ?? null;
+    return iframeEl?.contentWindow ?? null;
   } catch {
     return null;
   }
 }
 
-function el(id: string): HTMLElement | null {
-  return (doc()?.querySelector(`[data-wfc-id="${id}"]`) as HTMLElement) ?? null;
+function post(m: any) {
+  const w = win();
+  if (ready && w) w.postMessage(m, "*");
+  else queue.push(m); // sent before the iframe's bridge is up — flush on ready
+}
+
+export function setIframe(el: HTMLIFrameElement | null) {
+  iframeEl = el;
+}
+
+// Called by the canvas when the iframe reports `wfc-ready` (after each load).
+export function markCanvasReady() {
+  ready = true;
+  const w = win();
+  if (w) while (queue.length) w.postMessage(queue.shift(), "*");
+}
+
+// Called by the canvas right before a new srcDoc loads.
+export function resetCanvasReady() {
+  ready = false;
+  queue.length = 0;
+}
+
+// Resolve get-styles responses coming back from the iframe.
+if (typeof window !== "undefined") {
+  window.addEventListener("message", (e: MessageEvent) => {
+    const d = e.data;
+    if (d?.type === "wfc-styles" && pending.has(d.reqId)) {
+      pending.get(d.reqId)!(d.styles || {});
+      pending.delete(d.reqId);
+    }
+  });
 }
 
 // Properties the style panel reads/writes.
@@ -38,81 +74,61 @@ export const STYLE_PROPS = [
 
 export type StyleProp = (typeof STYLE_PROPS)[number];
 
-// Read inline style first (what the user set), falling back to computed.
-export function readStyles(id: string): Record<string, string> {
-  const node = el(id);
-  if (!node) return {};
-  const computed = node.ownerDocument!.defaultView!.getComputedStyle(node);
-  const out: Record<string, string> = {};
-  for (const prop of STYLE_PROPS) {
-    const kebab = camelToKebab(prop);
-    const inline = node.style.getPropertyValue(kebab);
-    out[prop] = inline || computed.getPropertyValue(kebab);
-  }
-  return out;
+// Ask the iframe to compute the selected element's styles (async round-trip).
+export function readStyles(id: string): Promise<Record<string, string>> {
+  return new Promise((resolve) => {
+    const reqId = ++reqSeq;
+    pending.set(reqId, resolve);
+    post({ type: "wfc-getstyles", id, reqId });
+    setTimeout(() => {
+      if (pending.has(reqId)) {
+        pending.delete(reqId);
+        resolve({});
+      }
+    }, 1500);
+  });
 }
 
 export function applyStyleToIframe(id: string, prop: string, value: string) {
-  const node = el(id);
-  if (!node) return;
-  if (value === "") node.style.removeProperty(camelToKebab(prop));
-  else node.style.setProperty(camelToKebab(prop), value);
+  post({ type: "wfc-style", id, prop, value });
 }
-
 export function applyTextToIframe(id: string, text: string) {
-  const node = el(id);
-  if (node) setLeafText(node, text);
+  post({ type: "wfc-settext", id, text });
 }
-
 export function applyClassToIframe(id: string, classStr: string) {
-  const node = el(id);
-  if (!node) return;
-  if (classStr.trim()) node.setAttribute("class", classStr);
-  else node.removeAttribute("class");
+  post({ type: "wfc-class", id, classStr });
 }
-
 export function highlight(id: string | null) {
-  const d = doc();
-  if (!d) return;
-  d.querySelectorAll("[data-wfc-sel]").forEach((n) => n.removeAttribute("data-wfc-sel"));
-  if (id) {
-    const node = d.querySelector(`[data-wfc-id="${id}"]`);
-    if (node) {
-      node.setAttribute("data-wfc-sel", "1");
-      node.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-  }
+  post({ type: "wfc-sel", id });
 }
-
-// Outline an element when its layer row is hovered (parent → iframe).
 export function hoverElement(id: string | null) {
-  const d = doc();
-  if (!d) return;
-  d.querySelectorAll("[data-wfc-peek]").forEach((n) => n.removeAttribute("data-wfc-peek"));
-  if (id) d.querySelector(`[data-wfc-id="${id}"]`)?.setAttribute("data-wfc-peek", "1");
+  post({ type: "wfc-peek", id });
 }
-
 export function setPreview(preview: boolean) {
-  iframeEl?.contentWindow?.postMessage({ type: "wfc-mode", preview }, "*");
+  post({ type: "wfc-mode", preview });
 }
 
+// Set the editable text of a leaf node (operates on the parent's clean
+// Document, not the iframe — used by the HTML editing path in editorStore).
 export function setLeafText(node: Element, text: string) {
   const firstText = Array.from(node.childNodes).find((n) => n.nodeType === Node.TEXT_NODE);
   if (firstText) firstText.textContent = text;
   else node.insertBefore(node.ownerDocument!.createTextNode(text), node.firstChild);
 }
 
-function camelToKebab(s: string): string {
-  return s.replace(/[A-Z]/g, (m) => "-" + m.toLowerCase());
-}
-
-// Injected into the iframe: hover/click selection, double-click inline text
-// editing, and a preview mode that disables editing affordances.
+// Injected into the iframe. Handles selection/hover/inline-text editing and
+// responds to parent commands. Runs in the iframe's opaque origin — it cannot
+// reach the parent except via postMessage.
 export const BRIDGE_SCRIPT = `
 (function(){
-  var preview=false, hovered=null, editing=null;
+  var PROPS=${JSON.stringify(STYLE_PROPS)};
+  var preview=false, hovered=null, editing=null, selEl=null, peekEl=null;
   function post(m){ parent.postMessage(m,'*'); }
+  function byId(id){ return id?document.querySelector('[data-wfc-id="'+id+'"]'):null; }
+  function kebab(s){ return s.replace(/[A-Z]/g,function(m){return '-'+m.toLowerCase();}); }
   function leaf(t){ return t && !t.querySelector('[data-wfc-id]') && t.children.length===0; }
+  function setLeaf(node,text){ var tn=null,i; for(i=0;i<node.childNodes.length;i++){ if(node.childNodes[i].nodeType===3){tn=node.childNodes[i];break;} } if(tn)tn.textContent=text; else node.insertBefore(document.createTextNode(text),node.firstChild); }
+  function computeStyles(id){ var n=byId(id); if(!n)return {}; var cs=getComputedStyle(n),out={},i,p,k; for(i=0;i<PROPS.length;i++){ p=PROPS[i]; k=kebab(p); out[p]=n.style.getPropertyValue(k)||cs.getPropertyValue(k); } return out; }
 
   document.addEventListener('mouseover',function(e){
     if(preview)return;
@@ -137,35 +153,26 @@ export const BRIDGE_SCRIPT = `
     var t=e.target.closest('[data-wfc-id]'); if(!t||!leaf(t))return;
     e.preventDefault(); e.stopPropagation();
     editing=t; t.setAttribute('contenteditable','true'); t.setAttribute('data-wfc-editing','1'); t.focus();
-    var r=document.createRange(); r.selectNodeContents(t);
-    var s=getSelection(); s.removeAllRanges(); s.addRange(r);
+    var r=document.createRange(); r.selectNodeContents(t); var s=getSelection(); s.removeAllRanges(); s.addRange(r);
   });
-  function commit(){
-    if(!editing)return;
-    var node=editing, id=node.getAttribute('data-wfc-id'), text=node.textContent;
-    node.removeAttribute('contenteditable'); node.removeAttribute('data-wfc-editing'); editing=null;
-    post({type:'wfc-text',id:id,text:text});
-  }
+  function commit(){ if(!editing)return; var node=editing,id=node.getAttribute('data-wfc-id'),text=node.textContent; node.removeAttribute('contenteditable'); node.removeAttribute('data-wfc-editing'); editing=null; post({type:'wfc-text',id:id,text:text}); }
   document.addEventListener('blur',function(e){ if(editing&&e.target===editing)commit(); },true);
-  document.addEventListener('keydown',function(e){
-    if(editing&&e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); commit(); }
-    if(editing&&e.key==='Escape'){ commit(); }
-  });
+  document.addEventListener('keydown',function(e){ if(editing&&e.key==='Enter'&&!e.shiftKey){e.preventDefault();commit();} if(editing&&e.key==='Escape')commit(); });
 
-  // drag-to-reuse: accept a component dragged in from the panel
   document.addEventListener('dragover',function(e){ if(preview)return; e.preventDefault(); });
-  document.addEventListener('drop',function(e){
-    if(preview)return; e.preventDefault();
-    var t=e.target.closest('[data-wfc-id]');
-    post({type:'wfc-drop',id:t?t.getAttribute('data-wfc-id'):null});
-  });
+  document.addEventListener('drop',function(e){ if(preview)return; e.preventDefault(); var t=e.target.closest('[data-wfc-id]'); post({type:'wfc-drop',id:t?t.getAttribute('data-wfc-id'):null}); });
 
   window.addEventListener('message',function(e){
-    if(e.data&&e.data.type==='wfc-mode'){
-      preview=e.data.preview;
-      if(preview&&hovered){hovered.removeAttribute('data-wfc-hover');hovered=null;}
-      document.documentElement.setAttribute('data-wfc-preview',preview?'1':'0');
-    }
+    var d=e.data; if(!d||!d.type)return;
+    if(d.type==='wfc-mode'){ preview=d.preview; if(preview&&hovered){hovered.removeAttribute('data-wfc-hover');hovered=null;} document.documentElement.setAttribute('data-wfc-preview',preview?'1':'0'); }
+    else if(d.type==='wfc-sel'){ if(selEl)selEl.removeAttribute('data-wfc-sel'); selEl=byId(d.id); if(selEl){ selEl.setAttribute('data-wfc-sel','1'); try{selEl.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(_){} } }
+    else if(d.type==='wfc-peek'){ if(peekEl)peekEl.removeAttribute('data-wfc-peek'); peekEl=byId(d.id); if(peekEl)peekEl.setAttribute('data-wfc-peek','1'); }
+    else if(d.type==='wfc-style'){ var n=byId(d.id); if(n){ if(d.value==='')n.style.removeProperty(kebab(d.prop)); else n.style.setProperty(kebab(d.prop),d.value); } }
+    else if(d.type==='wfc-class'){ var n2=byId(d.id); if(n2){ if((d.classStr||'').trim())n2.setAttribute('class',d.classStr); else n2.removeAttribute('class'); } }
+    else if(d.type==='wfc-settext'){ var n3=byId(d.id); if(n3)setLeaf(n3,d.text); }
+    else if(d.type==='wfc-getstyles'){ post({type:'wfc-styles',reqId:d.reqId,styles:computeStyles(d.id)}); }
   });
+
+  post({type:'wfc-ready'});
 })();
 `;

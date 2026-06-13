@@ -57,7 +57,7 @@ export default function Inspector() {
   const [s, setS] = useState<Record<string, string>>({});
 
   const refresh = useCallback(() => {
-    if (selectedId) setS(readStyles(selectedId));
+    if (selectedId) readStyles(selectedId).then(setS);
   }, [selectedId]);
 
   // computed styles need the iframe laid out — read on select + after reflow.
