@@ -303,9 +303,9 @@ export default function Landing() {
           </p>
         </div>
 
-        <div className="grid auto-rows-[176px] gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-4 sm:auto-rows-[200px] sm:grid-cols-2 lg:grid-cols-4">
           {/* landing pages — feature tile with a browser mockup */}
-          <div className="tile group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-accent/[0.06] to-bg p-6 sm:row-span-2 lg:col-span-2">
+          <div className="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-accent/[0.06] to-bg p-6 sm:row-span-2 lg:col-span-2">
             <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(204,255,2,0.1),transparent_55%)]" />
             <div className="relative overflow-hidden rounded-xl border border-line-2 bg-bg/80 shadow-2xl transition-transform duration-500 group-hover:-translate-y-1">
               <div className="flex items-center gap-1.5 border-b border-line px-3 py-2">
@@ -326,7 +326,7 @@ export default function Landing() {
           </div>
 
           {/* component libraries — swatches */}
-          <div className="tile group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6 lg:col-span-2">
+          <div className="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6 lg:col-span-2">
             <div className="flex flex-wrap items-center gap-2.5">
               <span className="flex h-7 items-center rounded-full bg-accent px-3 text-[11px] font-semibold text-accent-ink">Button</span>
               <span className="h-7 w-24 rounded-md border border-line-2 bg-bg" />
@@ -342,7 +342,7 @@ export default function Landing() {
           </div>
 
           {/* docs — text lines */}
-          <div className="tile group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6">
+          <div className="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6">
             <div className="space-y-2">
               <div className="h-3 w-1/2 rounded bg-ink/60" />
               <div className="h-2 w-full rounded bg-line" />
@@ -356,7 +356,7 @@ export default function Landing() {
           </div>
 
           {/* whole repositories — file tree */}
-          <div className="tile group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6">
+          <div className="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6">
             <div className="space-y-1.5 font-mono text-[11px] text-ink-3">
               <div className="flex items-center gap-1.5 text-ink-2"><GitBranch size={11} className="text-accent" /> main</div>
               <div className="pl-3">src/</div>
