@@ -233,10 +233,13 @@ export default function Canvas() {
               <iframe
                 ref={iframeRef}
                 title="canvas"
-                // No allow-same-origin: the canvas runs untrusted code in an
-                // opaque origin and cannot reach the parent (where keys live).
+                // allow-same-origin is required: an opaque-origin sandbox makes
+                // localStorage/cookies/indexedDB throw SecurityError in Chromium,
+                // which crashes real imported sites and renders blank. True
+                // isolation needs a separate-origin canvas (a follow-up); keys
+                // are encrypted at rest in the meantime.
                 className={`h-full w-full border-0 ${isolate ? "bg-transparent" : "bg-white"}`}
-                sandbox="allow-scripts"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
                 srcDoc={doc}
               />
               {bundling && (
