@@ -132,7 +132,7 @@ export default function Landing() {
           </Link>
           <div className="hidden items-center gap-8 md:flex">
             {NAV.map((n) => (
-              <a key={n.href} href={n.href} className="text-[13px] text-ink-2 transition-colors hover:text-ink">{n.label}</a>
+              <a key={n.href} href={n.href} onClick={(e) => { if (n.href.startsWith("/")) { e.preventDefault(); navigate(n.href); } }} className="text-[13px] text-ink-2 transition-colors hover:text-ink">{n.label}</a>
             ))}
             <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
               Start building <ArrowUpRight size={14} />
@@ -145,7 +145,7 @@ export default function Landing() {
         {menu && (
           <div className="mx-5 rounded-2xl border border-line bg-surface/95 p-4 backdrop-blur md:hidden">
             {NAV.map((n) => (
-              <a key={n.href} href={n.href} onClick={() => setMenu(false)} className="block py-2.5 text-[15px] text-ink-2">{n.label}</a>
+              <a key={n.href} href={n.href} onClick={(e) => { setMenu(false); if (n.href.startsWith("/")) { e.preventDefault(); navigate(n.href); } }} className="block py-2.5 text-[15px] text-ink-2">{n.label}</a>
             ))}
             <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="mt-2 block rounded-full bg-accent py-3 text-center text-[14px] font-semibold text-accent-ink">Start building</Link>
           </div>
@@ -449,7 +449,7 @@ export default function Landing() {
             <AlphaPill />
           </span>
           <div className="flex items-center gap-5">
-            <Link href="/docs" className="transition-colors hover:text-ink">Docs</Link>
+            <Link href="/docs" onClick={(e) => { e.preventDefault(); navigate("/docs"); }} className="transition-colors hover:text-ink">Docs</Link>
             <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="transition-colors hover:text-ink">Dashboard</Link>
             <span>© 2026</span>
           </div>

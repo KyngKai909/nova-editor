@@ -15,6 +15,7 @@ import { fsSupported } from "@/lib/fileSystem";
 import { pickWorkspace, clearWorkspace } from "@/lib/workspace";
 import ConnectModal from "@/components/github/ConnectModal";
 import AccountSettings from "@/components/auth/AccountSettings";
+import BrandMark from "@/components/ai/BrandMark";
 
 function Row({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
   return (
@@ -40,14 +41,7 @@ function Section({ icon, title, children }: { icon: React.ReactNode; title: stri
 }
 
 function ProviderMonogram({ provider }: { provider: ProviderDef }) {
-  return (
-    <span
-      className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-[12px] font-bold"
-      style={{ color: provider.accent, backgroundColor: provider.accent + "1f", border: `1px solid ${provider.accent}44` }}
-    >
-      {provider.brand[0]}
-    </span>
-  );
+  return <BrandMark provider={provider} size={28} />;
 }
 
 function KeyField({ provider }: { provider: ProviderDef }) {

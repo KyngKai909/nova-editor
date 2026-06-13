@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { KeyRound, Mail, Loader2, ArrowRight, CheckCircle2, LogOut } from "lucide-react";
 import { useAuth } from "@/store/authStore";
 import AlphaPill from "@/components/AlphaPill";
+import { useRouteTransition } from "@/components/transition/RouteTransition";
 
 export default function Welcome({ mode }: { mode: "signin" | "redeem" }) {
   const checkInvite = useAuth((s) => s.checkInvite);
   const sendMagicLink = useAuth((s) => s.sendMagicLink);
   const redeemInvite = useAuth((s) => s.redeemInvite);
   const signOut = useAuth((s) => s.signOut);
+  const { navigate } = useRouteTransition();
 
   const [step, setStep] = useState<"code" | "email" | "sent">("code");
   const [code, setCode] = useState("");
@@ -63,10 +65,14 @@ export default function Welcome({ mode }: { mode: "signin" | "redeem" }) {
     <div className="grid min-h-[100dvh] place-items-center bg-bg px-5">
       <div className="grain" />
       <div className="relative w-full max-w-sm">
-        <div className="mb-7 flex items-center justify-center gap-2 font-display text-[18px] font-semibold tracking-tight">
+        <button
+          onClick={() => navigate("/")}
+          title="Back to home"
+          className="mb-7 flex w-full items-center justify-center gap-2 font-display text-[18px] font-semibold tracking-tight transition-opacity hover:opacity-80"
+        >
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-accent-ink">✦</span>
           Nova <AlphaPill />
-        </div>
+        </button>
 
         <div className="rounded-2xl border border-line bg-surface/60 p-6 shadow-2xl backdrop-blur">
           {mode === "redeem" ? (

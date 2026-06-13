@@ -7,6 +7,7 @@ import {
   HelpCircle, KeyRound, ShieldCheck, Code2, ArrowRight,
 } from "lucide-react";
 import AlphaPill from "@/components/AlphaPill";
+import { useRouteTransition } from "@/components/transition/RouteTransition";
 
 const SECTIONS = [
   { id: "overview", label: "Overview", icon: <Rocket size={14} /> },
@@ -101,6 +102,7 @@ function H({ id, kicker, children }: { id: string; kicker: string; children: Rea
 }
 
 export default function Docs() {
+  const { navigate } = useRouteTransition();
   const [active, setActive] = useState("overview");
 
   useEffect(() => {
@@ -124,7 +126,7 @@ export default function Docs() {
       {/* header */}
       <header className="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
-          <Link href="/" className="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
+          <Link href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} className="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-accent-ink">✦</span>
             <span className="flex items-baseline gap-1 leading-none">
               <span>Nova</span>
@@ -132,7 +134,7 @@ export default function Docs() {
               <AlphaPill className="translate-y-[1px] self-center" />
             </span>
           </Link>
-          <Link href="/dashboard" className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
+          <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
             Open the app <ArrowRight size={14} />
           </Link>
         </div>

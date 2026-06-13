@@ -79,6 +79,7 @@ export default function Dashboard() {
             <AccountChip />
             <Link
               href="/docs"
+              onClick={(e) => { e.preventDefault(); navigate("/docs"); }}
               className="hidden rounded-full border border-line px-3.5 py-2 text-[13px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink sm:block"
             >
               Docs
@@ -163,6 +164,7 @@ export default function Dashboard() {
 
 // First-run onboarding shown when the user has no projects yet.
 function Onboarding({ onNew, onDemo }: { onNew: () => void; onDemo: () => void }) {
+  const { navigate } = useRouteTransition();
   const cards = [
     { icon: <GitBranch size={18} />, title: "Import a GitHub repo", body: "Paste a public repo URL — or connect to import private repos.", onClick: onNew, cta: "New project" },
     { icon: <FolderUp size={18} />, title: "Open a folder", body: "Edit a local project on disk (Chrome, Edge, or Arc).", onClick: onNew, cta: "Choose source" },
@@ -188,7 +190,7 @@ function Onboarding({ onNew, onDemo }: { onNew: () => void; onDemo: () => void }
         ))}
       </div>
       <div className="mt-8 text-center">
-        <Link href="/docs" className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 transition-colors hover:text-ink">
+        <Link href="/docs" onClick={(e) => { e.preventDefault(); navigate("/docs"); }} className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 transition-colors hover:text-ink">
           <BookOpen size={14} /> New to Nova? Read the 2-minute guide <ArrowRight size={13} />
         </Link>
       </div>

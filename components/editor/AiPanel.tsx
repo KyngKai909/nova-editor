@@ -11,6 +11,7 @@ import { providerById, modelLabel } from "@/lib/aiProviders";
 import { useEditor } from "@/store/editorStore";
 import { runAgent } from "@/lib/aiAgent";
 import ModelPicker from "./ModelPicker";
+import BrandMark from "@/components/ai/BrandMark";
 
 function toolLabel(b: AiBlock): { icon: React.ReactNode; label: string; accent?: boolean } {
   const base = (b.input?.path || "").split("/").pop();
@@ -102,14 +103,7 @@ export default function AiPanel() {
           onClick={() => setPicker(true)}
           className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-line bg-bg px-2 py-1.5 text-left transition-colors hover:border-line-2"
         >
-          {prov && (
-            <span
-              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[10px] font-bold"
-              style={{ color: prov.accent, backgroundColor: prov.accent + "1f", border: `1px solid ${prov.accent}44` }}
-            >
-              {prov.brand[0]}
-            </span>
-          )}
+          {prov && <BrandMark provider={prov} size={24} />}
           <span className="min-w-0 flex-1 leading-tight">
             <span className="block truncate text-[12.5px] font-medium text-ink">{modelLabel(selected.provider, selected.model)}</span>
             <span className="block truncate text-[10.5px] text-ink-3">{prov?.brand || "Unknown"}{hasKey ? "" : " · no key"}</span>

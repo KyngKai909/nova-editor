@@ -4,17 +4,9 @@ import { useMemo, useState } from "react";
 import { Search, Check, KeyRound, Sparkles, CornerDownLeft } from "lucide-react";
 import { PROVIDERS, type ProviderDef } from "@/lib/aiProviders";
 import { useAi } from "@/store/aiStore";
+import BrandMark from "@/components/ai/BrandMark";
 
-function Monogram({ provider, size = 22 }: { provider: ProviderDef; size?: number }) {
-  return (
-    <span
-      className="grid shrink-0 place-items-center rounded-md text-[11px] font-bold"
-      style={{ width: size, height: size, color: provider.accent, backgroundColor: provider.accent + "1f", border: `1px solid ${provider.accent}44` }}
-    >
-      {provider.brand[0]}
-    </span>
-  );
-}
+const Monogram = BrandMark;
 
 export default function ModelPicker({ onClose }: { onClose: () => void }) {
   const selected = useAi((s) => s.selected);
