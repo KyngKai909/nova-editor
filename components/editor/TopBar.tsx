@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useEditor, DEVICE_WIDTH, type Device } from "@/store/editorStore";
 import { useProjects } from "@/store/projectsStore";
 import { useAi } from "@/store/aiStore";
+import { useRouteTransition } from "@/components/transition/RouteTransition";
 import GitBar from "@/components/github/GitBar";
 
 const DEVICES: { id: Device; icon: React.ReactNode; label: string }[] = [
@@ -29,6 +30,7 @@ export default function TopBar({
   onToggleLeft: () => void;
   onToggleRight: () => void;
 }) {
+  const { navigate } = useRouteTransition();
   const files = useEditor((s) => s.files);
   const activePath = useEditor((s) => s.activePath);
   const projectId = useEditor((s) => s.projectId);
@@ -57,6 +59,7 @@ export default function TopBar({
       <div className="flex min-w-0 items-center gap-1.5">
         <Link
           href="/dashboard"
+          onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }}
           className="grid h-7 w-7 place-items-center rounded-md text-ink-3 transition-colors hover:bg-raise hover:text-ink"
           title="Dashboard"
         >

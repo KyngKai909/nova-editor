@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Space_Grotesk, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import AuthGate from "@/components/auth/AuthGate";
+import { RouteTransition } from "@/components/transition/RouteTransition";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -31,7 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${inter.variable} ${grotesk.variable} ${serif.variable}`}>
       <body>
-        <AuthGate>{children}</AuthGate>
+        <RouteTransition>
+          <AuthGate>{children}</AuthGate>
+        </RouteTransition>
       </body>
     </html>
   );

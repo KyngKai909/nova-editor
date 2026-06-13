@@ -178,7 +178,7 @@ export default function Docs() {
           <section className="space-y-5">
             <H id="getting-started" kicker="5-minute first run">Getting started</H>
             <ol className="space-y-3 text-[14px] leading-relaxed text-ink-2">
-              <li><b className="text-ink">1. Open the dashboard.</b> Click <i>Start building</i>. No account required.</li>
+              <li><b className="text-ink">1. Sign in.</b> Nova is invite-only during the alpha — enter your invite code, then sign in with the magic link we email you (works on any browser).</li>
               <li><b className="text-ink">2. Open a project.</b> Import from GitHub, a folder, pasted code — or try the sample.</li>
               <li><b className="text-ink">3. Edit visually.</b> Click any element, change it in the inspector, double-click text to rewrite it.</li>
               <li><b className="text-ink">4. (Optional) Ask the AI.</b> Add your own key and let it make larger changes.</li>
@@ -269,7 +269,8 @@ owner/repo`}</pre>
             <div className="divide-y divide-line rounded-2xl border border-line">
               {[
                 ["Is Nova free?", "Yes — the editor is free and runs in your browser. The only cost is your own AI API usage, if you use the assistant."],
-                ["Do I need an account?", "No. Connect GitHub only to import private repos or push changes."],
+                ["Do I need an account?", "During the alpha, yes — Nova is invite-only. Enter an invite code and sign in with an email magic link. Each member gets 10 invites to share (Settings → Account & invites)."],
+                ["What's cloud sync?", "An optional Pro feature: your projects back up to the cloud and sync in real-time across devices and browsers, with offline edits flushed when you reconnect. Everything still works locally without it."],
                 ["“Rate limit reached (no token).”", "Anonymous GitHub requests are limited. Connect GitHub in Settings and re-import."],
                 ["“No editable .html/.jsx/.tsx files.”", "Nova's canvas opens HTML/JSX/TSX. Check the branch, or full-clone to work with the whole project."],
                 ["The AI errors immediately.", "401 = bad key (re-check in Settings → AI); 429 = rate-limited / out of credit. Make sure the selected model's provider has a key (green dot in the picker)."],

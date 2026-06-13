@@ -8,8 +8,20 @@ money is your **own** AI API usage (if you use the assistant), billed by your
 provider on your own key.
 
 **Do I need an account?**
-No. Projects are stored locally in your browser. You only connect GitHub (a token)
-if you want to import private repos or push changes.
+During the alpha, yes — Nova is invite-only. Enter an invite code, then sign in
+with an email magic link (works on any browser). Each member gets 10 invites to
+share, from Settings → Account & invites.
+
+**What is cloud sync?**
+An optional Pro feature: your projects back up to the cloud and sync in real-time
+across devices and browsers, with offline edits flushed automatically when you
+reconnect. Without it, everything still works locally — cloud sync just keeps a
+synced backup you can pick up anywhere.
+
+**How do I connect GitHub?**
+Click "Continue with GitHub" to connect via OAuth (recommended), or paste a
+personal access token. Either way the token is used to import private repos,
+commit, push, and open PRs — sent directly to GitHub, never to a Nova server.
 
 **Where are my files and keys stored?**
 Locally. Projects live in your browser's storage (and, optionally, a folder on your

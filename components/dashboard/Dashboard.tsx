@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Plus, Loader2, Settings as SettingsIcon, GitBranch, FolderUp, Play, ArrowRight, BookOpen } from "lucide-react";
+import { useRouteTransition } from "@/components/transition/RouteTransition";
 import { useProjects, type ProjectRecord } from "@/store/projectsStore";
 import { useEditor } from "@/store/editorStore";
 import { importGithub } from "@/lib/importFlow";
@@ -17,7 +17,7 @@ import AccountChip from "@/components/github/AccountChip";
 import AlphaPill from "@/components/AlphaPill";
 
 export default function Dashboard() {
-  const router = useRouter();
+  const { navigate } = useRouteTransition();
   const projects = useProjects((s) => s.projects);
   const removeProject = useProjects((s) => s.removeProject);
   const addProject = useProjects((s) => s.addProject);
@@ -45,7 +45,7 @@ export default function Dashboard() {
       } else {
         throw new Error("Connect GitHub to reopen this repo project.");
       }
-      router.push("/editor");
+      navigate("/editor");
     } catch (e) {
       setOpening(null);
       alert((e as Error).message);
@@ -58,7 +58,7 @@ export default function Dashboard() {
       const files = toSourceFiles([{ path: "landing.html", content }]);
       const rec = addProject({ name: "Sample landing", kind: "sample", files, status: { published: false, github: false } });
       loadFiles(files, {}, null, rec.id);
-      router.push("/editor");
+      navigate("/editor");
     } catch (e) {
       alert((e as Error).message);
     }
@@ -70,7 +70,7 @@ export default function Dashboard() {
 
       <header className="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
-          <Link href="/" className="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
+          <Link href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} className="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-accent-ink">✦</span>
             Nova
             <AlphaPill />

@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { gsap } from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import AlphaPill from "@/components/AlphaPill";
+import { useRouteTransition } from "@/components/transition/RouteTransition";
 import {
   ArrowUpRight, MousePointerClick, Layers, Smartphone, GitPullRequest,
   Code2, FolderUp, Menu, X, Sparkles,
@@ -59,6 +60,7 @@ const WORKS = [
 
 export default function Landing() {
   const root = useRef<HTMLDivElement>(null);
+  const { navigate } = useRouteTransition();
   const [menu, setMenu] = useState(false);
 
   useEffect(() => {
@@ -93,7 +95,7 @@ export default function Landing() {
             {NAV.map((n) => (
               <a key={n.href} href={n.href} className="text-[13px] text-ink-2 transition-colors hover:text-ink">{n.label}</a>
             ))}
-            <Link href="/dashboard" className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
+            <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
               Start building <ArrowUpRight size={14} />
             </Link>
           </div>
@@ -106,7 +108,7 @@ export default function Landing() {
             {NAV.map((n) => (
               <a key={n.href} href={n.href} onClick={() => setMenu(false)} className="block py-2.5 text-[15px] text-ink-2">{n.label}</a>
             ))}
-            <Link href="/dashboard" className="mt-2 block rounded-full bg-accent py-3 text-center text-[14px] font-semibold text-accent-ink">Start building</Link>
+            <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="mt-2 block rounded-full bg-accent py-3 text-center text-[14px] font-semibold text-accent-ink">Start building</Link>
           </div>
         )}
       </nav>
@@ -132,7 +134,7 @@ export default function Landing() {
             key, run the real app live — all on code that stays yours. Open source, local-first, no lock-in.
           </p>
           <div className="hero-fade mt-9 flex flex-wrap items-center gap-3">
-            <Link href="/dashboard" className="group flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 text-[15px] font-semibold text-accent-ink transition-transform hover:scale-[1.02]">
+            <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="group flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 text-[15px] font-semibold text-accent-ink transition-transform hover:scale-[1.02]">
               Start building free
               <ArrowUpRight size={17} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
             </Link>
@@ -277,7 +279,7 @@ export default function Landing() {
           Turn any site into a <span className="font-serif italic text-accent">canvas</span>.
         </h2>
         <div className="reveal mt-10">
-          <Link href="/dashboard" className="group inline-flex items-center gap-2.5 rounded-full bg-accent px-8 py-4 text-[16px] font-semibold text-accent-ink transition-transform hover:scale-[1.03]">
+          <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="group inline-flex items-center gap-2.5 rounded-full bg-accent px-8 py-4 text-[16px] font-semibold text-accent-ink transition-transform hover:scale-[1.03]">
             Start building free
             <ArrowUpRight size={18} className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </Link>
@@ -293,7 +295,7 @@ export default function Landing() {
           </span>
           <div className="flex items-center gap-5">
             <Link href="/docs" className="transition-colors hover:text-ink">Docs</Link>
-            <Link href="/dashboard" className="transition-colors hover:text-ink">Dashboard</Link>
+            <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="transition-colors hover:text-ink">Dashboard</Link>
             <span>© 2026</span>
           </div>
         </div>

@@ -8,7 +8,8 @@ Go to the app and click **Start building** (or open `/dashboard`). The dashboard
 is your home base — every project you import shows up here as a card with a live
 preview. Projects are stored in your browser (and, optionally, on your disk).
 
-No account is required to start.
+During the alpha, Nova is invite-only: enter your invite code and sign in with the
+magic link emailed to you (works on any browser). Each member gets 10 invites.
 
 ## 2. Open a project
 
