@@ -10,7 +10,7 @@ import { useRouteTransition } from "@/components/transition/RouteTransition";
 import {
   ArrowUpRight, MousePointerClick, Layers, Smartphone, GitPullRequest,
   Code2, FolderUp, Menu, X, Sparkles,
-  Play, ShieldCheck, Bot, Zap, GitBranch, Boxes,
+  Play, ShieldCheck, Bot, Zap, GitBranch, Boxes, Check,
 } from "lucide-react";
 
 const ThreeHero = dynamic(() => import("./ThreeHero"), { ssr: false });
@@ -18,7 +18,7 @@ const ThreeHero = dynamic(() => import("./ThreeHero"), { ssr: false });
 const NAV = [
   { label: "Why Nova", href: "#why" },
   { label: "Features", href: "#features" },
-  { label: "How it works", href: "#how" },
+  { label: "Pricing", href: "#pricing" },
   { label: "Docs", href: "/docs" },
 ];
 
@@ -56,6 +56,52 @@ const WORKS = [
   { name: "Component libraries", tag: "JSX / TSX", grad: "from-[#7af]/22 to-[#0e0e11]" },
   { name: "Docs & content", tag: "Static HTML", grad: "from-[#f5a]/18 to-[#0e0e11]" },
   { name: "Whole repositories", tag: "GitHub", grad: "from-white/12 to-[#0e0e11]" },
+];
+
+const PRICING = [
+  {
+    name: "Free",
+    price: "$0",
+    period: "forever",
+    tagline: "Everything you need to edit and ship.",
+    features: [
+      "Visual + code editor, unlimited projects",
+      "Run apps live in the browser",
+      "AI assistant with your own API key",
+      "Commit, push & PRs to your GitHub",
+      "Local-first — your files stay yours",
+    ],
+    cta: "Start free",
+  },
+  {
+    name: "Pro",
+    price: "$8",
+    period: "/month",
+    highlight: true,
+    tagline: "Your work, backed up and synced everywhere.",
+    features: [
+      "Everything in Free",
+      "Cloud backup of every project",
+      "Real-time sync across devices & browsers",
+      "Offline edits sync when you reconnect",
+      "Pick up any project, anywhere",
+    ],
+    cta: "Get Pro",
+  },
+  {
+    name: "Studio",
+    price: "Soon",
+    period: "",
+    soon: true,
+    tagline: "AI built in — no API key to manage.",
+    features: [
+      "Everything in Pro",
+      "Managed AI — nothing to set up",
+      "Metered usage, billed simply",
+      "Higher limits & top models",
+    ],
+    cta: "Coming soon",
+  },
 ];
 
 export default function Landing() {
@@ -272,9 +318,64 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* pricing */}
+      <section id="pricing" className="border-y border-line bg-surface/30">
+        <div className="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+          <div className="reveal mb-14 max-w-2xl">
+            <p className="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><Sparkles size={14} className="text-accent" /> Pricing</p>
+            <h2 className="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+              Free to build. <span className="font-serif italic text-accent">Pay only to sync.</span>
+            </h2>
+            <p className="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+              The editor is free forever — your code, your keys, your machine. Upgrade when you want your projects backed up and synced across every device.
+            </p>
+          </div>
+
+          <div className="grid gap-5 lg:grid-cols-3">
+            {PRICING.map((p) => (
+              <div
+                key={p.name}
+                className={`tile relative flex flex-col rounded-2xl border p-7 ${
+                  p.highlight ? "border-accent/50 bg-accent/[0.05]" : "border-line bg-bg"
+                } ${p.soon ? "opacity-60" : ""}`}
+              >
+                {p.highlight && <span className="absolute right-6 top-7 rounded-full bg-accent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-accent-ink">Recommended</span>}
+                {p.soon && <span className="absolute right-6 top-7 rounded-full border border-line-2 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-ink-3">Coming soon</span>}
+                <h3 className="font-display text-[20px] font-semibold tracking-tight">{p.name}</h3>
+                <p className="mt-1 max-w-[220px] text-[13px] leading-relaxed text-ink-3">{p.tagline}</p>
+                <div className="mt-5 flex items-baseline gap-1">
+                  <span className="font-display text-[40px] font-semibold tracking-tightest">{p.price}</span>
+                  {p.period && <span className="text-[14px] text-ink-3">{p.period}</span>}
+                </div>
+                <ul className="mt-6 flex-1 space-y-2.5">
+                  {p.features.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2">
+                      <Check size={15} className={`mt-0.5 shrink-0 ${p.highlight ? "text-accent" : "text-ink-3"}`} /> {f}
+                    </li>
+                  ))}
+                </ul>
+                {p.soon ? (
+                  <button disabled className="mt-7 w-full cursor-not-allowed rounded-full border border-line py-3 text-[14px] font-semibold text-ink-3">Coming soon</button>
+                ) : (
+                  <button
+                    onClick={() => navigate("/dashboard")}
+                    className={`mt-7 w-full rounded-full py-3 text-[14px] font-semibold transition-transform hover:scale-[1.02] ${
+                      p.highlight ? "bg-accent text-accent-ink" : "bg-ink text-bg hover:bg-white"
+                    }`}
+                  >
+                    {p.cta}
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+          <p className="reveal mt-6 text-[12.5px] text-ink-3">Prices in USD · cancel anytime. Cloud sync is the only paid feature today — the editor itself stays free.</p>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="relative mx-auto max-w-7xl px-5 py-28 text-center sm:px-8 sm:py-40">
-        <p className="reveal mb-6 text-[13px] uppercase tracking-[0.3em] text-ink-3">Start free · no account</p>
+        <p className="reveal mb-6 text-[13px] uppercase tracking-[0.3em] text-ink-3">Free to start · invite-only alpha</p>
         <h2 className="reveal mx-auto max-w-4xl font-display text-[clamp(2.4rem,8vw,6rem)] font-semibold leading-[0.95] tracking-tightest">
           Turn any site into a <span className="font-serif italic text-accent">canvas</span>.
         </h2>
