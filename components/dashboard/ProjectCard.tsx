@@ -3,9 +3,10 @@
 import { useMemo, useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
-  MoreHorizontal, Globe, GitBranch, FileCode2, Trash2, ExternalLink, Copy, HardDrive,
+  MoreHorizontal, Globe, GitBranch, FileCode2, Trash2, ExternalLink, Copy, HardDrive, Download,
 } from "lucide-react";
 import type { ProjectRecord } from "@/store/projectsStore";
+import { downloadZip } from "@/lib/zip";
 
 const KIND_LABEL: Record<string, string> = {
   folder: "Folder", github: "GitHub", paste: "Snippet", sample: "Sample",
@@ -147,6 +148,16 @@ export default function ProjectCard({
             <MenuItem icon={<ExternalLink size={13} />} label="Open in editor" onClick={() => { setMenu(null); onOpen(); }} />
             <MenuItem icon={<Globe size={13} />} label={project.status.published ? "Unpublish" : "Publish"} onClick={() => { onTogglePublish(); setMenu(null); }} />
             <MenuItem icon={<Copy size={13} />} label="Duplicate" onClick={() => { onDuplicate(); setMenu(null); }} />
+            {!!project.files?.length && (
+              <MenuItem
+                icon={<Download size={13} />}
+                label="Download .zip"
+                onClick={() => {
+                  downloadZip(project.name, project.files!.map((f) => ({ path: f.path, content: f.content })));
+                  setMenu(null);
+                }}
+              />
+            )}
             <div className="my-1 h-px bg-line" />
             <MenuItem icon={<Trash2 size={13} />} label="Delete" danger onClick={() => { onDelete(); setMenu(null); }} />
           </div>,

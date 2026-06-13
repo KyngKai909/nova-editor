@@ -153,11 +153,17 @@ export default function Settings() {
       <main className="mx-auto flex max-w-3xl flex-col gap-6 px-5 py-8 sm:px-8">
         <Section icon={<HardDrive size={14} />} title="Storage">
           <Row
-            title="Projects folder"
+            title="On-device storage"
+            desc="Your projects are saved on this device (in your browser's storage) and survive closing the tab — on Chrome, Firefox, and Safari. Use Download (.zip) or GitHub to get a copy onto your disk."
+          >
+            <span className="rounded-full border border-line bg-bg px-2.5 py-1 text-[12px] text-accent">Always on</span>
+          </Row>
+          <Row
+            title="Projects folder (live sync)"
             desc={
               fsOk
-                ? "New projects (including GitHub imports) get their own subfolder created here and save to disk like a normal IDE."
-                : "This browser doesn't support saving to disk folders. Projects are stored in the browser. (Use Chrome, Edge, or Arc for folder storage.)"
+                ? "New projects (including GitHub imports) get their own subfolder created here and save to disk like a normal IDE, two-way."
+                : "Live two-way folder sync needs a Chromium browser (Chrome, Edge, Arc) — Firefox and Safari don't offer the API. Your projects still save on-device here; export with Download (.zip) or push to GitHub to get them onto your disk."
             }
           >
             {fsOk ? (
@@ -182,7 +188,7 @@ export default function Settings() {
                 )}
               </div>
             ) : (
-              <span className="text-[12px] text-ink-3">Not supported</span>
+              <span className="rounded-md border border-line bg-bg px-2.5 py-1.5 text-[12px] text-ink-3">Chromium only</span>
             )}
           </Row>
           {fsOk && (

@@ -10,6 +10,7 @@ import { useProjects } from "@/store/projectsStore";
 import { useGitHub } from "@/store/githubStore";
 import { lineDiff } from "@/lib/diff";
 import { fsSupported } from "@/lib/fileSystem";
+import { downloadZip } from "@/lib/zip";
 import { saveProjectToDevice } from "@/lib/deviceProject";
 import { commitFiles, commitToNewBranchAndPR } from "@/lib/githubApi";
 import ConnectModal from "@/components/github/ConnectModal";
@@ -42,14 +43,9 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
   const [connectOpen, setConnectOpen] = useState(false);
   const [publishRepo, setPublishRepo] = useState(false);
 
-  const download = (path: string, content: string) => {
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = path.split("/").pop() || "file.txt";
-    a.click();
-    URL.revokeObjectURL(url);
+  const downloadProjectZip = () => {
+    downloadZip(project?.name || "nova-project", files.map((f) => ({ path: f.path, content: f.content })));
+    setNotice("Downloaded project as .zip");
   };
 
   const saveToDevice = async () => {
@@ -122,8 +118,8 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
                 {project?.storage === "device" ? "Save to folder" : "Save to device…"}
               </button>
             )}
-            <button onClick={() => changed.forEach((f) => download(f.path, f.content))} disabled={!changed.length} className="flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[12px] font-medium text-ink-2 transition-colors hover:bg-raise hover:text-ink disabled:opacity-40">
-              <Download size={14} /> Download
+            <button onClick={downloadProjectZip} disabled={!files.length} title="Download the whole project as a .zip — works in any browser" className="flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[12px] font-medium text-ink-2 transition-colors hover:bg-raise hover:text-ink disabled:opacity-40">
+              <Download size={14} /> Download .zip
             </button>
             <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-ink-3 hover:bg-raise hover:text-ink">
               <X size={16} />

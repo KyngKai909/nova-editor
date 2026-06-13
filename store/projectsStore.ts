@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { idbStorage } from "@/lib/idbKv";
 import type { SourceFile } from "@/lib/types";
 
 export type ProjectKind = "folder" | "github" | "paste" | "sample";
@@ -51,6 +52,11 @@ export const useProjects = create<ProjectsState>()(
       removeProject: (id) => set({ projects: get().projects.filter((p) => p.id !== id) }),
       getProject: (id) => get().projects.find((p) => p.id === id),
     }),
-    { name: "nova-projects" }
+    {
+      name: "nova-projects",
+      // IndexedDB instead of localStorage: bigger quota for project files, and
+      // durable on Firefox/Safari too (migrates any existing localStorage data).
+      storage: createJSONStorage(() => idbStorage()),
+    }
   )
 );
