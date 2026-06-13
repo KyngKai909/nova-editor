@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor, DEVICE_WIDTH } from "@/store/editorStore";
 import { instrument } from "@/lib/htmlParser";
 import { injectJsxIds, prepareJsxModule } from "@/lib/jsxCanvas";
-import { setIframe, highlight, hoverElement, setPreview, markCanvasReady, resetCanvasReady, BRIDGE_SCRIPT } from "@/lib/canvasBridge";
+import { setIframe, highlight, hoverElement, setPreview, markCanvasReady, resetCanvasReady, BRIDGE_SCRIPT, STORAGE_SHIM } from "@/lib/canvasBridge";
 import { bundleComponent, needsBundling } from "@/lib/bundler";
 import { getDragComponent, setDragComponent } from "@/lib/dnd";
 
@@ -19,6 +19,7 @@ function buildJsxDoc(source: string, tree: any, isolate: boolean): string {
     : "body{margin:0;padding:16px;font-family:system-ui,sans-serif}";
   return `<!doctype html><html><head>
     <meta charset="utf-8"/>
+    <script>${STORAGE_SHIM}</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
@@ -48,6 +49,7 @@ function buildBundledDoc(bundleJs: string, isolate: boolean): string {
     : "body{margin:0;padding:16px;font-family:system-ui,sans-serif}";
   return `<!doctype html><html><head>
     <meta charset="utf-8"/>
+    <script>${STORAGE_SHIM}</script>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>${body}
       [data-wfc-hover]{outline:1.5px solid rgba(204,255,2,.55)!important;outline-offset:-1px}

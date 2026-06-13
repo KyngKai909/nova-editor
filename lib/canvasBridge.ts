@@ -116,6 +116,15 @@ export function setLeafText(node: Element, text: string) {
   else node.insertBefore(node.ownerDocument!.createTextNode(text), node.firstChild);
 }
 
+// MUST run as the FIRST script in the canvas document. The canvas is an opaque
+// origin (sandbox without allow-same-origin), where touching localStorage /
+// sessionStorage throws a SecurityError in Chrome — which crashes the imported
+// site's scripts (theme toggles, analytics, etc.) and leaves the canvas blank.
+// We replace those with an ephemeral in-memory store so real sites render. This
+// keeps the security boundary: the fake store is per-iframe and the canvas still
+// cannot reach the parent's real localStorage (or its keys).
+export const STORAGE_SHIM = `(function(){function mk(){var m={};var s={getItem:function(k){return m[k]!==undefined?m[k]:null},setItem:function(k,v){m[k]=String(v)},removeItem:function(k){delete m[k]},clear:function(){m={}},key:function(i){return Object.keys(m)[i]||null}};try{Object.defineProperty(s,'length',{get:function(){return Object.keys(m).length}});}catch(e){}return s;}['localStorage','sessionStorage'].forEach(function(n){try{var t=window[n];if(t){t.length;}}catch(e){try{Object.defineProperty(window,n,{value:mk(),configurable:true});}catch(_){}}});})();`;
+
 // Injected into the iframe. Handles selection/hover/inline-text editing and
 // responds to parent commands. Runs in the iframe's opaque origin — it cannot
 // reach the parent except via postMessage.

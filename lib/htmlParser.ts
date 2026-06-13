@@ -1,6 +1,7 @@
 import type { EditorNode } from "./types";
 import type { AssetMap } from "./assets";
 import { rewriteAssetUrls } from "./assets";
+import { STORAGE_SHIM } from "./canvasBridge";
 
 const SKIP_TAGS = new Set(["script", "style", "meta", "link", "base", "br", "hr"]);
 
@@ -105,6 +106,13 @@ export function instrument(
   const clone = doc.cloneNode(true) as Document;
   const head = clone.head;
   const fragment = isFragmentDoc(doc);
+
+  // First script in the document: shim storage so opaque-origin sandbox doesn't
+  // crash the imported site's scripts (see STORAGE_SHIM).
+  const shim = clone.createElement("script");
+  shim.setAttribute("data-wfc-injected", "1");
+  shim.textContent = STORAGE_SHIM;
+  head.insertBefore(shim, head.firstChild);
 
   if (baseHref) {
     const base = clone.createElement("base");
