@@ -256,8 +256,11 @@ owner/repo`}</pre>
           <section className="space-y-5">
             <H id="privacy" kicker="Local-first by design">Storage & privacy</H>
             <p className="text-[14px] leading-relaxed text-ink-2">
-              Projects live in your browser and, optionally, a folder on your disk. Your GitHub token and AI keys are stored <b className="text-ink">only in your browser</b> and sent <b className="text-ink">directly</b> to GitHub / the AI provider — never through a Nova server. On Chromium browsers, folder-backed projects auto-save to disk like a normal IDE (Cmd/Ctrl+S to save now).
+              Projects live in your browser and, optionally, a folder on your disk. Your GitHub token and AI keys are <b className="text-ink">encrypted at rest</b> in your browser and sent <b className="text-ink">directly</b> to GitHub / the AI provider — never through a Nova server. The Nova devs never receive your keys, and the source is open so you can verify it.
             </p>
+            <Card icon={<KeyRound size={14} />} title="Key safety — and its honest limits">
+              Encryption stops casual snooping and scrapers, but <b className="text-ink-2">no client-side app can fully protect a key</b> from a malicious browser extension or someone at your unlocked device. Best practice: use <b className="text-ink-2">scoped, revocable</b> keys — a fine-grained GitHub token limited to the repos you edit, and provider API keys with a spending limit you can rotate.
+            </Card>
           </section>
 
           {/* faq */}

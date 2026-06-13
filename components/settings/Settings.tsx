@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, FolderCog, HardDrive, Check, GitBranch, Trash2, Loader2, Database, FolderOpen, Wand2,
-  Sparkles, Eye, EyeOff, ExternalLink,
+  Sparkles, Eye, EyeOff, ExternalLink, ShieldCheck,
 } from "lucide-react";
 import { useSettings } from "@/store/settingsStore";
 import { useGitHub } from "@/store/githubStore";
@@ -207,8 +207,14 @@ export default function Settings() {
             ))}
           </div>
           <p className="pt-3 text-[11.5px] leading-relaxed text-ink-3">
-            Bring your own API key — this is <span className="text-ink-2">separate from a ChatGPT Plus or Claude Pro subscription</span>, which don't include API access. Add a key for any provider you use; OpenRouter gives one key for nearly any model. Keys are stored only in this browser and sent directly to the provider — nothing passes through a Nova server.
+            Bring your own API key — this is <span className="text-ink-2">separate from a ChatGPT Plus or Claude Pro subscription</span>, which don't include API access. Add a key for any provider you use; OpenRouter gives one key for nearly any model. Keys are sent directly to the provider — nothing passes through a Nova server.
           </p>
+          <div className="mt-2 flex items-start gap-2 rounded-lg border border-line bg-bg/60 p-3 text-[11.5px] leading-relaxed text-ink-3">
+            <ShieldCheck size={14} className="mt-0.5 shrink-0 text-accent" />
+            <span>
+              Keys are <span className="text-ink-2">encrypted at rest</span> in your browser (and never leave it). For best safety, use a key with a <span className="text-ink-2">spending limit you can revoke</span> — no client-side app can fully protect a key from a malicious browser extension or someone at your unlocked device.
+            </span>
+          </div>
         </Section>
 
         <Section icon={<GitBranch size={14} />} title="GitHub">

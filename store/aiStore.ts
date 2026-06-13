@@ -1,7 +1,8 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { encryptedStorage } from "@/lib/secureStorage";
 
 // Canonical transcript = Anthropic content-block format. The OpenAI-shape
 // transport converts to/from this at request time, so we persist one shape.
@@ -67,6 +68,7 @@ export const useAi = create<AiState>()(
     }),
     {
       name: "nova-ai",
+      storage: createJSONStorage(() => encryptedStorage()),
       version: 1,
       partialize: (s) => ({
         keys: s.keys,

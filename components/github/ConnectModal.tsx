@@ -59,7 +59,7 @@ export default function ConnectModal({ onClose }: { onClose: () => void }) {
               <KeyRound size={13} className="text-accent" /> Create a personal access token
             </p>
             <p className="mt-1.5 text-ink-3">
-              Generate a classic token with the <span className="font-mono text-ink-2">repo</span> scope (private repos, push &amp; create repo), then paste it below.
+              Best: a <span className="text-ink-2">fine-grained token</span> scoped to only the repos you'll edit (Contents: read/write). A classic token with the <span className="font-mono text-ink-2">repo</span> scope also works but grants access to all your repos. Paste it below.
             </p>
             <a
               href={TOKEN_URL}
@@ -93,7 +93,7 @@ export default function ConnectModal({ onClose }: { onClose: () => void }) {
 
           <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-ink-3">
             <ShieldCheck size={13} className="mt-0.5 shrink-0 text-ink-3" />
-            Your token is stored only in this browser&apos;s local storage and is sent directly to GitHub — never to any Nova server.
+            Your token is encrypted at rest in this browser and sent directly to GitHub — never to any Nova server.
           </p>
         </div>
       </div>

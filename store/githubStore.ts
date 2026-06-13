@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
+import { encryptedStorage } from "@/lib/secureStorage";
 import { getAuthUser, type GitHubUser } from "@/lib/githubApi";
 
 interface GitHubState {
@@ -42,6 +43,7 @@ export const useGitHub = create<GitHubState>()(
     }),
     {
       name: "nova-github",
+      storage: createJSONStorage(() => encryptedStorage()),
       partialize: (s) => ({ token: s.token, user: s.user }),
     }
   )
