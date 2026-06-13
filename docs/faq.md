@@ -18,6 +18,14 @@ across devices and browsers, with offline edits flushed automatically when you
 reconnect. Without it, everything still works locally — cloud sync just keeps a
 synced backup you can pick up anywhere.
 
+**How much does Nova cost?**
+- **Free** — forever. The full editor: visual + code editing, run live, GitHub
+  push, and the AI assistant with your own API key.
+- **Pro — $8/month** — everything in Free, plus cloud backup and real-time sync
+  across all your devices and browsers.
+- **Studio — coming soon** — a managed-AI tier where AI is included with no API
+  key to manage (metered usage).
+
 **How do I connect GitHub?**
 Click "Continue with GitHub" to connect via OAuth (recommended), or paste a
 personal access token. Either way the token is used to import private repos,

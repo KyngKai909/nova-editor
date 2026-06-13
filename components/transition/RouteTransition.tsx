@@ -40,6 +40,7 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
       {children}
       {target && (
         <RouteLoader
+          key={target}
           onPush={() => router.push(target)}
           onDone={() => setTarget(null)}
         />
@@ -51,6 +52,10 @@ export function RouteTransition({ children }: { children: React.ReactNode }) {
 function RouteLoader({ onPush, onDone }: { onPush: () => void; onDone: () => void }) {
   const root = useRef<HTMLDivElement>(null);
   const pushed = useRef(false);
+  // keep callbacks fresh without re-running the effect (which would replay the
+  // animation — the cause of the double-run)
+  const cb = useRef({ onPush, onDone });
+  cb.current = { onPush, onDone };
 
   useEffect(() => {
     const ctx = gsap.context(() => {
@@ -70,16 +75,16 @@ function RouteLoader({ onPush, onDone }: { onPush: () => void; onDone: () => voi
         .add(() => {
           if (!pushed.current) {
             pushed.current = true;
-            onPush();
+            cb.current.onPush();
           }
         })
         // reveal the new page
         .to(".rt-fade", { opacity: 0, y: -14, duration: 0.28, ease: "power2.in" }, "+=0.1")
         .to(".rt-overlay", { yPercent: -100, duration: 0.55 }, "-=0.04")
-        .add(() => onDone());
+        .add(() => cb.current.onDone());
     }, root);
     return () => ctx.revert();
-  }, [onPush, onDone]);
+  }, []);
 
   return (
     <div ref={root} className="fixed inset-0 z-[200]">

@@ -51,13 +51,6 @@ const FEATURES = [
   { icon: <Code2 size={18} />, title: "Code, not lock-in", body: "Nova edits your files, not a proprietary format. Leave any time with code that reads like you wrote it." },
 ];
 
-const WORKS = [
-  { name: "Landing pages", tag: "Marketing", grad: "from-[#ccff02]/25 to-[#0e0e11]" },
-  { name: "Component libraries", tag: "JSX / TSX", grad: "from-[#7af]/22 to-[#0e0e11]" },
-  { name: "Docs & content", tag: "Static HTML", grad: "from-[#f5a]/18 to-[#0e0e11]" },
-  { name: "Whole repositories", tag: "GitHub", grad: "from-white/12 to-[#0e0e11]" },
-];
-
 const PRICING = [
   {
     name: "Free",
@@ -298,23 +291,84 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* works with */}
+      {/* works with — bento */}
       <section id="works" className="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
-        <div className="reveal mb-12 flex items-end justify-between gap-6">
-          <h2 className="font-display text-[clamp(2rem,5vw,3.5rem)] font-semibold leading-none tracking-tightest">Built for real sites</h2>
-          <span className="hidden text-[13px] text-ink-3 sm:block">HTML · JSX · Tailwind</span>
+        <div className="reveal mb-12 max-w-2xl">
+          <p className="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><Boxes size={14} className="text-accent" /> Works with</p>
+          <h2 className="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+            Built for <span className="font-serif italic text-accent">real</span> codebases.
+          </h2>
+          <p className="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+            A marketing page, a component library, your docs, or a whole repo — Nova opens the code you already have. HTML · JSX · TSX · Tailwind.
+          </p>
         </div>
-        <div className="grid gap-5 sm:grid-cols-2">
-          {WORKS.map((w) => (
-            <div key={w.name} className="tile relative aspect-[16/9] overflow-hidden rounded-2xl border border-line">
-              <div className={`absolute inset-0 bg-gradient-to-br ${w.grad}`} />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,255,255,0.07),transparent_55%)]" />
-              <div className="relative flex h-full flex-col justify-between p-6 sm:p-8">
-                <span className="text-[12px] uppercase tracking-[0.2em] text-ink-2">{w.tag}</span>
-                <span className="font-display text-[clamp(1.6rem,5vw,2.8rem)] font-semibold tracking-tightest">{w.name}</span>
+
+        <div className="grid auto-rows-[176px] gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {/* landing pages — feature tile with a browser mockup */}
+          <div className="tile group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-accent/[0.06] to-bg p-6 sm:row-span-2 lg:col-span-2">
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(204,255,2,0.1),transparent_55%)]" />
+            <div className="relative overflow-hidden rounded-xl border border-line-2 bg-bg/80 shadow-2xl transition-transform duration-500 group-hover:-translate-y-1">
+              <div className="flex items-center gap-1.5 border-b border-line px-3 py-2">
+                <span className="h-2 w-2 rounded-full bg-[#ff5f57]" /><span className="h-2 w-2 rounded-full bg-[#febc2e]" /><span className="h-2 w-2 rounded-full bg-[#28c840]" />
+                <span className="ml-2 h-2.5 w-32 rounded bg-line" />
+              </div>
+              <div className="space-y-2.5 p-5">
+                <div className="h-2 w-14 rounded-full bg-accent/70" />
+                <div className="h-4 w-3/4 rounded bg-ink/70" />
+                <div className="h-4 w-1/2 rounded bg-ink/40" />
+                <div className="mt-3 h-7 w-24 rounded-full bg-accent" />
               </div>
             </div>
-          ))}
+            <div className="relative mt-5">
+              <span className="text-[11px] uppercase tracking-[0.2em] text-ink-3">Marketing</span>
+              <div className="font-display text-[22px] font-semibold tracking-tight">Landing pages</div>
+            </div>
+          </div>
+
+          {/* component libraries — swatches */}
+          <div className="tile group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6 lg:col-span-2">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="flex h-7 items-center rounded-full bg-accent px-3 text-[11px] font-semibold text-accent-ink">Button</span>
+              <span className="h-7 w-24 rounded-md border border-line-2 bg-bg" />
+              <span className="grid h-7 w-7 place-items-center rounded-md border border-line-2 text-ink-3"><Boxes size={13} /></span>
+              <span className="flex h-6 w-11 items-center rounded-full bg-line px-0.5"><span className="ml-auto h-5 w-5 rounded-full bg-accent" /></span>
+              <span className="h-7 w-16 rounded-md bg-raise" />
+              <span className="h-7 w-20 rounded-lg border border-dashed border-line-2" />
+            </div>
+            <div>
+              <span className="text-[11px] uppercase tracking-[0.2em] text-ink-3">JSX / TSX</span>
+              <div className="font-display text-[20px] font-semibold tracking-tight">Component libraries</div>
+            </div>
+          </div>
+
+          {/* docs — text lines */}
+          <div className="tile group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6">
+            <div className="space-y-2">
+              <div className="h-3 w-1/2 rounded bg-ink/60" />
+              <div className="h-2 w-full rounded bg-line" />
+              <div className="h-2 w-5/6 rounded bg-line" />
+              <div className="h-2 w-2/3 rounded bg-line" />
+            </div>
+            <div>
+              <span className="text-[11px] uppercase tracking-[0.2em] text-ink-3">Static HTML</span>
+              <div className="font-display text-[20px] font-semibold tracking-tight">Docs &amp; content</div>
+            </div>
+          </div>
+
+          {/* whole repositories — file tree */}
+          <div className="tile group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6">
+            <div className="space-y-1.5 font-mono text-[11px] text-ink-3">
+              <div className="flex items-center gap-1.5 text-ink-2"><GitBranch size={11} className="text-accent" /> main</div>
+              <div className="pl-3">src/</div>
+              <div className="pl-6 text-ink-2">App.tsx</div>
+              <div className="pl-6">styles.css</div>
+              <div className="pl-3">package.json</div>
+            </div>
+            <div>
+              <span className="text-[11px] uppercase tracking-[0.2em] text-ink-3">GitHub</span>
+              <div className="font-display text-[20px] font-semibold tracking-tight">Whole repositories</div>
+            </div>
+          </div>
         </div>
       </section>
 

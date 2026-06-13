@@ -271,6 +271,7 @@ owner/repo`}</pre>
                 ["Is Nova free?", "Yes — the editor is free and runs in your browser. The only cost is your own AI API usage, if you use the assistant."],
                 ["Do I need an account?", "During the alpha, yes — Nova is invite-only. Enter an invite code and sign in with an email magic link. Each member gets 10 invites to share (Settings → Account & invites)."],
                 ["What's cloud sync?", "An optional Pro feature: your projects back up to the cloud and sync in real-time across devices and browsers, with offline edits flushed when you reconnect. Everything still works locally without it."],
+                ["How much does Nova cost?", "Free forever for the editor (visual + code editing, run live, GitHub, and AI with your own key). Pro is $8/month and adds cloud backup + cross-device sync. Studio — a managed-AI tier where AI is included with no API key to manage — is coming soon."],
                 ["“Rate limit reached (no token).”", "Anonymous GitHub requests are limited. Connect GitHub in Settings and re-import."],
                 ["“No editable .html/.jsx/.tsx files.”", "Nova's canvas opens HTML/JSX/TSX. Check the branch, or full-clone to work with the whole project."],
                 ["The AI errors immediately.", "401 = bad key (re-check in Settings → AI); 429 = rate-limited / out of credit. Make sure the selected model's provider has a key (green dot in the picker)."],
