@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Square, StretchHorizontal, StretchVertical, Rows3, EyeOff,
-  CaseSensitive, Baseline,
+  CaseSensitive,
 } from "lucide-react";
 import { Copy, Trash2, X, Plus, Component as ComponentIcon } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
@@ -48,6 +48,8 @@ export default function Inspector() {
   const deleteNode = useEditor((s) => s.deleteNode);
   const updateProp = useEditor((s) => s.updateProp);
   const removeProp = useEditor((s) => s.removeProp);
+  const updateAttr = useEditor((s) => s.updateAttr);
+  const removeAttr = useEditor((s) => s.removeAttr);
 
   const node = find(tree, selectedId);
   const isHtml = files.find((f) => f.path === activePath)?.kind === "html";
@@ -55,6 +57,7 @@ export default function Inspector() {
   const isComponentInstance =
     !isHtml && !!node && /^[A-Z]/.test(node.tag) && node.tag !== "{expr}";
   const [s, setS] = useState<Record<string, string>>({});
+  const [tab, setTab] = useState<"style" | "settings">("style");
 
   const refresh = useCallback(() => {
     if (selectedId) readStyles(selectedId).then(setS);
@@ -92,43 +95,67 @@ export default function Inspector() {
 
   return (
     <div className="scroll-thin h-full overflow-y-auto pb-24">
-      {/* element header */}
-      <div className="sticky top-0 z-10 flex items-center justify-between border-b border-line bg-surface/80 px-3.5 py-2.5 backdrop-blur">
-        <div className="flex min-w-0 items-center gap-2">
-          <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">
-            {node.tag}
-          </span>
-          {node.classList[0] && (
-            <span className="truncate font-mono text-[11px] text-ink-3">.{node.classList[0]}</span>
-          )}
+      {/* element header + tabs (pinned) */}
+      <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur">
+        <div className="flex items-center justify-between border-b border-line px-3.5 py-2.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">
+              {node.tag}
+            </span>
+            {node.classList[0] && (
+              <span className="truncate font-mono text-[11px] text-ink-3">.{node.classList[0]}</span>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button onClick={() => duplicateNode(node.id)} title="Duplicate" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
+              <Copy size={13} />
+            </button>
+            <button onClick={() => deleteNode(node.id)} title="Delete" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-red-400">
+              <Trash2 size={13} />
+            </button>
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <button onClick={() => duplicateNode(node.id)} title="Duplicate" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
-            <Copy size={13} />
-          </button>
-          <button onClick={() => deleteNode(node.id)} title="Delete" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-red-400">
-            <Trash2 size={13} />
-          </button>
+        <div className="flex border-b border-line px-2">
+          {(["style", "settings"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`flex-1 border-b-2 py-2 text-[12px] font-medium capitalize transition-colors ${
+                tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink"
+              }`}
+            >
+              {t}
+            </button>
+          ))}
         </div>
       </div>
 
-      {isComponentInstance && (
-        <PropsPanel
+      {tab === "settings" ? (
+        <SettingsPanel
           node={node}
-          suggested={suggestedProps(files, node.tag)}
-          onSet={(name, v) => updateProp(node.id, name, v)}
-          onRemove={(name) => removeProp(node.id, name)}
+          isHtml={!!isHtml}
+          isComponentInstance={isComponentInstance}
+          files={files}
+          s={s}
+          setStyle={set}
+          onAttr={(name, v) => updateAttr(node.id, name, v)}
+          onRemoveAttr={(name) => removeAttr(node.id, name)}
+          onProp={(name, v) => updateProp(node.id, name, v)}
+          onRemoveProp={(name) => removeProp(node.id, name)}
         />
-      )}
-
-      {!isComponentInstance && !isHtml && (
-        <div className="border-b border-line bg-accent/[0.06] px-3.5 py-2 text-[11px] leading-relaxed text-accent/80">
-          JSX: style edits write to the element’s inline <span className="font-mono">style</span> object.
+      ) : isComponentInstance ? (
+        <div className="px-3.5 py-5 text-[12px] leading-relaxed text-ink-3">
+          <span className="font-mono text-accent">&lt;{node.tag}/&gt;</span> is a component instance — edit its props in the{" "}
+          <button onClick={() => setTab("settings")} className="font-medium text-accent hover:underline">Settings</button> tab.
         </div>
-      )}
-
-      {!isComponentInstance && (
+      ) : (
         <>
+          {!isHtml && (
+            <div className="border-b border-line bg-accent/[0.06] px-3.5 py-2 text-[11px] leading-relaxed text-accent/80">
+              JSX: style edits write to the element’s inline <span className="font-mono">style</span> object.
+            </div>
+          )}
+
           <Section title="Layout">
             <Field label="Display">
               <Segmented
@@ -312,33 +339,168 @@ export default function Inspector() {
               <TextInput value={s.boxShadow === "none" ? "" : s.boxShadow} onCommit={(v) => set("boxShadow", v)} placeholder="0 8px 24px rgba(0,0,0,.3)" mono />
             </Field>
           </Section>
+
+          <Section title="Classes" defaultOpen={!isHtml}>
+            <textarea
+              rows={2}
+              defaultValue={node.classList.join(" ")}
+              key={node.id + node.classList.join(" ")}
+              spellCheck={false}
+              onBlur={(e) => updateClassList(node.id, e.target.value.split(/\s+/).filter(Boolean))}
+              className="w-full resize-none rounded-md border border-line bg-bg p-2 font-mono text-[11px] leading-relaxed text-ink outline-none focus:border-accent/60"
+            />
+          </Section>
+
+          {node.children.length === 0 && (
+            <Section title="Content">
+              <textarea
+                rows={3}
+                defaultValue={node.textContent}
+                key={node.id + node.textContent}
+                onBlur={(e) => updateText(node.id, e.target.value)}
+                className="w-full resize-none rounded-md border border-line bg-bg p-2 text-[12px] leading-relaxed text-ink outline-none focus:border-accent/60"
+              />
+            </Section>
+          )}
         </>
       )}
+    </div>
+  );
+}
 
-      {!isComponentInstance && (
-        <Section title="Classes" defaultOpen={!isHtml}>
-          <textarea
-            rows={2}
-            defaultValue={node.classList.join(" ")}
-            key={node.id + node.classList.join(" ")}
-            spellCheck={false}
-            onBlur={(e) => updateClassList(node.id, e.target.value.split(/\s+/).filter(Boolean))}
-            className="w-full resize-none rounded-md border border-line bg-bg p-2 font-mono text-[11px] leading-relaxed text-ink outline-none focus:border-accent/60"
+/* ── Settings tab ────────────────────────────────────────────────────────── */
+const RESERVED_ATTRS = new Set(["id", "class", "className", "style", "href", "target", "rel", "alt", "src", "hidden"]);
+
+function SettingsPanel({
+  node, isHtml, isComponentInstance, files, s, setStyle, onAttr, onRemoveAttr, onProp, onRemoveProp,
+}: {
+  node: EditorNode;
+  isHtml: boolean;
+  isComponentInstance: boolean;
+  files: { path: string; content: string }[];
+  s: Record<string, string>;
+  setStyle: (prop: string, v: string) => void;
+  onAttr: (name: string, value: string) => void;
+  onRemoveAttr: (name: string) => void;
+  onProp: (name: string, value: string) => void;
+  onRemoveProp: (name: string) => void;
+}) {
+  // Component instances are configured through their props.
+  if (isComponentInstance) {
+    return (
+      <PropsPanel
+        node={node}
+        suggested={suggestedProps(files, node.tag)}
+        onSet={onProp}
+        onRemove={onRemoveProp}
+      />
+    );
+  }
+
+  const tag = node.tag.toLowerCase();
+  const isLink = tag === "a" || tag === "link";
+  const isImg = tag === "img" || tag === "image";
+
+  const attrVal = (name: string): string => {
+    if (isHtml) return node.attributes?.[name] ?? "";
+    const a = node.jsxAttrs?.find((x) => x.name === name);
+    return a && !a.isExpr ? a.value : "";
+  };
+
+  const hidden = baseKeyword(s.display) === "none";
+
+  const customAttrs: [string, string][] = isHtml
+    ? Object.entries(node.attributes || {}).filter(([k]) => !RESERVED_ATTRS.has(k) && !k.startsWith("data-wfc"))
+    : (node.jsxAttrs || [])
+        .filter((a) => !RESERVED_ATTRS.has(a.name) && !a.isExpr)
+        .map((a) => [a.name, a.value] as [string, string]);
+
+  return (
+    <>
+      <Section title="Element">
+        <Field label="ID">
+          <TextInput value={attrVal("id")} onCommit={(v) => onAttr("id", v)} placeholder="for in-page linking" mono />
+        </Field>
+        <Field label="Visibility">
+          <Segmented
+            value={hidden ? "hidden" : "visible"}
+            onChange={(v) => setStyle("display", v === "hidden" ? "none" : "")}
+            options={[
+              { value: "visible", label: "Visible" },
+              { value: "hidden", label: "Hidden" },
+            ]}
           />
+        </Field>
+      </Section>
+
+      {isLink && (
+        <Section title="Link">
+          <Field label="URL">
+            <TextInput value={attrVal("href")} onCommit={(v) => onAttr("href", v)} placeholder="https:// · /page · #anchor" mono />
+          </Field>
+          <Field label="Opens in">
+            <Segmented
+              value={attrVal("target") === "_blank" ? "new" : "same"}
+              onChange={(v) => {
+                if (v === "new") { onAttr("target", "_blank"); onAttr("rel", "noopener noreferrer"); }
+                else { onRemoveAttr("target"); onRemoveAttr("rel"); }
+              }}
+              options={[
+                { value: "same", label: "Same tab" },
+                { value: "new", label: "New tab" },
+              ]}
+            />
+          </Field>
         </Section>
       )}
 
-      {!isComponentInstance && node.children.length === 0 && (
-        <Section title="Content">
-          <textarea
-            rows={3}
-            defaultValue={node.textContent}
-            key={node.id + node.textContent}
-            onBlur={(e) => updateText(node.id, e.target.value)}
-            className="w-full resize-none rounded-md border border-line bg-bg p-2 text-[12px] leading-relaxed text-ink outline-none focus:border-accent/60"
-          />
+      {isImg && (
+        <Section title="Image">
+          <Field label="Source">
+            <TextInput value={attrVal("src")} onCommit={(v) => onAttr("src", v)} placeholder="image url" mono />
+          </Field>
+          <Field label="Alt text">
+            <TextInput value={attrVal("alt")} onCommit={(v) => onAttr("alt", v)} placeholder="describe the image" />
+          </Field>
         </Section>
       )}
+
+      <Section title="Custom attributes">
+        <AttrList attrs={customAttrs} onSet={onAttr} onRemove={onRemoveAttr} />
+      </Section>
+    </>
+  );
+}
+
+function AttrList({
+  attrs, onSet, onRemove,
+}: {
+  attrs: [string, string][];
+  onSet: (name: string, value: string) => void;
+  onRemove: (name: string) => void;
+}) {
+  const [name, setName] = useState("");
+  const [val, setVal] = useState("");
+  return (
+    <div className="flex flex-col gap-1.5">
+      {attrs.length === 0 && <p className="text-[12px] text-ink-3">None yet. Add data-* / aria-* attributes below.</p>}
+      {attrs.map(([k, v]) => (
+        <div key={k} className="flex items-center gap-1.5">
+          <span className="w-[72px] shrink-0 truncate font-mono text-[11px] text-ink-2" title={k}>{k}</span>
+          <div className="min-w-0 flex-1"><TextInput value={v} onCommit={(nv) => onSet(k, nv)} mono /></div>
+          <button onClick={() => onRemove(k)} title="Remove attribute" className="grid h-6 w-6 shrink-0 place-items-center rounded text-ink-3 hover:text-red-400"><X size={12} /></button>
+        </div>
+      ))}
+      <div className="flex gap-1 pt-1">
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="name" className="h-7 w-1/2 rounded-md border border-line bg-bg px-2 font-mono text-[11px] outline-none focus:border-accent/60" />
+        <input value={val} onChange={(e) => setVal(e.target.value)} placeholder="value" className="h-7 min-w-0 flex-1 rounded-md border border-line bg-bg px-2 text-[11px] outline-none focus:border-accent/60" />
+        <button
+          onClick={() => { if (name.trim()) { onSet(name.trim(), val); setName(""); setVal(""); } }}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-raise text-ink hover:bg-raise/70"
+        >
+          <Plus size={13} />
+        </button>
+      </div>
     </div>
   );
 }

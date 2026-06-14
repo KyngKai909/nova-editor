@@ -12,6 +12,7 @@ import {
   applyStyleToIframe,
   applyTextToIframe,
   applyClassToIframe,
+  applyAttrToIframe,
   setLeafText,
 } from "@/lib/canvasBridge";
 
@@ -64,6 +65,8 @@ interface EditorState {
   insertComponent: (componentPath: string, targetId: string, position: "before" | "after" | "inside") => void;
   updateProp: (id: string, name: string, value: string) => void;
   removeProp: (id: string, name: string) => void;
+  updateAttr: (id: string, name: string, value: string) => void;
+  removeAttr: (id: string, name: string) => void;
 
   notice: string | null;
   setNotice: (n: string | null) => void;
@@ -396,6 +399,41 @@ export const useEditor = create<EditorState>((set, get) => ({
     const newContent = removeJsxProp(file.content, node, name);
     updateContent(set, files, file.path, newContent);
     set({ tree: parseJsx(newContent), reloadKey: get().reloadKey + 1 });
+  },
+
+  // Set an HTML attribute (id, href, alt, data-*, …). JSX routes to prop editing.
+  updateAttr: (id, name, value) => {
+    const { files, activePath, tree, htmlDoc } = get();
+    const file = files.find((f) => f.path === activePath);
+    if (!file) return;
+    if (file.kind === "jsx") {
+      if (value === "") get().removeProp(id, name);
+      else get().updateProp(id, name, value);
+      return;
+    }
+    if (!htmlDoc) return;
+    const el = htmlDoc.querySelector(`[data-wfc-id="${id}"]`) as HTMLElement | null;
+    if (!el) return;
+    if (value === "") el.removeAttribute(name);
+    else el.setAttribute(name, value);
+    const node = findNode(tree, id);
+    if (node) {
+      const attrs = { ...node.attributes };
+      if (value === "") delete attrs[name];
+      else attrs[name] = value;
+      node.attributes = attrs;
+    }
+    applyAttrToIframe(id, name, value); // live, no reload
+    saveHtml(set, files, activePath, htmlDoc);
+    set({ tree: [...tree] });
+  },
+
+  removeAttr: (id, name) => {
+    const { files, activePath } = get();
+    const file = files.find((f) => f.path === activePath);
+    if (!file) return;
+    if (file.kind === "jsx") get().removeProp(id, name);
+    else get().updateAttr(id, name, "");
   },
 
   setNotice: (n) => set({ notice: n }),

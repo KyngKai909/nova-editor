@@ -98,6 +98,9 @@ export function applyTextToIframe(id: string, text: string) {
 export function applyClassToIframe(id: string, classStr: string) {
   post({ type: "wfc-class", id, classStr });
 }
+export function applyAttrToIframe(id: string, name: string, value: string) {
+  post({ type: "wfc-attr", id, name, value });
+}
 export function highlight(id: string | null) {
   post({ type: "wfc-sel", id });
 }
@@ -178,6 +181,7 @@ export const BRIDGE_SCRIPT = `
     else if(d.type==='wfc-peek'){ if(peekEl)peekEl.removeAttribute('data-wfc-peek'); peekEl=byId(d.id); if(peekEl)peekEl.setAttribute('data-wfc-peek','1'); }
     else if(d.type==='wfc-style'){ var n=byId(d.id); if(n){ if(d.value==='')n.style.removeProperty(kebab(d.prop)); else n.style.setProperty(kebab(d.prop),d.value); } }
     else if(d.type==='wfc-class'){ var n2=byId(d.id); if(n2){ if((d.classStr||'').trim())n2.setAttribute('class',d.classStr); else n2.removeAttribute('class'); } }
+    else if(d.type==='wfc-attr'){ var na=byId(d.id); if(na){ if(d.value==='')na.removeAttribute(d.name); else na.setAttribute(d.name,d.value); } }
     else if(d.type==='wfc-settext'){ var n3=byId(d.id); if(n3)setLeaf(n3,d.text); }
     else if(d.type==='wfc-getstyles'){ post({type:'wfc-styles',reqId:d.reqId,styles:computeStyles(d.id)}); }
   });
