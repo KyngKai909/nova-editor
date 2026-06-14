@@ -40,10 +40,16 @@ interface EditorState {
   previewMode: boolean;
   zoom: number;
   projectId: string | null;
+  // Collaboration: for a shared project, the cloud owner + this user's role.
+  // Own projects are "owner". Viewers can't edit; commentors can only comment.
+  ownerId: string | null;
+  role: "owner" | "editor" | "commentor" | "viewer";
   viewMode: "design" | "code" | "split";
   codeReveal: { path: string; line: number; ts: number } | null;
 
   loadFiles: (files: SourceFile[], assets?: AssetMap, baseHref?: string | null, projectId?: string | null) => void;
+  setCollab: (ownerId: string | null, role: "owner" | "editor" | "commentor" | "viewer") => void;
+  canEditDoc: () => boolean;
   selectFile: (path: string) => void;
   selectNode: (id: string | null) => void;
   hoverNode: (id: string | null) => void;
@@ -104,6 +110,8 @@ export const useEditor = create<EditorState>((set, get) => ({
   previewMode: false,
   zoom: 1,
   projectId: null,
+  ownerId: null,
+  role: "owner",
   viewMode: "design",
   codeReveal: null,
   notice: null,
@@ -113,7 +121,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const withCat = files.map((f) =>
       f.category ? f : { ...f, category: classifyFile(f.path, f.kind) }
     );
-    set({ files: withCat, assets, baseHref, projectId });
+    set({ files: withCat, assets, baseHref, projectId, ownerId: null, role: "owner" });
     const firstPage = withCat.find((f) => f.category === "page") || withCat[0];
     if (firstPage) get().selectFile(firstPage.path);
 
@@ -157,6 +165,12 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   selectNode: (id) => set({ selectedId: id }),
   hoverNode: (id) => set({ hoveredId: id }),
+
+  setCollab: (ownerId, role) => set({ ownerId, role }),
+  canEditDoc: () => {
+    const r = get().role;
+    return r === "owner" || r === "editor";
+  },
 
   setDevice: (d) => set({ device: d }),
   togglePreview: () => set({ previewMode: !get().previewMode, selectedId: null }),
@@ -217,6 +231,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   updateStyle: (id, prop, value) => {
+    if (!get().canEditDoc()) return;
     const { htmlDoc, files, activePath, tree, usesTailwind, device } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file) return;
@@ -255,6 +270,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   updateClassList: (id, classList) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, tree, htmlDoc } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file) return;
@@ -279,6 +295,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   updateText: (id, text) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, tree, htmlDoc } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file) return;
@@ -300,6 +317,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   deleteNode: (id) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, tree, htmlDoc } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file) return;
@@ -319,6 +337,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   duplicateNode: (id) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, tree, htmlDoc } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file) return;
@@ -342,6 +361,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   moveNode: (dragId, targetId, position) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, htmlDoc } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file || dragId === targetId) return;
@@ -358,6 +378,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   insertComponent: (componentPath, targetId, position) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, tree } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file || componentPath === activePath) return;
@@ -397,6 +418,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   // HTML pages insert into the live Document; JSX pages splice the snippet as
   // JSX (class → className, void elements self-closed).
   insertElement: (snippet, targetId, position) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, htmlDoc, tree } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file) return;
@@ -437,6 +459,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   updateProp: (id, name, value) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, tree } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file || file.kind !== "jsx") return;
@@ -448,6 +471,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   },
 
   removeProp: (id, name) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, tree } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file || file.kind !== "jsx") return;
@@ -460,6 +484,7 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   // Set an HTML attribute (id, href, alt, data-*, …). JSX routes to prop editing.
   updateAttr: (id, name, value) => {
+    if (!get().canEditDoc()) return;
     const { files, activePath, tree, htmlDoc } = get();
     const file = files.find((f) => f.path === activePath);
     if (!file) return;
@@ -508,6 +533,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   // the source (so exports stay clean) but pushes the blob URL to the live
   // iframe so it renders immediately; on reload, rewriteAssetUrls re-maps it.
   applyAsset: (repoPath, as = "auto") => {
+    if (!get().canEditDoc()) return;
     const { selectedId, tree, assets } = get();
     if (!selectedId) {
       get().setNotice("Select an element on the canvas first.");

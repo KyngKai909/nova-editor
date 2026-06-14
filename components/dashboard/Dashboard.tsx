@@ -1,8 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Plus, Loader2, Settings as SettingsIcon, GitBranch, FolderUp, Play, ArrowRight, BookOpen } from "lucide-react";
+import { Plus, Loader2, Settings as SettingsIcon, GitBranch, FolderUp, Play, ArrowRight, BookOpen, Users } from "lucide-react";
+
+const ROLE_TAG: Record<string, string> = {
+  editor: "bg-accent/15 text-accent",
+  commentor: "bg-blue-500/15 text-blue-300",
+  viewer: "bg-ink/10 text-ink-3",
+};
 import { useRouteTransition } from "@/components/transition/RouteTransition";
 import { useProjects, type ProjectRecord } from "@/store/projectsStore";
 import { useEditor } from "@/store/editorStore";
@@ -12,6 +18,8 @@ import { importRepoFilesAuth } from "@/lib/githubApi";
 import { reopenFolder } from "@/lib/deviceProject";
 import { toSourceFiles } from "@/lib/importUtils";
 import { deleteProjectAssets } from "@/lib/assetStore";
+import { useAuth } from "@/store/authStore";
+import { mySharedProjects, type SharedProject } from "@/lib/collab";
 import ProjectCard from "./ProjectCard";
 import NewProjectModal from "./NewProjectModal";
 import AccountChip from "@/components/github/AccountChip";
@@ -24,9 +32,26 @@ export default function Dashboard() {
   const addProject = useProjects((s) => s.addProject);
   const updateProject = useProjects((s) => s.updateProject);
   const loadFiles = useEditor((s) => s.loadFiles);
+  const setCollab = useEditor((s) => s.setCollab);
   const token = useGitHub((s) => s.token);
+  const signedIn = useAuth((s) => s.signedIn);
   const [showNew, setShowNew] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
+  const [shared, setShared] = useState<SharedProject[]>([]);
+
+  // Projects others have shared with me (cloud-primary, RBAC-tagged).
+  useEffect(() => {
+    if (!signedIn) { setShared([]); return; }
+    mySharedProjects().then(setShared).catch(() => {});
+  }, [signedIn]);
+
+  const openShared = (sp: SharedProject) => {
+    const rec = sp.data;
+    if (!rec?.files?.length) { alert("This shared project hasn't synced yet — ask the owner to open it once."); return; }
+    loadFiles(rec.files, {}, rec.baseHref ?? null, sp.project_id);
+    setCollab(sp.owner_id, sp.role);
+    navigate("/editor");
+  };
 
   const openProject = async (p: ProjectRecord) => {
     setOpening(p.id);
@@ -155,6 +180,29 @@ export default function Dashboard() {
             </div>
           ))}
         </div>
+        )}
+
+        {shared.length > 0 && (
+          <section className="mt-12">
+            <h2 className="font-display text-[20px] font-semibold tracking-tight">Shared with you</h2>
+            <p className="mt-1 text-[13px] text-ink-3">Projects others invited you to — these live in the cloud.</p>
+            <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {shared.map((sp) => (
+                <button
+                  key={sp.owner_id + sp.project_id}
+                  onClick={() => openShared(sp)}
+                  className="group relative flex h-full min-h-[140px] flex-col justify-between rounded-2xl border border-line bg-surface/40 p-5 text-left transition-colors hover:border-accent/40"
+                >
+                  <span className={`absolute right-4 top-4 rounded-full px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide ${ROLE_TAG[sp.role] || ROLE_TAG.viewer}`}>{sp.role}</span>
+                  <Users size={18} className="text-ink-3" />
+                  <div>
+                    <div className="truncate font-display text-[16px] font-semibold tracking-tight text-ink">{sp.name || "Untitled project"}</div>
+                    <div className="mt-1 flex items-center gap-1 text-[12px] text-ink-3 transition-colors group-hover:text-accent">Open <ArrowRight size={13} /></div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
         )}
       </main>
 

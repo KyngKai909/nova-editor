@@ -65,6 +65,8 @@ export default function Inspector() {
   const removeAttr = useEditor((s) => s.removeAttr);
   const assets = useEditor((s) => s.assets);
   const applyAsset = useEditor((s) => s.applyAsset);
+  const docRole = useEditor((s) => s.role);
+  const canEdit = docRole === "owner" || docRole === "editor";
   const projectId = useEditor((s) => s.projectId);
   const commentsByProject = useComments((s) => s.byProject);
   const setPanelOpen = useComments((s) => s.setPanelOpen);
@@ -128,10 +130,14 @@ export default function Inspector() {
             <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">{node.tag}</span>
             {node.classList[0] && <span className="truncate font-mono text-[11px] text-ink-3">.{node.classList[0]}</span>}
           </div>
-          <div className="flex shrink-0 items-center gap-0.5">
-            <button onClick={() => duplicateNode(node.id)} title="Duplicate" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink"><Copy size={13} /></button>
-            <button onClick={() => deleteNode(node.id)} title="Delete" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-red-400"><Trash2 size={13} /></button>
-          </div>
+          {canEdit ? (
+            <div className="flex shrink-0 items-center gap-0.5">
+              <button onClick={() => duplicateNode(node.id)} title="Duplicate" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink"><Copy size={13} /></button>
+              <button onClick={() => deleteNode(node.id)} title="Delete" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-red-400"><Trash2 size={13} /></button>
+            </div>
+          ) : (
+            <span className="shrink-0 rounded bg-ink/10 px-1.5 py-0.5 text-[10px] text-ink-3">view only</span>
+          )}
         </div>
       ) : (
         <div className="flex h-7 items-center px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
@@ -639,6 +645,7 @@ function CommentsPanel({
   const setFocused = useComments((s) => s.setFocused);
   const pending = useComments((s) => s.pending);
   const setPending = useComments((s) => s.setPending);
+  const role = useEditor((s) => s.role);
   const [draft, setDraft] = useState("");
   const rows = useRef<Record<string, HTMLDivElement | null>>({});
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -679,7 +686,9 @@ function CommentsPanel({
     <div>
       {/* composer */}
       <div className="border-b border-line p-3">
-        {anchor ? (
+        {role === "viewer" ? (
+          <p className="text-[12px] leading-relaxed text-ink-3">You have view-only access — you can read comments but not add them.</p>
+        ) : anchor ? (
           <>
             <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-ink-3">
               On <span className="truncate rounded bg-accent/15 px-1.5 py-0.5 font-mono text-accent">{anchor.label}</span>

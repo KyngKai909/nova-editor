@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { stripe, isStripeConfigured, STRIPE_PRICE_ID } from "@/lib/stripe";
+import { stripe, isStripeConfigured, STRIPE_PRICE_ID, STRIPE_STUDIO_PRICE_ID } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { getUserFromRequest } from "@/lib/apiAuth";
 
@@ -14,6 +14,14 @@ export async function POST(req: Request) {
 
   const user = await getUserFromRequest(req);
   if (!user) return NextResponse.json({ error: "Please sign in first." }, { status: 401 });
+
+  // Which plan to subscribe to (defaults to Pro).
+  const reqBody = await req.json().catch(() => ({}));
+  const wantsStudio = reqBody?.plan === "studio";
+  const priceId = wantsStudio ? STRIPE_STUDIO_PRICE_ID : STRIPE_PRICE_ID;
+  if (!priceId) {
+    return NextResponse.json({ error: `${wantsStudio ? "Studio" : "Pro"} plan is not configured.` }, { status: 503 });
+  }
 
   const admin = supabaseAdmin();
   const { data: profile } = await admin
@@ -38,7 +46,7 @@ export async function POST(req: Request) {
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
-    line_items: [{ price: STRIPE_PRICE_ID!, quantity: 1 }],
+    line_items: [{ price: priceId, quantity: 1 }],
     allow_promotion_codes: true,
     client_reference_id: user.id,
     // Carry the user id onto the subscription so later webhook events resolve it.

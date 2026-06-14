@@ -79,13 +79,15 @@ export default function AccountSettings() {
     setTimeout(() => setCopied((c) => (c === code ? null : c)), 1500);
   };
 
-  const isPro = profile.plan === "pro" || profile.is_admin;
+  const isStudio = profile.plan === "studio" || profile.is_admin;
+  const isPro = profile.plan === "pro" || isStudio;
+  const planLabel = isStudio ? "Studio" : profile.plan === "pro" ? "Pro" : "Free";
 
-  const upgrade = async () => {
+  const upgrade = async (plan: "pro" | "studio" = "pro") => {
     setBillingErr(null);
     setBillingBusy(true);
     // On success this redirects to Stripe, so we only clear busy on failure.
-    try { await startCheckout(); } catch (e: any) { setBillingErr(e?.message || "Could not start checkout."); setBillingBusy(false); }
+    try { await startCheckout(plan); } catch (e: any) { setBillingErr(e?.message || "Could not start checkout."); setBillingBusy(false); }
   };
 
   const manage = async () => {
@@ -105,7 +107,7 @@ export default function AccountSettings() {
           <div className="min-w-0">
             <div className="text-[14px] font-medium text-ink">{email || "Signed in"}</div>
             <div className="mt-0.5 text-[12px] text-ink-3">
-              Plan: <span className="text-ink-2">{profile.plan === "pro" ? "Pro" : "Free"}</span>
+              Plan: <span className="text-ink-2">{planLabel}</span>
               {profile.is_admin && <span className="ml-2 rounded bg-accent/15 px-1.5 py-0.5 text-[10px] text-accent">admin</span>}
             </div>
           </div>
@@ -120,32 +122,36 @@ export default function AccountSettings() {
             <div className="flex items-center justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex items-center gap-2 text-[14px] font-medium text-ink">
-                  <Zap size={14} className="text-accent" /> {isPro ? "Pro plan" : "Upgrade to Pro"}
+                  <Zap size={14} className="text-accent" /> {isPro ? `${planLabel} plan` : "Upgrade your plan"}
                 </div>
                 <div className="mt-0.5 max-w-md text-[12.5px] leading-relaxed text-ink-3">
-                  {isPro
-                    ? "Cloud backup and real-time sync across your devices are active."
-                    : "Back up your projects to the cloud and sync them in real-time across devices — $8/mo."}
+                  {isStudio
+                    ? "Cloud sync + invite editor collaborators to work on your projects."
+                    : profile.plan === "pro"
+                    ? "Cloud sync is active. Upgrade to Studio to invite editor collaborators."
+                    : "Pro ($8/mo) adds cloud backup + sync. Studio adds editor collaboration."}
                 </div>
               </div>
               {profile.is_admin ? (
-                <span className="shrink-0 rounded-full border border-line bg-bg px-2.5 py-1 text-[12px] text-accent">Pro · admin</span>
-              ) : isPro ? (
-                <button
-                  onClick={manage}
-                  disabled={billingBusy}
-                  className="flex shrink-0 items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-raise disabled:opacity-60"
-                >
-                  {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />} Manage
-                </button>
+                <span className="shrink-0 rounded-full border border-line bg-bg px-2.5 py-1 text-[12px] text-accent">Studio · admin</span>
               ) : (
-                <button
-                  onClick={upgrade}
-                  disabled={billingBusy}
-                  className="flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-60"
-                >
-                  {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />} Upgrade — $8/mo
-                </button>
+                <div className="flex shrink-0 items-center gap-1.5">
+                  {isPro && (
+                    <button onClick={manage} disabled={billingBusy} className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-raise disabled:opacity-60">
+                      {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />} Manage
+                    </button>
+                  )}
+                  {!isStudio && !isPro && (
+                    <button onClick={() => upgrade("pro")} disabled={billingBusy} className="rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-raise disabled:opacity-60">
+                      Pro · $8/mo
+                    </button>
+                  )}
+                  {!isStudio && (
+                    <button onClick={() => upgrade("studio")} disabled={billingBusy} className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-60">
+                      {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />} {isPro ? "Get Studio" : "Studio"}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
             {billingNote && <p className="mt-2 text-[12px] text-accent">{billingNote}</p>}

@@ -1,15 +1,21 @@
 "use client";
 
+import { useState } from "react";
 import {
   Monitor, Tablet, Smartphone, Eye, Pencil, Minus, Plus,
   PanelLeft, PanelRight, Upload, ArrowLeft, Code2, Columns2, LayoutGrid, HardDrive, Play, Sparkles,
+  Users,
 } from "lucide-react";
 import Link from "next/link";
 import { useEditor, DEVICE_WIDTH, type Device } from "@/store/editorStore";
 import { useProjects } from "@/store/projectsStore";
 import { useAi } from "@/store/aiStore";
+import { isSupabaseConfigured } from "@/lib/supabase";
 import { useRouteTransition } from "@/components/transition/RouteTransition";
 import GitBar from "@/components/github/GitBar";
+import CollaboratorsModal from "@/components/collab/CollaboratorsModal";
+
+const ROLE_LABEL: Record<string, string> = { editor: "Editor", commentor: "Commenter", viewer: "Viewer" };
 
 const DEVICES: { id: Device; icon: React.ReactNode; label: string }[] = [
   { id: "desktop", icon: <Monitor size={15} />, label: "Desktop" },
@@ -45,7 +51,10 @@ export default function TopBar({
   const setViewMode = useEditor((s) => s.setViewMode);
   const aiOpen = useAi((s) => s.open);
   const setAiOpen = useAi((s) => s.setOpen);
+  const role = useEditor((s) => s.role);
+  const [shareOpen, setShareOpen] = useState(false);
   const changed = files.filter((f) => f.content !== f.original).length;
+  const canShare = isSupabaseConfigured() && role === "owner" && !!projectId;
 
   const VIEWS = [
     { id: "design" as const, icon: <LayoutGrid size={14} />, label: "Design" },
@@ -168,6 +177,20 @@ export default function TopBar({
           {previewMode ? <Pencil size={13} /> : <Eye size={13} />}
           <span className="hidden sm:inline">{previewMode ? "Edit" : "Preview"}</span>
         </button>
+        {canShare && (
+          <button
+            onClick={() => setShareOpen(true)}
+            title="Invite collaborators"
+            className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2.5 text-[12px] font-medium text-ink-2 transition-colors hover:bg-raise hover:text-ink"
+          >
+            <Users size={13} /> <span className="hidden lg:inline">Share</span>
+          </button>
+        )}
+        {role !== "owner" && (
+          <span title={`You have ${ROLE_LABEL[role] || role} access`} className="flex h-7 items-center gap-1.5 rounded-md border border-accent/40 bg-accent/10 px-2.5 text-[11px] font-medium text-accent">
+            <Users size={12} /> {ROLE_LABEL[role] || role}
+          </span>
+        )}
         <button
           onClick={onToggleRight}
           className={`grid h-7 w-7 place-items-center rounded-md transition-colors hover:bg-raise ${right ? "text-ink" : "text-ink-3"}`}
@@ -183,6 +206,8 @@ export default function TopBar({
           <span className="hidden sm:inline">Publish{changed ? ` (${changed})` : ""}</span>
         </button>
       </div>
+
+      {shareOpen && <CollaboratorsModal onClose={() => setShareOpen(false)} />}
     </header>
   );
 }

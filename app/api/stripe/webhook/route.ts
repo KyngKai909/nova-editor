@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
-import { stripe, STRIPE_WEBHOOK_SECRET } from "@/lib/stripe";
+import { stripe, STRIPE_WEBHOOK_SECRET, planForPrice } from "@/lib/stripe";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -12,7 +12,7 @@ const PRO_STATUSES = new Set(["active", "trialing"]);
 
 async function setPlan(
   customerId: string,
-  opts: { userId?: string; plan: "free" | "pro"; status: string | null }
+  opts: { userId?: string; plan: "free" | "pro" | "studio"; status: string | null }
 ) {
   const admin = supabaseAdmin();
   const patch = { plan: opts.plan, plan_status: opts.status };
@@ -49,20 +49,23 @@ export async function POST(req: Request) {
         const userId = session.metadata?.user_id || session.client_reference_id || undefined;
         const customerId = session.customer as string;
         let status: string | null = null;
+        let priceId: string | undefined;
         if (session.subscription) {
           const sub = await stripe.subscriptions.retrieve(session.subscription as string);
           status = sub.status;
+          priceId = sub.items.data[0]?.price?.id;
         }
-        const plan = (status && PRO_STATUSES.has(status)) || session.payment_status === "paid" ? "pro" : "free";
-        await setPlan(customerId, { userId, plan, status });
+        const active = (status && PRO_STATUSES.has(status)) || session.payment_status === "paid";
+        await setPlan(customerId, { userId, plan: active ? planForPrice(priceId) : "free", status });
         break;
       }
       case "customer.subscription.created":
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
+        const priceId = sub.items.data[0]?.price?.id;
         await setPlan(sub.customer as string, {
           userId: sub.metadata?.user_id || undefined,
-          plan: PRO_STATUSES.has(sub.status) ? "pro" : "free",
+          plan: PRO_STATUSES.has(sub.status) ? planForPrice(priceId) : "free",
           status: sub.status,
         });
         break;

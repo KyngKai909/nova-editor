@@ -6,11 +6,17 @@ import Stripe from "stripe";
 // reach the browser.
 const secret = process.env.STRIPE_SECRET_KEY;
 
-export const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;
+export const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;            // Pro
+export const STRIPE_STUDIO_PRICE_ID = process.env.STRIPE_STUDIO_PRICE_ID; // Studio
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
 export function isStripeConfigured(): boolean {
   return !!(secret && STRIPE_PRICE_ID);
+}
+
+// Map a Stripe price id to the plan it grants.
+export function planForPrice(priceId: string | undefined | null): "pro" | "studio" {
+  return priceId && STRIPE_STUDIO_PRICE_ID && priceId === STRIPE_STUDIO_PRICE_ID ? "studio" : "pro";
 }
 
 // Pin to the SDK's bundled API version (omitting apiVersion) so upgrades are

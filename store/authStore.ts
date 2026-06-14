@@ -44,6 +44,9 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({ signedIn: !!session, email });
       if (session) {
         await get().refreshProfile();
+        // Activate any project invites that were sent to this email before they
+        // had an account (no-op if there are none / the table doesn't exist yet).
+        supabase!.rpc("link_collaborations").then(() => {}, () => {});
         // After a "Connect GitHub" OAuth redirect, the GitHub access token
         // arrives here as provider_token — capture it for repo access.
         if (session.provider_token) {
