@@ -58,7 +58,8 @@ export default function AiPanel() {
   const hasKey = !!keys[selected.provider];
 
   // on-device (Nova Lite) state
-  const [gpu, setGpu] = useState<"checking" | "ok" | "no">("checking");
+  const [gpu, setGpu] = useState<"checking" | "ok" | "no-webgpu" | "no-adapter">("checking");
+  const [forceGpu, setForceGpu] = useState(false); // "Try anyway" escape hatch
   const [load, setLoad] = useState<LoadProgress | null>(null);
   const [localReady, setLocalReady] = useState(false);
 
@@ -66,9 +67,14 @@ export default function AiPanel() {
     setLocalReady(localEngineReady());
     if (!isLocal) return;
     let alive = true;
-    webgpuStatus().then((s) => alive && setGpu(s === "ok" ? "ok" : "no"));
+    webgpuStatus().then((s) => alive && setGpu(s));
     return () => { alive = false; };
   }, [isLocal]);
+
+  // We can attempt on-device whenever a GPU adapter exists — or the user forced
+  // it. Only a total lack of WebGPU is a hard block.
+  const gpuOk = forceGpu || gpu === "ok" || gpu === "no-adapter";
+  const gpuHardBlocked = isLocal && gpu === "no-webgpu" && !forceGpu;
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -76,12 +82,12 @@ export default function AiPanel() {
 
   if (!open) return null;
 
-  const canSend = !!input.trim() && !busy && !!projectId && !isSoon && !(isLocal && gpu === "no") && (isLocal || hasKey);
+  const canSend = !!input.trim() && !busy && !!projectId && !isSoon && (isLocal ? gpuOk : hasKey);
 
   const send = async () => {
     const text = input.trim();
     if (!text || busy || !projectId || isSoon) return;
-    if (isLocal && gpu === "no") return;
+    if (isLocal && !gpuOk) return;
     setInput("");
     setError(null);
     setBusy(true);
@@ -162,12 +168,12 @@ export default function AiPanel() {
       <div ref={scrollRef} className="scroll-thin relative flex-1 overflow-auto px-3 py-4">
         {isSoon ? (
           <ComingSoon label={mdef?.label || "This model"} />
-        ) : isLocal && gpu === "no" ? (
-          <GpuUnsupported />
+        ) : gpuHardBlocked ? (
+          <GpuUnsupported onTryAnyway={() => setForceGpu(true)} />
         ) : !isLocal && !hasKey ? (
           <ConnectKey brand={prov?.brand} />
         ) : messages.length === 0 ? (
-          <EmptyState isLocal={isLocal} localReady={localReady} onPick={setInput} />
+          <EmptyState isLocal={isLocal} localReady={localReady} noAdapter={isLocal && gpu === "no-adapter"} onPick={setInput} />
         ) : (
           <div className="flex flex-col gap-3">
             {messages.map((m, i) => {
@@ -233,10 +239,10 @@ export default function AiPanel() {
             rows={1}
             placeholder={
               isSoon ? `${mdef?.label} is coming soon`
-                : isLocal ? (gpu === "no" ? "Needs a WebGPU browser" : "Ask Nova Lite to change something…")
+                : isLocal ? (gpuHardBlocked ? "Needs a WebGPU browser" : "Ask Nova Lite to change something…")
                 : hasKey ? "Ask Nova to change something…" : "Add an API key to start"
             }
-            disabled={!projectId || isSoon || (isLocal ? gpu === "no" : !hasKey)}
+            disabled={!projectId || isSoon || (isLocal ? !gpuOk : !hasKey)}
             className="max-h-32 min-h-[24px] flex-1 resize-none self-center bg-transparent text-[13px] leading-6 text-ink outline-none placeholder:text-ink-3 disabled:opacity-50"
           />
           {busy ? (
@@ -281,10 +287,15 @@ function DownloadProgress({ load }: { load: LoadProgress }) {
   );
 }
 
-function EmptyState({ isLocal, localReady, onPick }: { isLocal: boolean; localReady: boolean; onPick: (s: string) => void }) {
+function EmptyState({ isLocal, localReady, noAdapter, onPick }: { isLocal: boolean; localReady: boolean; noAdapter?: boolean; onPick: (s: string) => void }) {
   const suggestions = ["Make the hero headline bigger and bolder", "Add a dark footer with social links", "Change the primary button color to blue"];
   return (
     <div className="mt-2 text-center text-[12.5px] leading-relaxed text-ink-3">
+      {isLocal && noAdapter && (
+        <div className="mx-auto mb-3 max-w-[290px] rounded-xl border border-amber-400/30 bg-amber-400/10 p-3 text-left text-[11.5px] leading-relaxed text-amber-200/90">
+          We couldn&apos;t detect a GPU. Nova Lite may still work — if it fails, turn on <b>hardware acceleration</b> in your browser settings and reload, or check <span className="font-mono">chrome://gpu</span>.
+        </div>
+      )}
       {isLocal && !localReady && (
         <div className="mx-auto mb-4 max-w-[290px] rounded-xl border border-line bg-bg p-4 text-left">
           <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink"><Cpu size={14} className="text-accent" /> Nova Lite runs on your device</span>
@@ -327,16 +338,19 @@ function ConnectKey({ brand }: { brand?: string }) {
   );
 }
 
-function GpuUnsupported() {
+function GpuUnsupported({ onTryAnyway }: { onTryAnyway: () => void }) {
   return (
     <div className="mx-auto mt-6 max-w-[290px] rounded-xl border border-line bg-bg p-5 text-center">
       <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-amber-400/15 text-amber-300"><Cpu size={18} /></span>
-      <h3 className="mt-3 font-display text-[15px] font-semibold">Nova Lite needs WebGPU</h3>
+      <h3 className="mt-3 font-display text-[15px] font-semibold">WebGPU isn&apos;t available</h3>
       <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
-        This browser can&apos;t run on-device AI. Nova Lite works in recent Chrome, Edge, or Arc (and Safari 18+).
+        Nova Lite needs WebGPU. In Chrome/Edge/Arc, turn on <b className="text-ink">hardware acceleration</b> (Settings → System) and reload — or check <span className="font-mono text-[11px]">chrome://gpu</span>. Safari needs 18+.
       </p>
-      <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-        Meanwhile you can add your own API key in Settings to use Claude, GPT, and others.
+      <button onClick={onTryAnyway} className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-line px-3.5 py-1.5 text-[12px] font-medium text-ink-2 transition-colors hover:bg-raise hover:text-ink">
+        Try anyway
+      </button>
+      <p className="mt-3 text-[11px] leading-relaxed text-ink-3">
+        Or add your own API key in Settings to use Claude, GPT, and others.
       </p>
     </div>
   );

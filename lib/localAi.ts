@@ -3,11 +3,10 @@
 // the browser cache, then every prompt runs locally on their GPU. We host
 // nothing and no prompt ever leaves the device.
 //
-// Small local models are unreliable at sprawling multi-tool agent loops, so
-// instead of the remote agent's read/write/search tools we use a *constrained
-// single-file edit*: we hand the model the active file and ask for a JSON reply
-// that's either an answer or the complete new contents of one file, then apply
-// it deterministically. That's the reliable way to get real edits out of a 3B.
+// For snappiness we (1) STREAM tokens so output appears immediately, and
+// (2) make edits with a search/replace patch instead of regenerating the whole
+// file — so a small change writes a few lines, not thousands. Streaming also
+// makes Stop instant: interrupting ends the token loop mid-flight.
 
 import { fileKind } from "@/lib/importUtils";
 import type { AiBlock, AiMessage } from "@/store/aiStore";
@@ -26,13 +25,15 @@ let loadedModel: string | null = null;
 
 export type GpuStatus = "ok" | "no-webgpu" | "no-adapter";
 
-// Is WebGPU usable in this browser? (Chrome/Edge/Arc yes; Safari shipping;
-// Firefox behind a flag.) We don't WASM-fallback — too slow for chat.
+// What's the WebGPU situation? "no-webgpu" = the browser has no WebGPU at all
+// (old browser / disabled); "no-adapter" = the API exists but no GPU was handed
+// out (often hardware acceleration is off, or the GPU is blocklisted).
 export async function webgpuStatus(): Promise<GpuStatus> {
   const gpu = typeof navigator !== "undefined" ? (navigator as any).gpu : undefined;
   if (!gpu) return "no-webgpu";
   try {
-    const adapter = await gpu.requestAdapter();
+    const adapter = await gpu.requestAdapter({ powerPreference: "high-performance" }).catch(() => null)
+      || await gpu.requestAdapter().catch(() => null);
     return adapter ? "ok" : "no-adapter";
   } catch {
     return "no-adapter";
@@ -85,36 +86,76 @@ export async function interruptLocal(): Promise<void> {
   }
 }
 
-const clip = (s: string, max: number) => (s.length > max ? s.slice(0, max) + "\n/* …truncated for Nova Lite… */" : s);
+const clip = (s: string, max: number) => (s.length > max ? s.slice(0, max) + "\n<!-- …truncated for Nova Lite… -->" : s);
 
-function safeParseJson(raw: string): any | null {
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    // models sometimes wrap JSON in prose or a ```json fence — grab the object
-    const m = raw.match(/\{[\s\S]*\}/);
-    if (m) {
-      try {
-        return JSON.parse(m[0]);
-      } catch {
-        /* give up */
-      }
-    }
-    return null;
-  }
-}
+const SYSTEM = `You are Nova Lite, a fast on-device coding assistant inside a browser visual web IDE. The user's project is open and the active file is shown to you.
 
-const SYSTEM = `You are Nova Lite, a small on-device coding assistant inside a browser visual web IDE. The user's project is already open.
+To ANSWER a question or explain something, reply briefly in plain text.
 
-Reply with ONE JSON object and nothing else, in this shape:
-{"action":"answer"|"edit","summary":"<1-2 sentences>","path":"<file>","content":"<full new file>"}
+To CHANGE a file, output one or more patch blocks in EXACTLY this format (and nothing else inside them):
+@@ <file path>
+<<<<<<< SEARCH
+<a few exact lines copied verbatim from the file, including indentation>
+=======
+<the replacement lines>
+>>>>>>> REPLACE
 
 Rules:
-- Use "edit" to change a file: set "path" to one of the editable files and put the COMPLETE new file contents in "content" (never a diff or a fragment). Preserve the existing structure, imports and style; make the smallest correct change.
-- Only .html, .jsx and .tsx files are editable. If a request needs anything else, use "answer" and say so.
-- Use "answer" for questions or when no edit is needed; omit "path"/"content".
-- Keep "summary" short. Do not include markdown fences or any text outside the JSON object.`;
+- Copy the SEARCH lines exactly as they appear so they can be found. Keep each block small — just the lines you change plus a little surrounding context.
+- Only edit .html, .jsx or .tsx files. You may write one short sentence before the patch blocks.
+- Make the smallest change that satisfies the request. Output multiple blocks for multiple edits.`;
+
+// Parse search/replace patch blocks out of a model reply.
+const PATCH_RE = /@@[ \t]*(.+?)[ \t]*\r?\n<<<<<<<[ \t]*SEARCH\r?\n([\s\S]*?)\r?\n=======\r?\n([\s\S]*?)\r?\n>>>>>>>[ \t]*REPLACE/g;
+
+interface Patch { path: string; search: string; replace: string; }
+
+function parsePatches(text: string): Patch[] {
+  const out: Patch[] = [];
+  let m: RegExpExecArray | null;
+  PATCH_RE.lastIndex = 0;
+  while ((m = PATCH_RE.exec(text))) out.push({ path: m[1].trim(), search: m[2], replace: m[3] });
+  return out;
+}
+
+// Strip patch blocks (and any half-streamed trailing block) from the prose.
+function prose(text: string): string {
+  return text.replace(PATCH_RE, "").replace(/@@[ \t]*.+[\s\S]*$/g, "").trim();
+}
+
+// Apply one patch to a file's content, tolerating minor whitespace drift.
+function applyPatch(content: string, search: string, replace: string): string | null {
+  if (content.includes(search)) return content.replace(search, replace);
+  const sTrim = search.trim();
+  if (sTrim && content.includes(sTrim)) return content.replace(sTrim, replace.trim());
+  // last resort: match ignoring trailing whitespace per line
+  const norm = (s: string) => s.split("\n").map((l) => l.replace(/\s+$/, "")).join("\n");
+  const nc = norm(content);
+  const ns = norm(search);
+  const i = nc.indexOf(ns);
+  if (i >= 0) {
+    // map back to original by line count
+    const before = nc.slice(0, i).split("\n").length - 1;
+    const lines = content.split("\n");
+    const count = ns.split("\n").length;
+    lines.splice(before, count, ...replace.split("\n"));
+    return lines.join("\n");
+  }
+  return null;
+}
+
+// Live transcript blocks while streaming: show prose, and a compact "writing…"
+// chip for any patch block (so the user doesn't watch raw diff markers).
+function liveBlocks(text: string): AiBlock[] {
+  const blocks: AiBlock[] = [];
+  const p = prose(text);
+  if (p) blocks.push({ type: "text", text: p });
+  // count patch starts (even partial) for a progress hint
+  const starts = (text.match(/@@[ \t]*(.+)/g) || []).map((s) => s.replace(/@@[ \t]*/, "").trim());
+  for (const path of starts) blocks.push({ type: "tool_use", name: "write_file", input: { path } });
+  if (!blocks.length) blocks.push({ type: "text", text: "…" });
+  return blocks;
+}
 
 // Run one Nova Lite turn against the live editor (canvas auto-syncs on write).
 export async function runLocalAgent(opts: {
@@ -129,8 +170,8 @@ export async function runLocalAgent(opts: {
   const ed = useEditor.getState();
 
   // record the user's message right away so it shows in the transcript
-  let messages: AiMessage[] = [...ai.getMessages(projectId), { role: "user", content: [{ type: "text", text: userText }] }];
-  ai.setMessages(projectId, messages);
+  const base: AiMessage[] = [...ai.getMessages(projectId), { role: "user", content: [{ type: "text", text: userText }] }];
+  ai.setMessages(projectId, base);
 
   const engine = await getLocalEngine(onProgress);
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
@@ -141,41 +182,79 @@ export async function runLocalAgent(opts: {
     ? `Editable files:\n${fileList}\n\nActive file — ${active.path}:\n\`\`\`\n${clip(active.content, 8000)}\n\`\`\``
     : `Editable files:\n${fileList}\n\n(No file is currently open.)`;
 
-  const completion = await engine.chat.completions.create({
+  // STREAM the reply so tokens appear as they're produced.
+  const stream = await engine.chat.completions.create({
     messages: [
       { role: "system", content: SYSTEM },
       { role: "user", content: `${context}\n\nRequest: ${userText}` },
     ],
     temperature: 0.2,
-    max_tokens: 3072,
-    response_format: { type: "json_object" },
+    max_tokens: 2048,
+    stream: true,
   });
 
-  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  let acc = "";
+  let lastFlush = 0;
+  const flush = (force = false) => {
+    const now = Date.now();
+    if (!force && now - lastFlush < 50) return;
+    lastFlush = now;
+    ai.setMessages(projectId, [...base, { role: "assistant", content: liveBlocks(acc) }]);
+  };
 
-  const raw: string = completion?.choices?.[0]?.message?.content ?? "";
-  const parsed = safeParseJson(raw);
-  const blocks: AiBlock[] = [];
-
-  if (parsed?.action === "edit" && typeof parsed.path === "string" && typeof parsed.content === "string") {
-    const path = parsed.path.trim();
-    const editable = !!ed.files.find((f) => f.path === path) || !!fileKind(path);
-    if (editable) {
-      ed.upsertFile(path, parsed.content);
-      blocks.push({ type: "text", text: parsed.summary || `Edited ${path}.` });
-      blocks.push({ type: "tool_use", name: "write_file", input: { path } });
-    } else {
-      blocks.push({ type: "text", text: `${parsed.summary ? parsed.summary + " " : ""}I can only edit .html, .jsx or .tsx files here, so I couldn't change ${path}.` });
+  try {
+    for await (const chunk of stream) {
+      if (signal?.aborted) {
+        engine.interruptGenerate?.();
+        break;
+      }
+      const delta: string = chunk?.choices?.[0]?.delta?.content || "";
+      if (delta) {
+        acc += delta;
+        flush();
+      }
     }
-  } else {
-    const text = typeof parsed?.summary === "string" && parsed.summary.trim()
-      ? parsed.summary
-      : raw.trim() && !raw.trim().startsWith("{")
-        ? raw.trim()
-        : "I couldn't put together a clear answer — try rephrasing, or switch to a more capable model.";
-    blocks.push({ type: "text", text });
+  } catch (e: any) {
+    if (e?.name === "AbortError") throw e;
+    // streaming hiccup — keep whatever we have
   }
 
-  messages = [...messages, { role: "assistant", content: blocks }];
-  ai.setMessages(projectId, messages);
+  if (signal?.aborted) {
+    // leave the partial reply in place and stop
+    ai.setMessages(projectId, [...base, { role: "assistant", content: liveBlocks(acc).length ? liveBlocks(acc) : [{ type: "text", text: acc || "Stopped." }] }]);
+    throw new DOMException("Aborted", "AbortError");
+  }
+
+  // finalize: apply any patches, then show clean prose + edit chips
+  const patches = parsePatches(acc);
+  const blocks: AiBlock[] = [];
+  const summary = prose(acc);
+  if (summary) blocks.push({ type: "text", text: summary });
+
+  const edited: string[] = [];
+  const failed: string[] = [];
+  for (const p of patches) {
+    const file = ed.files.find((f) => f.path === p.path) || active;
+    if (!file || (!ed.files.find((f) => f.path === p.path) && !fileKind(p.path))) {
+      failed.push(p.path);
+      continue;
+    }
+    const next = applyPatch(file.content, p.search, p.replace);
+    if (next == null) {
+      failed.push(file.path);
+      continue;
+    }
+    ed.upsertFile(file.path, next);
+    if (!edited.includes(file.path)) edited.push(file.path);
+    blocks.push({ type: "tool_use", name: "write_file", input: { path: file.path } });
+  }
+
+  if (failed.length && !edited.length) {
+    blocks.push({ type: "text", text: `I couldn't apply the change to ${failed.join(", ")} — the lines I targeted didn't match. Try again, or be more specific about what to change.` });
+  }
+  if (!blocks.length) {
+    blocks.push({ type: "text", text: acc.trim() || "I couldn't put together a clear answer — try rephrasing." });
+  }
+
+  ai.setMessages(projectId, [...base, { role: "assistant", content: blocks }]);
 }

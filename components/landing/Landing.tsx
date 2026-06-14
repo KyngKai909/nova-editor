@@ -395,8 +395,8 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* whole repositories — file tree */}
-          <div className="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6">
+          {/* whole repositories — file tree (full width on tablet, single col on desktop) */}
+          <div className="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6 sm:col-span-2 lg:col-span-1">
             <div className="space-y-1.5 font-mono text-[11px] text-ink-3">
               <div className="flex items-center gap-1.5 text-ink-2"><GitBranch size={11} className="text-accent" /> main</div>
               <div className="pl-3">src/</div>
