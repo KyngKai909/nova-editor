@@ -6,6 +6,7 @@ import { parseJsx } from "@/lib/jsxParser";
 import { spliceJsx, setJsxStyle, setJsxProp, removeJsxProp, componentNameFromPath, relativeImportPath, ensureImport } from "@/lib/jsxEdit";
 import { htmlNodeLine, lineOfOffset } from "@/lib/htmlLocate";
 import { classifyFile, fileKind } from "@/lib/importUtils";
+import { loadAssets, saveAsset } from "@/lib/assetStore";
 import { detectTailwind, applyTailwind, tailwindSupports } from "@/lib/tailwind";
 import { useSettings } from "@/store/settingsStore";
 import {
@@ -115,6 +116,16 @@ export const useEditor = create<EditorState>((set, get) => ({
     set({ files: withCat, assets, baseHref, projectId });
     const firstPage = withCat.find((f) => f.category === "page") || withCat[0];
     if (firstPage) get().selectFile(firstPage.path);
+
+    // Reopening a project passes no inline assets — rehydrate the persisted
+    // binaries (images/fonts) from IndexedDB so they survive reloads.
+    if (projectId && Object.keys(assets).length === 0) {
+      loadAssets(projectId).then((map) => {
+        if (get().projectId === projectId && Object.keys(map).length) {
+          set({ assets: map, reloadKey: get().reloadKey + 1 });
+        }
+      });
+    }
   },
 
   selectFile: (path) => {
@@ -484,11 +495,12 @@ export const useEditor = create<EditorState>((set, get) => ({
 
   // Register a user-uploaded asset (blob URL) under a repo-relative path.
   addAsset: (file) => {
-    const { assets } = get();
+    const { assets, projectId } = get();
     let path = file.name;
     if (assets[path]) path = `assets/${Date.now()}-${file.name}`;
     const url = URL.createObjectURL(file);
     set({ assets: { ...assets, [path]: url } });
+    if (projectId) saveAsset(projectId, path, file); // persist for next session
     return path;
   },
 

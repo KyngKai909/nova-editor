@@ -8,6 +8,7 @@ import type { AssetMap } from "./assets";
 import { fsSupported } from "./fileSystem";
 import { hasWorkspace, createProjectFolder } from "./workspace";
 import { saveHandle } from "./handleStore";
+import { persistAssetMap } from "./assetStore";
 
 interface CreateArgs {
   name: string;
@@ -53,6 +54,7 @@ export function useCreateProject() {
     if (handle) await saveHandle(rec.id, handle);
 
     loadFiles(files, assets, baseHref, rec.id);
+    persistAssetMap(rec.id, assets); // keep imported images/fonts across reloads
     router.push("/editor");
     return rec;
   };
