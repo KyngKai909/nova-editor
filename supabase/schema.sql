@@ -224,6 +224,21 @@ drop policy if exists "comments: delete" on public.project_comments;
 create policy "comments: delete" on public.project_comments
   for delete using (author_id = auth.uid() or public.can_edit_project(owner_id, project_id));
 
+-- Undo/redo history that rides with a cloud project (paid). One row per project
+-- holding the { past, future } snapshot blob. Only editors (owner + editor role)
+-- can read/write it — viewers/commenters never edit, so they have no history.
+create table if not exists public.project_history (
+  owner_id   uuid not null references public.profiles(id) on delete cascade,
+  project_id text not null,
+  data       jsonb not null,
+  updated_at timestamptz not null default now(),
+  primary key (owner_id, project_id)
+);
+alter table public.project_history enable row level security;
+drop policy if exists "history: editors" on public.project_history;
+create policy "history: editors" on public.project_history
+  for all using (public.can_edit_project(owner_id, project_id)) with check (public.can_edit_project(owner_id, project_id));
+
 -- Invite a collaborator. Inviting an EDITOR requires Studio (or admin) — enforced
 -- here so it can't be bypassed from the client.
 create or replace function public.invite_collaborator(p_project text, p_email text, p_role text)
