@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, FileCode2, Type, Box, Image as ImageIcon, Link2, Square, Code2,
   MousePointer2, Files, Layers, Component, FolderTree, FileText, Copy, Trash2, GripVertical,
+  Upload,
 } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
 import { setDragComponent, getDragComponent } from "@/lib/dnd";
@@ -178,12 +179,113 @@ function FileRow({
   );
 }
 
+/* ── Assets ──────────────────────────────────────────────────────────────── */
+function assetKind(path: string): "image" | "svg" | "gif" | "font" | "other" {
+  const p = path.toLowerCase();
+  if (p.endsWith(".svg")) return "svg";
+  if (p.endsWith(".gif")) return "gif";
+  if (/\.(png|jpe?g|webp|avif|ico)$/.test(p)) return "image";
+  if (/\.(otf|ttf|woff2?)$/.test(p)) return "font";
+  return "other";
+}
+
+function AssetsTab() {
+  const assets = useEditor((s) => s.assets);
+  const addAsset = useEditor((s) => s.addAsset);
+  const applyAsset = useEditor((s) => s.applyAsset);
+  const selectedId = useEditor((s) => s.selectedId);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const entries = Object.entries(assets);
+  const groups: Record<string, [string, string][]> = { image: [], svg: [], gif: [], font: [], other: [] };
+  for (const [path, url] of entries) groups[assetKind(path)].push([path, url]);
+
+  const onUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) Array.from(e.target.files).forEach((f) => addAsset(f));
+    e.target.value = "";
+  };
+
+  const visual: { key: string; label: string }[] = [
+    { key: "image", label: "Images" },
+    { key: "svg", label: "SVG" },
+    { key: "gif", label: "GIFs" },
+  ];
+
+  return (
+    <div className="p-2">
+      <input ref={fileRef} type="file" multiple accept="image/*,.svg,.gif,.woff,.woff2,.otf,.ttf" onChange={onUpload} className="hidden" />
+      <button
+        onClick={() => fileRef.current?.click()}
+        className="mb-2 flex w-full items-center justify-center gap-1.5 rounded-md border border-dashed border-line-2 py-2 text-[12px] font-medium text-ink-2 transition-colors hover:border-accent/50 hover:text-ink"
+      >
+        <Upload size={13} /> Add assets
+      </button>
+
+      <p className="px-1 pb-2 text-[10.5px] leading-relaxed text-ink-3">
+        {selectedId
+          ? "Click an asset to apply it to the selected element."
+          : "Select an element, then click an asset to apply it."}
+      </p>
+
+      {entries.length === 0 && <Empty>No assets yet — images & fonts from your imported project show up here.</Empty>}
+
+      {visual.map(({ key, label }) =>
+        groups[key].length > 0 ? (
+          <div key={key} className="mb-3">
+            <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3">{label} · {groups[key].length}</div>
+            <div className="grid grid-cols-3 gap-1.5">
+              {groups[key].map(([path, url]) => (
+                <button
+                  key={path}
+                  onClick={() => applyAsset(path)}
+                  title={`${path}\nClick to apply to the selected element`}
+                  className="group relative aspect-square overflow-hidden rounded-md border border-line bg-bg transition-colors hover:border-accent/60"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={url} alt={path} className="h-full w-full object-cover" />
+                  <span className="absolute inset-x-0 bottom-0 truncate bg-bg/80 px-1 py-0.5 text-[8px] text-ink-3 opacity-0 transition-opacity group-hover:opacity-100">{path.split("/").pop()}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null
+      )}
+
+      {groups.font.length > 0 && (
+        <div className="mb-3">
+          <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3">Fonts · {groups.font.length}</div>
+          <div className="flex flex-col gap-1">
+            {groups.font.map(([path]) => (
+              <div key={path} className="flex items-center gap-2 rounded-md border border-line bg-bg px-2 py-1.5 text-[11px] text-ink-2">
+                <Type size={12} className="shrink-0 text-accent" />
+                <span className="truncate font-mono">{path.split("/").pop()}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {groups.other.length > 0 && (
+        <div className="mb-3">
+          <div className="px-1 pb-1.5 text-[10px] font-semibold uppercase tracking-wide text-ink-3">Other · {groups.other.length}</div>
+          <div className="flex flex-col gap-1">
+            {groups.other.map(([path]) => (
+              <div key={path} className="truncate rounded-md border border-line bg-bg px-2 py-1.5 font-mono text-[11px] text-ink-3">{path.split("/").pop()}</div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* ── Panel ───────────────────────────────────────────────────────────────── */
-type Tab = "pages" | "layers" | "components" | "files";
+type Tab = "pages" | "layers" | "components" | "assets" | "files";
 const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
   { id: "pages", icon: <Files size={15} />, label: "Pages" },
   { id: "layers", icon: <Layers size={15} />, label: "Layers" },
   { id: "components", icon: <Component size={15} />, label: "Components" },
+  { id: "assets", icon: <ImageIcon size={15} />, label: "Assets" },
   { id: "files", icon: <FolderTree size={15} />, label: "Files" },
 ];
 
@@ -191,6 +293,7 @@ export default function LeftPanel() {
   const files = useEditor((s) => s.files);
   const tree = useEditor((s) => s.tree);
   const selectedId = useEditor((s) => s.selectedId);
+  const assetCount = useEditor((s) => Object.keys(s.assets).length);
   const [tab, setTab] = useState<Tab>("layers");
 
   // selecting an element on the canvas jumps to the Layers tab to reveal it
@@ -201,7 +304,7 @@ export default function LeftPanel() {
   const pages = files.filter((f) => f.category === "page");
   const components = files.filter((f) => f.category === "component");
   const counts: Record<Tab, number> = {
-    pages: pages.length, layers: 0, components: components.length, files: files.length,
+    pages: pages.length, layers: 0, components: components.length, assets: assetCount, files: files.length,
   };
   const activeLabel = TABS.find((t) => t.id === tab)!.label;
 
@@ -251,6 +354,8 @@ export default function LeftPanel() {
             </>
           ) : <Empty>No components — open a .jsx / .tsx file to edit one in isolation.</Empty>
         )}
+
+        {tab === "assets" && <AssetsTab />}
 
         {tab === "files" && files.map((f) => <FileRow key={f.path} file={f} icon={<FileCode2 size={13} />} view="split" />)}
       </div>

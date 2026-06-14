@@ -67,6 +67,8 @@ interface EditorState {
   removeProp: (id: string, name: string) => void;
   updateAttr: (id: string, name: string, value: string) => void;
   removeAttr: (id: string, name: string) => void;
+  addAsset: (file: File) => string;
+  applyAsset: (repoPath: string) => void;
 
   notice: string | null;
   setNotice: (n: string | null) => void;
@@ -434,6 +436,39 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!file) return;
     if (file.kind === "jsx") get().removeProp(id, name);
     else get().updateAttr(id, name, "");
+  },
+
+  // Register a user-uploaded asset (blob URL) under a repo-relative path.
+  addAsset: (file) => {
+    const { assets } = get();
+    let path = file.name;
+    if (assets[path]) path = `assets/${Date.now()}-${file.name}`;
+    const url = URL.createObjectURL(file);
+    set({ assets: { ...assets, [path]: url } });
+    return path;
+  },
+
+  // Apply an asset to the selected element. Writes the idiomatic repo path to
+  // the source (so exports stay clean) but pushes the blob URL to the live
+  // iframe so it renders immediately; on reload, rewriteAssetUrls re-maps it.
+  applyAsset: (repoPath) => {
+    const { selectedId, tree, assets } = get();
+    if (!selectedId) {
+      get().setNotice("Select an element on the canvas first.");
+      return;
+    }
+    const node = findNode(tree, selectedId);
+    if (!node) return;
+    const blob = assets[repoPath];
+    if (node.tag.toLowerCase() === "img") {
+      get().updateAttr(selectedId, "src", repoPath);
+      if (blob) applyAttrToIframe(selectedId, "src", blob);
+      get().setNotice("Set image source");
+    } else {
+      get().updateStyle(selectedId, "backgroundImage", `url("${repoPath}")`);
+      if (blob) applyStyleToIframe(selectedId, "backgroundImage", `url("${blob}")`);
+      get().setNotice("Set as background image");
+    }
   },
 
   setNotice: (n) => set({ notice: n }),
