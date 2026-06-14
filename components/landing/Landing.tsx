@@ -42,7 +42,7 @@ const REPO = "https://github.com/KyngKai909/nova-editor";
 const OSS_FACTS = [
   { title: "AGPL 3.0", sub: "License · forks stay open" },
   { title: "TypeScript", sub: "End-to-end, strictly typed" },
-  { title: "1 Monorepo", sub: "Code Editor · canvas · AI" },
+  { title: "1 Codebase", sub: "Code Editor · canvas · AI" },
   { title: "No telemetry", sub: "Nothing tracked. Ever." },
 ];
 
