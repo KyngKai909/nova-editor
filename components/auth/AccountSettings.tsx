@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Sparkles, LogOut, Plus, Copy, Check, Loader2, Ticket } from "lucide-react";
+import { Sparkles, LogOut, Plus, Copy, Check, Loader2, Ticket, Zap, CreditCard } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
+import { isBillingConfigured, startCheckout, openBillingPortal } from "@/lib/billing";
 import { useAuth } from "@/store/authStore";
 
 interface Invite {
@@ -16,11 +17,39 @@ export default function AccountSettings() {
   const email = useAuth((s) => s.email);
   const signOut = useAuth((s) => s.signOut);
   const generateInvite = useAuth((s) => s.generateInvite);
+  const refreshProfile = useAuth((s) => s.refreshProfile);
 
   const [invites, setInvites] = useState<Invite[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [billingBusy, setBillingBusy] = useState(false);
+  const [billingErr, setBillingErr] = useState<string | null>(null);
+  const [billingNote, setBillingNote] = useState<string | null>(null);
+
+  // Handle the redirect back from Stripe Checkout (?billing=success|cancel).
+  // On success the webhook may lag a beat, so poll the profile until it flips.
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("billing");
+    if (!result) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (result === "cancel") {
+      setBillingNote("Checkout canceled — no charge was made.");
+      return;
+    }
+    if (result === "success") {
+      setBillingNote("Payment received — activating Pro…");
+      let tries = 0;
+      const poll = setInterval(async () => {
+        await refreshProfile();
+        if (++tries >= 6 || useAuth.getState().profile?.plan === "pro") {
+          clearInterval(poll);
+          setBillingNote(useAuth.getState().profile?.plan === "pro" ? "You're on Pro 🎉" : null);
+        }
+      }, 1500);
+      return () => clearInterval(poll);
+    }
+  }, [refreshProfile]);
 
   useEffect(() => {
     if (!supabase || !profile) return;
@@ -50,6 +79,21 @@ export default function AccountSettings() {
     setTimeout(() => setCopied((c) => (c === code ? null : c)), 1500);
   };
 
+  const isPro = profile.plan === "pro" || profile.is_admin;
+
+  const upgrade = async () => {
+    setBillingErr(null);
+    setBillingBusy(true);
+    // On success this redirects to Stripe, so we only clear busy on failure.
+    try { await startCheckout(); } catch (e: any) { setBillingErr(e?.message || "Could not start checkout."); setBillingBusy(false); }
+  };
+
+  const manage = async () => {
+    setBillingErr(null);
+    setBillingBusy(true);
+    try { await openBillingPortal(); } catch (e: any) { setBillingErr(e?.message || "Could not open billing."); setBillingBusy(false); }
+  };
+
   return (
     <section className="rounded-2xl border border-line bg-surface/40 p-5">
       <h2 className="mb-1 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-ink-2">
@@ -69,6 +113,45 @@ export default function AccountSettings() {
             <LogOut size={13} /> Sign out
           </button>
         </div>
+
+        {/* billing — only when Stripe is configured */}
+        {isBillingConfigured() && (
+          <div className="py-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-[14px] font-medium text-ink">
+                  <Zap size={14} className="text-accent" /> {isPro ? "Pro plan" : "Upgrade to Pro"}
+                </div>
+                <div className="mt-0.5 max-w-md text-[12.5px] leading-relaxed text-ink-3">
+                  {isPro
+                    ? "Cloud backup and real-time sync across your devices are active."
+                    : "Back up your projects to the cloud and sync them in real-time across devices — $8/mo."}
+                </div>
+              </div>
+              {profile.is_admin ? (
+                <span className="shrink-0 rounded-full border border-line bg-bg px-2.5 py-1 text-[12px] text-accent">Pro · admin</span>
+              ) : isPro ? (
+                <button
+                  onClick={manage}
+                  disabled={billingBusy}
+                  className="flex shrink-0 items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-raise disabled:opacity-60"
+                >
+                  {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />} Manage
+                </button>
+              ) : (
+                <button
+                  onClick={upgrade}
+                  disabled={billingBusy}
+                  className="flex shrink-0 items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-60"
+                >
+                  {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />} Upgrade — $8/mo
+                </button>
+              )}
+            </div>
+            {billingNote && <p className="mt-2 text-[12px] text-accent">{billingNote}</p>}
+            {billingErr && <p className="mt-2 text-[12px] text-red-400">{billingErr}</p>}
+          </div>
+        )}
 
         {/* invites */}
         <div className="py-4">
