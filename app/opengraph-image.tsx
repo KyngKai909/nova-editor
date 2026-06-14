@@ -1,11 +1,19 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 
 export const alt = "Nova — the visual editor for real code";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 // Branded social-share card shown when the homepage is linked anywhere.
-export default function OpengraphImage() {
+// Uses Space Grotesk (the site's hero/display font) so it matches the site.
+export default async function OpengraphImage() {
+  const [bold, medium] = await Promise.all([
+    readFile(join(process.cwd(), "app/SpaceGrotesk-Bold.woff")),
+    readFile(join(process.cwd(), "app/SpaceGrotesk-Medium.woff")),
+  ]);
+
   return new ImageResponse(
     (
       <div
@@ -19,7 +27,7 @@ export default function OpengraphImage() {
           backgroundColor: "#08080a",
           backgroundImage:
             "radial-gradient(circle at 85% 0%, rgba(204,255,2,0.16), transparent 55%)",
-          fontFamily: "sans-serif",
+          fontFamily: "Space Grotesk",
         }}
       >
         {/* logo */}
@@ -47,10 +55,10 @@ export default function OpengraphImage() {
           <div
             style={{
               display: "flex",
-              fontSize: 78,
-              fontWeight: 800,
+              fontSize: 80,
+              fontWeight: 700,
               color: "#f2f2f4",
-              lineHeight: 1.04,
+              lineHeight: 1.02,
               letterSpacing: -2,
               maxWidth: 1000,
             }}
@@ -61,6 +69,7 @@ export default function OpengraphImage() {
             style={{
               display: "flex",
               fontSize: 30,
+              fontWeight: 500,
               color: "rgba(242,242,244,0.62)",
               lineHeight: 1.3,
               maxWidth: 920,
@@ -85,12 +94,18 @@ export default function OpengraphImage() {
           >
             Open source
           </div>
-          <div style={{ display: "flex", fontSize: 24, color: "rgba(242,242,244,0.4)" }}>
+          <div style={{ display: "flex", fontSize: 24, fontWeight: 500, color: "rgba(242,242,244,0.4)" }}>
             Bring your own AI · Local-first · No lock-in
           </div>
         </div>
       </div>
     ),
-    { ...size }
+    {
+      ...size,
+      fonts: [
+        { name: "Space Grotesk", data: bold, weight: 700, style: "normal" },
+        { name: "Space Grotesk", data: medium, weight: 500, style: "normal" },
+      ],
+    }
   );
 }
