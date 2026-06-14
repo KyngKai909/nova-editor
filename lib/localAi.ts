@@ -109,11 +109,13 @@ export async function interruptLocal(): Promise<void> {
 
 const clip = (s: string, max: number) => (s.length > max ? s.slice(0, max) + "\n<!-- …truncated for Nova Lite… -->" : s);
 
-const SYSTEM = `You are Nova Lite, a fast on-device coding assistant inside a browser visual web IDE. The user's project is open and the active file is shown to you.
+const SYSTEM = `You are Nova Lite, a friendly on-device coding assistant inside a browser visual web IDE. The user's project is open and the active file is shown to you.
 
-To ANSWER a question or explain something, reply briefly in plain text.
+First decide what the user wants:
+- If they greet you, ask a question, or do NOT clearly ask to change the page, just reply in plain conversational text. Do not output a patch.
+- Only when they explicitly ask to add, change, remove, or fix something in the page, output one or more patch blocks (optionally with one short sentence of summary first).
 
-To CHANGE a file, output one or more patch blocks in EXACTLY this format (and nothing else inside them):
+Patch format (use EXACTLY this, nothing else inside the markers):
 @@ <file path>
 <<<<<<< SEARCH
 <a few exact lines copied verbatim from the file, including indentation>
@@ -121,10 +123,10 @@ To CHANGE a file, output one or more patch blocks in EXACTLY this format (and no
 <the replacement lines>
 >>>>>>> REPLACE
 
-Rules:
+Patch rules:
 - Copy the SEARCH lines exactly as they appear so they can be found. Keep each block small — just the lines you change plus a little surrounding context.
-- Only edit .html, .jsx or .tsx files. You may write one short sentence before the patch blocks.
-- Make the smallest change that satisfies the request. Output multiple blocks for multiple edits.`;
+- Only edit .html, .jsx or .tsx files. Make the smallest change that satisfies the request; output multiple blocks for multiple edits.
+- Never output a patch unless the user actually asked for a change.`;
 
 // Parse search/replace patch blocks out of a model reply.
 const PATCH_RE = /@@[ \t]*(.+?)[ \t]*\r?\n<<<<<<<[ \t]*SEARCH\r?\n([\s\S]*?)\r?\n=======\r?\n([\s\S]*?)\r?\n>>>>>>>[ \t]*REPLACE/g;
@@ -270,8 +272,17 @@ export async function runLocalAgent(opts: {
     blocks.push({ type: "tool_use", name: "write_file", input: { path: file.path } });
   }
 
-  if (failed.length && !edited.length) {
-    blocks.push({ type: "text", text: `I couldn't apply the change to ${failed.join(", ")} — the lines I targeted didn't match. Try again, or be more specific about what to change.` });
+  // A patch was attempted but nothing applied. If the model also wrote prose
+  // (it was likely just chatting), that's the real reply — don't alarm. Only
+  // surface a "couldn't match" note when the user actually asked for an edit.
+  if (failed.length && !edited.length && !summary) {
+    const wantsEdit = /\b(change|add|remove|delete|make|set|update|fix|replace|rename|move|cente?r|centre|bigger|smaller|larger|colou?r|background|font|bold|italic|hide|show|swap|turn|put|insert|style|margin|padding|align|round|border|shadow|button|header|footer|nav|hero|section|headline|title|link|image|logo|text)\b/i.test(userText);
+    blocks.push({
+      type: "text",
+      text: wantsEdit
+        ? `I couldn't pinpoint the lines to change in ${failed.join(", ")}. Tell me a bit more specifically what to change (e.g. which text or section) and I'll do it.`
+        : "Hi! Tell me what you'd like to change on the page — like “make the headline bigger” — and I'll edit it for you.",
+    });
   }
   if (!blocks.length) {
     blocks.push({ type: "text", text: acc.trim() || "I couldn't put together a clear answer — try rephrasing." });
