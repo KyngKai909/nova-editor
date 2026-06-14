@@ -65,8 +65,8 @@ export default async function OpengraphImage() {
             }}
           >
             <div style={{ display: "flex", alignItems: "baseline" }}>
-              <span>Design in the&nbsp;</span>
-              <span style={{ fontFamily: "Instrument Serif", fontStyle: "italic", fontWeight: 400, color: "#ccff02" }}>browser</span>
+              <span>Design in the</span>
+              <span style={{ marginLeft: 24, fontFamily: "Instrument Serif", fontStyle: "italic", fontWeight: 400, color: "#ccff02" }}>browser</span>
               <span>,</span>
             </div>
             <div style={{ display: "flex" }}>ship the code.</div>
