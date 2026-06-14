@@ -104,7 +104,7 @@ export function applyAttrToIframe(id: string, name: string, value: string) {
   post({ type: "wfc-attr", id, name, value });
 }
 // Show/replace the comment pins drawn on commented elements (empty = hide all).
-export function applyCommentPins(pins: { id: string; key: string; commentId: string }[]) {
+export function applyCommentPins(pins: { id: string; key: string; commentId: string; x?: number; y?: number }[]) {
   post({ type: "wfc-comments", pins });
 }
 export function highlight(id: string | null) {
@@ -145,7 +145,7 @@ export const BRIDGE_SCRIPT = `
   function post(m){ parent.postMessage(m,'*'); }
   function byId(id){ return id?document.querySelector('[data-wfc-id="'+id+'"]'):null; }
   function ensurePinLayer(){ if(!pinLayer){ pinLayer=document.createElement('div'); pinLayer.setAttribute('data-wfc-pinlayer','1'); pinLayer.style.cssText='position:fixed;left:0;top:0;width:0;height:0;z-index:2147483646'; document.documentElement.appendChild(pinLayer); } return pinLayer; }
-  function renderPins(){ if(!commentPins.length){ if(pinLayer)pinLayer.innerHTML=''; return; } var layer=ensurePinLayer(); layer.innerHTML=''; for(var i=0;i<commentPins.length;i++){ (function(p){ var el=byId(p.id); if(!el)return; var r=el.getBoundingClientRect(); var b=document.createElement('div'); b.textContent=p.key; b.style.cssText='position:fixed;left:'+(r.right-12)+'px;top:'+(r.top-8)+'px;min-width:20px;height:20px;padding:0 5px;border-radius:11px;background:#ccff02;color:#0a0a0a;font:600 11px/20px ui-sans-serif,system-ui,sans-serif;text-align:center;cursor:pointer;pointer-events:auto;box-shadow:0 1px 5px rgba(0,0,0,.35);white-space:nowrap'; b.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); post({type:'wfc-comment-click',commentId:p.commentId,id:p.id}); }); layer.appendChild(b); })(commentPins[i]); } }
+  function renderPins(){ if(!commentPins.length){ if(pinLayer)pinLayer.innerHTML=''; return; } var layer=ensurePinLayer(); layer.innerHTML=''; var placed=[]; for(var i=0;i<commentPins.length;i++){ (function(p){ var el=byId(p.id); if(!el)return; var r=el.getBoundingClientRect(); var cx,cy; if(typeof p.x==='number'&&typeof p.y==='number'){ cx=r.left+p.x*r.width; cy=r.top+p.y*r.height; } else { cx=r.right-12; cy=r.top+10; } var guard=0; while(guard<12){ var clash=false; for(var j=0;j<placed.length;j++){ if(Math.abs(placed[j][0]-cx)<22&&Math.abs(placed[j][1]-cy)<22){clash=true;break;} } if(!clash)break; cx+=22; guard++; } placed.push([cx,cy]); var b=document.createElement('div'); b.textContent=p.key; b.style.cssText='position:fixed;left:'+(cx-10)+'px;top:'+(cy-10)+'px;min-width:20px;height:20px;padding:0 5px;border-radius:11px;background:#ccff02;color:#0a0a0a;font:600 11px/20px ui-sans-serif,system-ui,sans-serif;text-align:center;cursor:pointer;pointer-events:auto;box-shadow:0 1px 5px rgba(0,0,0,.35);white-space:nowrap'; b.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); post({type:'wfc-comment-click',commentId:p.commentId,id:p.id}); }); layer.appendChild(b); })(commentPins[i]); } }
   function kebab(s){ return s.replace(/[A-Z]/g,function(m){return '-'+m.toLowerCase();}); }
   function leaf(t){ return t && !t.querySelector('[data-wfc-id]') && t.children.length===0; }
   function setLeaf(node,text){ var tn=null,i; for(i=0;i<node.childNodes.length;i++){ if(node.childNodes[i].nodeType===3){tn=node.childNodes[i];break;} } if(tn)tn.textContent=text; else node.insertBefore(document.createTextNode(text),node.firstChild); }
@@ -182,6 +182,8 @@ export const BRIDGE_SCRIPT = `
 
   document.addEventListener('dragover',function(e){ if(preview)return; e.preventDefault(); });
   document.addEventListener('drop',function(e){ if(preview)return; e.preventDefault(); var t=e.target.closest('[data-wfc-id]'); post({type:'wfc-drop',id:t?t.getAttribute('data-wfc-id'):null}); });
+
+  document.addEventListener('contextmenu',function(e){ if(preview)return; var t=e.target.closest('[data-wfc-id]'); if(!t)return; e.preventDefault(); var r=t.getBoundingClientRect(); var fx=Math.min(1,Math.max(0,(e.clientX-r.left)/Math.max(1,r.width))); var fy=Math.min(1,Math.max(0,(e.clientY-r.top)/Math.max(1,r.height))); post({type:'wfc-context',id:t.getAttribute('data-wfc-id'),x:fx,y:fy}); });
 
   window.addEventListener('message',function(e){
     var d=e.data; if(!d||!d.type)return;

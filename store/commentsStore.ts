@@ -11,21 +11,34 @@ export interface Comment {
   author: string;        // "You" locally; an email once collaboration lands
   resolved: boolean;
   createdAt: number;
+  x?: number;            // 0–1 click position within the element (right-click)
+  y?: number;
+}
+
+// Where a not-yet-written comment is being placed (from a right-click).
+export interface PendingAnchor {
+  elementId: string;
+  label: string;
+  x?: number;
+  y?: number;
 }
 
 interface CommentsState {
   byProject: Record<string, Comment[]>;
   // UI state (not persisted as document data): whether the Comments tab is open
-  // (drives the canvas pin overlay) and which comment is currently focused.
+  // (drives the canvas pin overlay), which comment is focused, and a pending
+  // right-click anchor the composer should use.
   panelOpen: boolean;
   focusedId: string | null;
+  pending: PendingAnchor | null;
 
   forProject: (projectId: string | null) => Comment[];
-  add: (projectId: string, elementId: string, elementLabel: string, body: string) => void;
+  add: (projectId: string, elementId: string, elementLabel: string, body: string, x?: number, y?: number) => void;
   toggleResolved: (projectId: string, id: string) => void;
   remove: (projectId: string, id: string) => void;
   setPanelOpen: (open: boolean) => void;
   setFocused: (id: string | null) => void;
+  setPending: (a: PendingAnchor | null) => void;
 }
 
 const uid = () =>
@@ -39,16 +52,17 @@ export const useComments = create<CommentsState>()(
       byProject: {},
       panelOpen: false,
       focusedId: null,
+      pending: null,
 
       forProject: (projectId) => (projectId ? get().byProject[projectId] || [] : []),
 
-      add: (projectId, elementId, elementLabel, body) =>
+      add: (projectId, elementId, elementLabel, body, x, y) =>
         set((s) => ({
           byProject: {
             ...s.byProject,
             [projectId]: [
               ...(s.byProject[projectId] || []),
-              { id: uid(), projectId, elementId, elementLabel, body, author: "You", resolved: false, createdAt: Date.now() },
+              { id: uid(), projectId, elementId, elementLabel, body, author: "You", resolved: false, createdAt: Date.now(), x, y },
             ],
           },
         })),
@@ -71,6 +85,7 @@ export const useComments = create<CommentsState>()(
 
       setPanelOpen: (open) => set({ panelOpen: open }),
       setFocused: (id) => set({ focusedId: id }),
+      setPending: (a) => set({ pending: a }),
     }),
     {
       name: "nova-comments",

@@ -79,6 +79,16 @@ function buildErrorDoc(message: string, isolate: boolean): string {
   </div></body></html>`;
 }
 
+// Find a node by data-wfc-id in the editor tree (for right-click comments).
+function findInTree(nodes: any[], id: string): any {
+  for (const n of nodes) {
+    if (n.id === id) return n;
+    const f = findInTree(n.children, id);
+    if (f) return f;
+  }
+  return null;
+}
+
 export default function Canvas() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -139,7 +149,7 @@ export default function Canvas() {
   useEffect(() => {
     const list = (projectId ? commentsByProject[projectId] : undefined) || [];
     const pins = panelOpen
-      ? list.filter((c) => !c.resolved).map((c, i) => ({ id: c.elementId, key: String(i + 1), commentId: c.id }))
+      ? list.filter((c) => !c.resolved).map((c, i) => ({ id: c.elementId, key: String(i + 1), commentId: c.id, x: c.x, y: c.y }))
       : [];
     applyCommentPins(pins);
   }, [panelOpen, projectId, commentsByProject, doc]);
@@ -161,6 +171,13 @@ export default function Canvas() {
       } else if (d.type === "wfc-comment-click") {
         highlight(d.id);
         useComments.getState().setFocused(d.commentId);
+      } else if (d.type === "wfc-context") {
+        // right-click on the canvas → start a comment pinned where clicked
+        const n = findInTree(useEditor.getState().tree, d.id);
+        const label = n
+          ? n.textContent ? n.textContent.slice(0, 28) : n.classList[0] ? `${n.tag}.${n.classList[0]}` : n.tag
+          : d.id;
+        useComments.getState().setPending({ elementId: d.id, label, x: d.x, y: d.y });
       } else if (d.type === "wfc-ready") {
         // the iframe's bridge is up — flush queued commands and re-apply state
         markCanvasReady();
@@ -170,7 +187,7 @@ export default function Canvas() {
         // re-draw comment pins on the freshly loaded canvas
         const cs = useComments.getState();
         const list = (st.projectId ? cs.byProject[st.projectId] : undefined) || [];
-        applyCommentPins(cs.panelOpen ? list.filter((c) => !c.resolved).map((c, i) => ({ id: c.elementId, key: String(i + 1), commentId: c.id })) : []);
+        applyCommentPins(cs.panelOpen ? list.filter((c) => !c.resolved).map((c, i) => ({ id: c.elementId, key: String(i + 1), commentId: c.id, x: c.x, y: c.y })) : []);
       }
     };
     window.addEventListener("message", onMsg);

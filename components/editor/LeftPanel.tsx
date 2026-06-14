@@ -5,8 +5,10 @@ import {
   ChevronRight, FileCode2, Type, Box, Image as ImageIcon, Link2, Square, Code2,
   MousePointer2, Files, Layers, Component, FolderTree, FileText, Copy, Trash2, GripVertical,
   Upload, Columns2, Rows2, Grid3x3, Heading, List, Minus, TextCursorInput, RectangleHorizontal,
+  MessageSquare,
 } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
+import { useComments } from "@/store/commentsStore";
 import { setDragComponent, getDragComponent, setDragElement, getDragElement } from "@/lib/dnd";
 import type { EditorNode, SourceFile } from "@/lib/types";
 
@@ -42,6 +44,7 @@ function LayerRow({ node, depth }: { node: EditorNode; depth: number }) {
   const moveNode = useEditor((s) => s.moveNode);
   const insertComponent = useEditor((s) => s.insertComponent);
   const insertElement = useEditor((s) => s.insertElement);
+  const setPendingComment = useComments((s) => s.setPending);
   const isHtml = useEditor((s) => s.files.find((f) => f.path === s.activePath)?.kind === "html");
   const [open, setOpen] = useState(false); // collapsed by default
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -129,6 +132,16 @@ function LayerRow({ node, depth }: { node: EditorNode; depth: number }) {
             </button>
             <button onClick={() => { selectNode(node.id); setMenu(null); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-ink-2 transition-colors hover:bg-raise">
               <MousePointer2 size={13} className="text-ink-3" /> Select on canvas
+            </button>
+            <button
+              onClick={() => {
+                const label = node.textContent ? node.textContent.slice(0, 28) : node.classList[0] ? `${node.tag}.${node.classList[0]}` : node.tag;
+                setPendingComment({ elementId: node.id, label });
+                setMenu(null);
+              }}
+              className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-ink-2 transition-colors hover:bg-raise"
+            >
+              <MessageSquare size={13} className="text-accent" /> Leave a comment
             </button>
             <div className="my-1 h-px bg-line" />
             <button onClick={() => { duplicateNode(node.id); setMenu(null); }} className="flex w-full items-center gap-2.5 px-3 py-2 text-left text-[12.5px] text-ink-2 transition-colors hover:bg-raise">

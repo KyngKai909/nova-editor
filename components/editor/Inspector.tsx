@@ -68,6 +68,7 @@ export default function Inspector() {
   const projectId = useEditor((s) => s.projectId);
   const commentsByProject = useComments((s) => s.byProject);
   const setPanelOpen = useComments((s) => s.setPanelOpen);
+  const pendingAnchor = useComments((s) => s.pending);
   const comments = projectId ? commentsByProject[projectId] || EMPTY_COMMENTS : EMPTY_COMMENTS;
 
   const node = find(tree, selectedId);
@@ -83,6 +84,10 @@ export default function Inspector() {
     setPanelOpen(tab === "comments");
     return () => setPanelOpen(false);
   }, [tab, setPanelOpen]);
+  // Right-clicking an element (on canvas or layer) jumps to the Comments tab.
+  useEffect(() => {
+    if (pendingAnchor) setTab("comments");
+  }, [pendingAnchor]);
 
   const refresh = useCallback(() => {
     if (selectedId) readStyles(selectedId).then(setS);
@@ -632,13 +637,20 @@ function CommentsPanel({
   const remove = useComments((s) => s.remove);
   const focusedId = useComments((s) => s.focusedId);
   const setFocused = useComments((s) => s.setFocused);
+  const pending = useComments((s) => s.pending);
+  const setPending = useComments((s) => s.setPending);
   const [draft, setDraft] = useState("");
   const rows = useRef<Record<string, HTMLDivElement | null>>({});
+  const taRef = useRef<HTMLTextAreaElement>(null);
 
   // A pin click (or a panel click) focuses a comment — scroll it into view.
   useEffect(() => {
     if (focusedId) rows.current[focusedId]?.scrollIntoView({ block: "nearest" });
   }, [focusedId]);
+  // a right-click sets a pending anchor — focus the composer so you can type.
+  useEffect(() => {
+    if (pending) taRef.current?.focus();
+  }, [pending]);
 
   if (!projectId) {
     return <div className="px-3.5 py-6 text-[12px] leading-relaxed text-ink-3">Open a project to leave comments.</div>;
@@ -647,15 +659,18 @@ function CommentsPanel({
   const open = comments.filter((c) => !c.resolved);
   const resolved = comments.filter((c) => c.resolved);
 
+  // A pending right-click anchor (pinned at a point) wins over the selection.
+  const anchor: { elementId: string; label: string; x?: number; y?: number } | null = pending
+    ? pending
+    : node
+    ? { elementId: node.id, label: node.textContent ? node.textContent.slice(0, 28) : node.classList[0] ? `${node.tag}.${node.classList[0]}` : node.tag }
+    : null;
+
   const post = () => {
-    if (!node || !draft.trim()) return;
-    const label = node.textContent
-      ? node.textContent.slice(0, 28)
-      : node.classList[0]
-      ? `${node.tag}.${node.classList[0]}`
-      : node.tag;
-    add(projectId, node.id, label, draft.trim());
+    if (!anchor || !draft.trim()) return;
+    add(projectId, anchor.elementId, anchor.label, draft.trim(), anchor.x, anchor.y);
     setDraft("");
+    if (pending) setPending(null);
   };
 
   const go = (c: Comment) => { highlight(c.elementId); setFocused(c.id); };
@@ -664,12 +679,19 @@ function CommentsPanel({
     <div>
       {/* composer */}
       <div className="border-b border-line p-3">
-        {node ? (
+        {anchor ? (
           <>
             <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-ink-3">
-              On <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-accent">{node.tag}</span>
+              On <span className="truncate rounded bg-accent/15 px-1.5 py-0.5 font-mono text-accent">{anchor.label}</span>
+              {pending && (
+                <span className="ml-auto flex shrink-0 items-center gap-1 text-[10px] text-accent">
+                  pinned here
+                  <button onClick={() => setPending(null)} title="Cancel" className="text-ink-3 hover:text-ink"><X size={11} /></button>
+                </span>
+              )}
             </div>
             <textarea
+              ref={taRef}
               value={draft}
               onChange={(e) => setDraft(e.target.value)}
               rows={2}
@@ -686,7 +708,7 @@ function CommentsPanel({
             </button>
           </>
         ) : (
-          <p className="text-[12px] leading-relaxed text-ink-3">Select an element on the canvas to comment on it.</p>
+          <p className="text-[12px] leading-relaxed text-ink-3">Select or right-click an element on the canvas to comment on it.</p>
         )}
       </div>
 
