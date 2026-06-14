@@ -82,7 +82,12 @@ export const useAuth = create<AuthState>((set, get) => ({
       return;
     }
     const { data } = await supabase.from("profiles").select("*").eq("id", u.user.id).single();
-    if (data) set({ profile: data as Profile });
+    if (data) {
+      set({ profile: data as Profile });
+      // Point the AI at the plan's Nova model (free → Lite, pro → Pro, …),
+      // unless the user has chosen a bring-your-own-key model.
+      import("@/store/aiStore").then(({ useAi }) => useAi.getState().applyPlanDefault((data as Profile).plan)).catch(() => {});
+    }
   },
 
   checkInvite: async (code) => {

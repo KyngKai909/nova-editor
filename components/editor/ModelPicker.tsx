@@ -1,8 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Check, KeyRound, Sparkles, CornerDownLeft } from "lucide-react";
-import { PROVIDERS, type ProviderDef } from "@/lib/aiProviders";
+import { Search, Check, KeyRound, Sparkles, CornerDownLeft, Cpu } from "lucide-react";
+import { PROVIDERS, type ProviderDef, type ModelDef } from "@/lib/aiProviders";
 import { useAi } from "@/store/aiStore";
 import BrandMark from "@/components/ai/BrandMark";
 
@@ -19,7 +19,7 @@ export default function ModelPicker({ onClose }: { onClose: () => void }) {
   const [brand, setBrand] = useState<string | null>(null); // provider id or null = all
 
   const rows = useMemo(() => {
-    const out: { provider: ProviderDef; model: { id: string; label: string; note?: string } }[] = [];
+    const out: { provider: ProviderDef; model: ModelDef }[] = [];
     for (const p of PROVIDERS) {
       if (brand && p.id !== brand) continue;
       for (const m of p.models) {
@@ -73,7 +73,7 @@ export default function ModelPicker({ onClose }: { onClose: () => void }) {
               <button
                 key={p.id}
                 onClick={() => setBrand(p.id)}
-                title={p.brand + (hasKey ? "" : " · no key")}
+                title={p.managed ? p.brand : p.brand + (hasKey ? "" : " · no key")}
                 className={`relative grid h-9 w-9 place-items-center rounded-lg transition-colors ${brand === p.id ? "bg-raise" : "hover:bg-raise"}`}
               >
                 <Monogram provider={p} size={22} />
@@ -88,7 +88,7 @@ export default function ModelPicker({ onClose }: { onClose: () => void }) {
           {activeBrand && (
             <div className="mb-1 flex items-center justify-between px-1.5 pb-1">
               <span className="text-[11px] font-medium uppercase tracking-wide text-ink-3">{activeBrand.brand}</span>
-              {!keys[activeBrand.id] && <span className="flex items-center gap-1 text-[10.5px] text-amber-300/80"><KeyRound size={10} /> no key</span>}
+              {!activeBrand.managed && !keys[activeBrand.id] && <span className="flex items-center gap-1 text-[10.5px] text-amber-300/80"><KeyRound size={10} /> no key</span>}
             </div>
           )}
           {rows.length === 0 && <p className="px-2 py-6 text-center text-[12px] text-ink-3">No models match “{q}”.</p>}
@@ -96,21 +96,35 @@ export default function ModelPicker({ onClose }: { onClose: () => void }) {
             {rows.map(({ provider, model }) => {
               const isSel = selected.provider === provider.id && selected.model === model.id;
               const hasKey = !!keys[provider.id];
+              const soon = !!model.disabled;
+              const onDevice = !!model.local;
               return (
                 <button
                   key={provider.id + model.id}
-                  onClick={() => choose(provider.id, model.id)}
-                  className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${isSel ? "bg-accent/12" : "hover:bg-raise"}`}
+                  onClick={() => !soon && choose(provider.id, model.id)}
+                  disabled={soon}
+                  className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
+                    soon ? "cursor-not-allowed opacity-45" : isSel ? "bg-accent/12" : "hover:bg-raise"
+                  }`}
                 >
                   <Monogram provider={provider} size={26} />
                   <span className="min-w-0 flex-1">
                     <span className="flex items-center gap-1.5 truncate text-[13px] font-medium text-ink">
                       {model.label}
-                      {!brand && <span className="text-[10.5px] font-normal text-ink-3">{provider.brand}</span>}
+                      {model.tier && (
+                        <span className="rounded bg-ink/10 px-1 py-px text-[9px] font-semibold uppercase tracking-wide text-ink-3">{model.tier}</span>
+                      )}
+                      {!brand && !provider.managed && <span className="text-[10.5px] font-normal text-ink-3">{provider.brand}</span>}
                     </span>
                     {model.note && <span className="block truncate text-[11px] text-ink-3">{model.note}</span>}
                   </span>
-                  {!hasKey && <KeyRound size={12} className="shrink-0 text-ink-3" />}
+                  {soon ? (
+                    <span className="shrink-0 rounded-full border border-line px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-wide text-ink-3">Soon</span>
+                  ) : onDevice ? (
+                    <Cpu size={13} className="shrink-0 text-ink-3" aria-label="Runs on your device" />
+                  ) : (
+                    !provider.managed && !hasKey && <KeyRound size={12} className="shrink-0 text-ink-3" />
+                  )}
                   {isSel && <Check size={14} className="shrink-0 text-accent" />}
                 </button>
               );

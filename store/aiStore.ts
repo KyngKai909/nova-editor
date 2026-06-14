@@ -3,6 +3,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { encryptedStorage } from "@/lib/secureStorage";
+import { novaModelForPlan } from "@/lib/aiProviders";
 
 // Canonical transcript = Anthropic content-block format. The OpenAI-shape
 // transport converts to/from this at request time, so we persist one shape.
@@ -37,6 +38,7 @@ interface AiState {
   setKey: (providerId: string, key: string) => void;
   setCustomModel: (providerId: string, model: string) => void;
   select: (sel: Selection) => void;
+  applyPlanDefault: (plan: string | null | undefined) => void;
   setOpen: (v: boolean) => void;
 
   getMessages: (projectId: string) => AiMessage[];
@@ -49,13 +51,22 @@ export const useAi = create<AiState>()(
     (set, get) => ({
       keys: {},
       customModels: {},
-      selected: { provider: "anthropic", model: "claude-sonnet-4-6" },
+      // Every new user starts on the free, on-device Nova Lite.
+      selected: { provider: "nova", model: "nova-lite" },
       conversations: {},
       open: false,
 
       setKey: (providerId, key) => set({ keys: { ...get().keys, [providerId]: key.trim() } }),
       setCustomModel: (providerId, model) => set({ customModels: { ...get().customModels, [providerId]: model } }),
       select: (selected) => set({ selected }),
+      // When the user's plan is known, upgrade their Nova selection to the
+      // plan's model (Lite/Pro/Studio). Never overrides a BYO-key choice.
+      applyPlanDefault: (plan) => {
+        const sel = get().selected;
+        if (sel.provider !== "nova") return;
+        const model = novaModelForPlan(plan);
+        if (model !== sel.model) set({ selected: { provider: "nova", model } });
+      },
       setOpen: (open) => set({ open }),
 
       getMessages: (projectId) => get().conversations[projectId] || [],

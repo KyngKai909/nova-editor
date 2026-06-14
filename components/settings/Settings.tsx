@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, FolderCog, HardDrive, Check, GitBranch, Trash2, Loader2, Database, FolderOpen, Wand2,
-  Sparkles, Eye, EyeOff, ExternalLink, ShieldCheck,
+  Sparkles, Eye, EyeOff, ExternalLink, ShieldCheck, Cpu,
 } from "lucide-react";
 import { useSettings } from "@/store/settingsStore";
 import { useGitHub } from "@/store/githubStore";
@@ -103,7 +103,8 @@ export default function Settings() {
   const setStyleAsClasses = useSettings((s) => s.setStyleAsClasses);
   const aiSelected = useAi((s) => s.selected);
   const aiKeys = useAi((s) => s.keys);
-  const connectedCount = PROVIDERS.filter((p) => aiKeys[p.id]).length;
+  const byokProviders = PROVIDERS.filter((p) => !p.managed); // Nova's own family has no key
+  const connectedCount = byokProviders.filter((p) => aiKeys[p.id]).length;
   const user = useGitHub((s) => s.user);
   const disconnect = useGitHub((s) => s.disconnect);
   const projects = useProjects((s) => s.projects);
@@ -205,13 +206,20 @@ export default function Settings() {
 
         <Section icon={<Sparkles size={14} />} title="AI assistant">
           <Row
-            title="Connected providers"
-            desc={`${connectedCount} of ${PROVIDERS.length} connected. Active model: ${modelLabel(aiSelected.provider, aiSelected.model)} (${providerById(aiSelected.provider)?.brand || "—"}). Pick a model from the AI panel in the editor.`}
+            title="Active model"
+            desc={`${modelLabel(aiSelected.provider, aiSelected.model)} (${providerById(aiSelected.provider)?.brand || "—"}). Pick a model from the AI panel in the editor.`}
           >
-            <span className="rounded-full border border-line bg-bg px-2.5 py-1 text-[12px] text-ink-2">{connectedCount} connected</span>
+            <span className="rounded-full border border-line bg-bg px-2.5 py-1 text-[12px] text-ink-2">{connectedCount} key{connectedCount === 1 ? "" : "s"}</span>
           </Row>
+          <div className="mt-1 flex items-start gap-2 rounded-lg border border-line bg-bg/60 p-3 text-[11.5px] leading-relaxed text-ink-3">
+            <Cpu size={14} className="mt-0.5 shrink-0 text-accent" />
+            <span>
+              <span className="text-ink-2">Nova Lite</span> is built in and free — it runs on your device (WebGPU), needs no key, and nothing leaves your browser. For more power, add a key below or upgrade for the managed <span className="text-ink-2">Nova Pro / Studio</span> models.
+            </span>
+          </div>
+          <p className="pt-3 text-[11px] font-medium uppercase tracking-wide text-ink-3">Bring your own key</p>
           <div className="divide-y divide-line">
-            {PROVIDERS.map((p) => (
+            {byokProviders.map((p) => (
               <KeyField key={p.id} provider={p} />
             ))}
           </div>

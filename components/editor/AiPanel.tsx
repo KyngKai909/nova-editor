@@ -5,11 +5,16 @@ import Link from "next/link";
 import {
   Sparkles, Send, Square, X, Trash2, Settings2, FileText, Pencil,
   Search as SearchIcon, ListTree, AlertTriangle, Loader2, ChevronsUpDown,
+  Cpu, Clock,
 } from "lucide-react";
 import { useAi, type AiBlock } from "@/store/aiStore";
-import { providerById, modelLabel } from "@/lib/aiProviders";
+import { providerById, modelLabel, findModel } from "@/lib/aiProviders";
 import { useEditor } from "@/store/editorStore";
 import { runAgent } from "@/lib/aiAgent";
+import {
+  runLocalAgent, webgpuStatus, localEngineReady, loadedModelLabel, interruptLocal,
+  type LoadProgress,
+} from "@/lib/localAi";
 import ModelPicker from "./ModelPicker";
 import BrandMark from "@/components/ai/BrandMark";
 
@@ -45,34 +50,72 @@ export default function AiPanel() {
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  const prov = providerById(selected.provider);
+  const found = findModel(selected.provider, selected.model);
+  const prov = found?.provider;
+  const mdef = found?.model;
+  const isLocal = !!mdef?.local;
+  const isSoon = !!mdef?.disabled; // Nova Pro / Studio — not live yet
   const hasKey = !!keys[selected.provider];
+
+  // on-device (Nova Lite) state
+  const [gpu, setGpu] = useState<"checking" | "ok" | "no">("checking");
+  const [load, setLoad] = useState<LoadProgress | null>(null);
+  const [localReady, setLocalReady] = useState(false);
+
+  useEffect(() => {
+    setLocalReady(localEngineReady());
+    if (!isLocal) return;
+    let alive = true;
+    webgpuStatus().then((s) => alive && setGpu(s === "ok" ? "ok" : "no"));
+    return () => { alive = false; };
+  }, [isLocal]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages, busy]);
+  }, [messages, busy, load]);
 
   if (!open) return null;
 
+  const canSend = !!input.trim() && !busy && !!projectId && !isSoon && !(isLocal && gpu === "no") && (isLocal || hasKey);
+
   const send = async () => {
     const text = input.trim();
-    if (!text || busy || !projectId) return;
+    if (!text || busy || !projectId || isSoon) return;
+    if (isLocal && gpu === "no") return;
     setInput("");
     setError(null);
     setBusy(true);
     const ctrl = new AbortController();
     abortRef.current = ctrl;
     try {
-      await runAgent({ projectId, userText: text, signal: ctrl.signal });
+      if (isLocal) {
+        await runLocalAgent({ projectId, userText: text, signal: ctrl.signal, onProgress: setLoad });
+        setLocalReady(true);
+      } else {
+        await runAgent({ projectId, userText: text, signal: ctrl.signal });
+      }
     } catch (e: any) {
       if (e?.name !== "AbortError") setError(e?.message || String(e));
     } finally {
       setBusy(false);
+      setLoad(null);
       abortRef.current = null;
     }
   };
 
-  const stop = () => abortRef.current?.abort();
+  const stop = () => {
+    if (isLocal) interruptLocal();
+    abortRef.current?.abort();
+  };
+
+  // subtitle under the model name in the selector chip
+  const subtitle = isSoon
+    ? "Coming soon"
+    : isLocal
+      ? localReady ? `On-device · ${loadedModelLabel() || "ready"}` : "On-device · free"
+      : `${prov?.brand || "Unknown"}${hasKey ? "" : " · no key"}`;
+
+  const downloading = busy && isLocal && load && load.progress < 1;
 
   return (
     <div className="flex h-full w-full flex-col bg-surface">
@@ -106,7 +149,7 @@ export default function AiPanel() {
           {prov && <BrandMark provider={prov} size={24} />}
           <span className="min-w-0 flex-1 leading-tight">
             <span className="block truncate text-[12.5px] font-medium text-ink">{modelLabel(selected.provider, selected.model)}</span>
-            <span className="block truncate text-[10.5px] text-ink-3">{prov?.brand || "Unknown"}{hasKey ? "" : " · no key"}</span>
+            <span className="block truncate text-[10.5px] text-ink-3">{subtitle}</span>
           </span>
           <ChevronsUpDown size={14} className="shrink-0 text-ink-3" />
         </button>
@@ -117,31 +160,14 @@ export default function AiPanel() {
 
       {/* transcript */}
       <div ref={scrollRef} className="scroll-thin relative flex-1 overflow-auto px-3 py-4">
-        {!hasKey ? (
-          <div className="mx-auto mt-6 max-w-[280px] rounded-xl border border-line bg-bg p-5 text-center">
-            <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-accent/15 text-accent"><Sparkles size={18} /></span>
-            <h3 className="mt-3 font-display text-[15px] font-semibold">Connect your AI</h3>
-            <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
-              Add your own {prov?.brand || "provider"} API key to let the assistant read and edit your files.
-            </p>
-            <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
-              An API key is separate from a ChatGPT Plus / Claude Pro subscription. Your key stays in this browser.
-            </p>
-            <Link href="/settings" className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[12.5px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
-              <Settings2 size={13} /> Add key in Settings
-            </Link>
-          </div>
+        {isSoon ? (
+          <ComingSoon label={mdef?.label || "This model"} />
+        ) : isLocal && gpu === "no" ? (
+          <GpuUnsupported />
+        ) : !isLocal && !hasKey ? (
+          <ConnectKey brand={prov?.brand} />
         ) : messages.length === 0 ? (
-          <div className="mt-4 text-center text-[12.5px] leading-relaxed text-ink-3">
-            <p className="mx-auto max-w-[260px]">Ask Nova to build or change anything in this project. It reads and edits your real files — the canvas updates as it works.</p>
-            <div className="mx-auto mt-4 flex max-w-[280px] flex-col gap-1.5">
-              {["Make the hero headline bigger and bolder", "Add a dark footer with social links", "Change the primary button color to blue"].map((s) => (
-                <button key={s} onClick={() => setInput(s)} className="rounded-lg border border-line bg-bg px-3 py-2 text-left text-[12px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink">
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
+          <EmptyState isLocal={isLocal} localReady={localReady} onPick={setInput} />
         ) : (
           <div className="flex flex-col gap-3">
             {messages.map((m, i) => {
@@ -173,11 +199,13 @@ export default function AiPanel() {
                 </div>
               );
             })}
-            {busy && (
+            {downloading ? (
+              <DownloadProgress load={load!} />
+            ) : busy ? (
               <div className="flex items-center gap-2 text-[12px] text-ink-3">
-                <Loader2 size={13} className="animate-spin text-accent" /> Working…
+                <Loader2 size={13} className="animate-spin text-accent" /> {isLocal ? "Thinking on your device…" : "Working…"}
               </div>
-            )}
+            ) : null}
           </div>
         )}
 
@@ -203,8 +231,12 @@ export default function AiPanel() {
               }
             }}
             rows={1}
-            placeholder={hasKey ? "Ask Nova to change something…" : "Add an API key to start"}
-            disabled={!hasKey || !projectId}
+            placeholder={
+              isSoon ? `${mdef?.label} is coming soon`
+                : isLocal ? (gpu === "no" ? "Needs a WebGPU browser" : "Ask Nova Lite to change something…")
+                : hasKey ? "Ask Nova to change something…" : "Add an API key to start"
+            }
+            disabled={!projectId || isSoon || (isLocal ? gpu === "no" : !hasKey)}
             className="max-h-32 min-h-[24px] flex-1 resize-none self-center bg-transparent text-[13px] leading-6 text-ink outline-none placeholder:text-ink-3 disabled:opacity-50"
           />
           {busy ? (
@@ -214,7 +246,7 @@ export default function AiPanel() {
           ) : (
             <button
               onClick={send}
-              disabled={!input.trim() || !hasKey || !projectId}
+              disabled={!canSend}
               title="Send"
               className="grid h-8 w-8 shrink-0 self-end place-items-center rounded-lg bg-accent text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-30"
             >
@@ -222,8 +254,102 @@ export default function AiPanel() {
             </button>
           )}
         </div>
-        <p className="mt-1.5 px-1 text-[10.5px] text-ink-3">Edits write to your files and round-trip to the canvas. Enter to send · Shift+Enter for newline.</p>
+        <p className="mt-1.5 px-1 text-[10.5px] text-ink-3">
+          {isLocal
+            ? "Nova Lite runs on your device — nothing leaves your browser. Enter to send · Shift+Enter for newline."
+            : "Edits write to your files and round-trip to the canvas. Enter to send · Shift+Enter for newline."}
+        </p>
       </div>
+    </div>
+  );
+}
+
+// ── states ───────────────────────────────────────────────────────────────────
+
+function DownloadProgress({ load }: { load: LoadProgress }) {
+  const pct = Math.round((load.progress || 0) * 100);
+  return (
+    <div className="rounded-xl border border-line bg-bg p-3">
+      <div className="flex items-center gap-2 text-[12px] text-ink-2">
+        <Loader2 size={13} className="animate-spin text-accent" /> Downloading Nova Lite… {pct}%
+      </div>
+      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-raise">
+        <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${pct}%` }} />
+      </div>
+      <p className="mt-2 text-[10.5px] leading-relaxed text-ink-3 line-clamp-2">{load.text || "Fetching model weights — this one-time download is cached for next time."}</p>
+    </div>
+  );
+}
+
+function EmptyState({ isLocal, localReady, onPick }: { isLocal: boolean; localReady: boolean; onPick: (s: string) => void }) {
+  const suggestions = ["Make the hero headline bigger and bolder", "Add a dark footer with social links", "Change the primary button color to blue"];
+  return (
+    <div className="mt-2 text-center text-[12.5px] leading-relaxed text-ink-3">
+      {isLocal && !localReady && (
+        <div className="mx-auto mb-4 max-w-[290px] rounded-xl border border-line bg-bg p-4 text-left">
+          <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-ink"><Cpu size={14} className="text-accent" /> Nova Lite runs on your device</span>
+          <p className="mt-1.5 text-[11.5px] leading-relaxed text-ink-3">
+            Your first message downloads the model (~2 GB) into this browser. After that it&apos;s instant, works offline, and nothing ever leaves your device.
+          </p>
+        </div>
+      )}
+      <p className="mx-auto max-w-[260px]">
+        {isLocal
+          ? "Ask Nova Lite to tweak this page or explain your code. It edits one file at a time."
+          : "Ask Nova to build or change anything in this project. It reads and edits your real files — the canvas updates as it works."}
+      </p>
+      <div className="mx-auto mt-4 flex max-w-[280px] flex-col gap-1.5">
+        {suggestions.map((s) => (
+          <button key={s} onClick={() => onPick(s)} className="rounded-lg border border-line bg-bg px-3 py-2 text-left text-[12px] text-ink-2 transition-colors hover:border-line-2 hover:text-ink">
+            {s}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function ConnectKey({ brand }: { brand?: string }) {
+  return (
+    <div className="mx-auto mt-6 max-w-[280px] rounded-xl border border-line bg-bg p-5 text-center">
+      <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-accent/15 text-accent"><Sparkles size={18} /></span>
+      <h3 className="mt-3 font-display text-[15px] font-semibold">Connect your AI</h3>
+      <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
+        Add your own {brand || "provider"} API key to let the assistant read and edit your files.
+      </p>
+      <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
+        An API key is separate from a ChatGPT Plus / Claude Pro subscription. Your key stays in this browser. Or switch to <span className="text-ink-2">Nova Lite</span> — free, on-device, no key.
+      </p>
+      <Link href="/settings" className="mt-4 inline-flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[12.5px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
+        <Settings2 size={13} /> Add key in Settings
+      </Link>
+    </div>
+  );
+}
+
+function GpuUnsupported() {
+  return (
+    <div className="mx-auto mt-6 max-w-[290px] rounded-xl border border-line bg-bg p-5 text-center">
+      <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-amber-400/15 text-amber-300"><Cpu size={18} /></span>
+      <h3 className="mt-3 font-display text-[15px] font-semibold">Nova Lite needs WebGPU</h3>
+      <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
+        This browser can&apos;t run on-device AI. Nova Lite works in recent Chrome, Edge, or Arc (and Safari 18+).
+      </p>
+      <p className="mt-2 text-[11px] leading-relaxed text-ink-3">
+        Meanwhile you can add your own API key in Settings to use Claude, GPT, and others.
+      </p>
+    </div>
+  );
+}
+
+function ComingSoon({ label }: { label: string }) {
+  return (
+    <div className="mx-auto mt-6 max-w-[280px] rounded-xl border border-line bg-bg p-5 text-center">
+      <span className="mx-auto grid h-10 w-10 place-items-center rounded-full bg-accent/15 text-accent"><Clock size={18} /></span>
+      <h3 className="mt-3 font-display text-[15px] font-semibold">{label} is coming soon</h3>
+      <p className="mt-1.5 text-[12.5px] leading-relaxed text-ink-2">
+        A more capable managed model is on the way. For now, pick <span className="text-ink-2">Nova Lite</span> (free, on-device) or bring your own key.
+      </p>
     </div>
   );
 }

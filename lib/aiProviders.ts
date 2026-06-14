@@ -4,12 +4,18 @@
 // OpenRouter all expose). OpenRouter + the per-provider "custom model id" field
 // mean you can reach essentially any model with your own key.
 
-export type Transport = "anthropic" | "openai";
+export type Transport = "anthropic" | "openai" | "local";
+
+export type Tier = "free" | "pro" | "studio";
 
 export interface ModelDef {
   id: string;
   label: string;
   note?: string;
+  local?: boolean; // runs on-device via WebLLM (no key, no server)
+  managed?: boolean; // Nova-hosted managed model (key supplied by us)
+  disabled?: boolean; // shown but not selectable yet ("coming soon")
+  tier?: Tier; // plan this model belongs to
 }
 
 export interface ProviderDef {
@@ -22,10 +28,29 @@ export interface ProviderDef {
   consoleURL: string;
   hint: string;
   allowCustom?: boolean; // show a "custom model id" entry
+  managed?: boolean; // Nova's own family — no BYO key field in Settings
   models: ModelDef[];
 }
 
 export const PROVIDERS: ProviderDef[] = [
+  {
+    // Nova's own family. "Lite" runs entirely on-device (WebLLM) and is free;
+    // "Pro"/"Studio" are managed models we host later for paid plans.
+    id: "nova",
+    brand: "Nova",
+    transport: "local",
+    baseURL: "",
+    accent: "#ccff02",
+    keyPlaceholder: "",
+    consoleURL: "",
+    hint: "Built-in — runs on your device, no key",
+    managed: true,
+    models: [
+      { id: "nova-lite", label: "Nova Lite", note: "On-device · free · runs on your GPU", local: true, tier: "free" },
+      { id: "nova-pro", label: "Nova Pro", note: "Larger managed model · coming soon", managed: true, disabled: true, tier: "pro" },
+      { id: "nova-studio", label: "Nova Studio", note: "Most capable · coming soon", managed: true, disabled: true, tier: "studio" },
+    ],
+  },
   {
     id: "anthropic",
     brand: "Anthropic",
@@ -159,4 +184,23 @@ export function providerById(id: string): ProviderDef | undefined {
 export function modelLabel(providerId: string, modelId: string): string {
   const p = providerById(providerId);
   return p?.models.find((m) => m.id === modelId)?.label || modelId;
+}
+
+// Resolve a {provider, model} selection to both catalog records.
+export function findModel(providerId: string, modelId: string): { provider: ProviderDef; model?: ModelDef } | undefined {
+  const provider = providerById(providerId);
+  if (!provider) return undefined;
+  return { provider, model: provider.models.find((m) => m.id === modelId) };
+}
+
+// The on-device Nova Lite selection (free tier, WebLLM).
+export const NOVA_LITE = { provider: "nova", model: "nova-lite" } as const;
+
+// Best Nova model for a plan, falling back to whatever is actually available
+// today (Pro/Studio are "coming soon", so they resolve to Lite for now).
+export function novaModelForPlan(plan: string | null | undefined): string {
+  const want = plan === "studio" ? "nova-studio" : plan === "pro" ? "nova-pro" : "nova-lite";
+  const nova = providerById("nova");
+  const m = nova?.models.find((x) => x.id === want);
+  return m && !m.disabled ? m.id : "nova-lite";
 }
