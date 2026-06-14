@@ -9,9 +9,10 @@ export const contentType = "image/png";
 // Branded social-share card shown when the homepage is linked anywhere.
 // Uses Space Grotesk (the site's hero/display font) so it matches the site.
 export default async function OpengraphImage() {
-  const [bold, medium] = await Promise.all([
+  const [bold, medium, serifItalic] = await Promise.all([
     readFile(join(process.cwd(), "app/SpaceGrotesk-Bold.woff")),
     readFile(join(process.cwd(), "app/SpaceGrotesk-Medium.woff")),
+    readFile(join(process.cwd(), "app/InstrumentSerif-Italic.woff")),
   ]);
 
   return new ImageResponse(
@@ -55,15 +56,20 @@ export default async function OpengraphImage() {
           <div
             style={{
               display: "flex",
+              flexDirection: "column",
               fontSize: 80,
               fontWeight: 700,
               color: "#f2f2f4",
-              lineHeight: 1.02,
+              lineHeight: 1.04,
               letterSpacing: -2,
-              maxWidth: 1000,
             }}
           >
-            Design in the browser, ship the code.
+            <div style={{ display: "flex", alignItems: "baseline" }}>
+              <span>Design in the&nbsp;</span>
+              <span style={{ fontFamily: "Instrument Serif", fontStyle: "italic", fontWeight: 400, color: "#ccff02" }}>browser</span>
+              <span>,</span>
+            </div>
+            <div style={{ display: "flex" }}>ship the code.</div>
           </div>
           <div
             style={{
@@ -105,6 +111,7 @@ export default async function OpengraphImage() {
       fonts: [
         { name: "Space Grotesk", data: bold, weight: 700, style: "normal" },
         { name: "Space Grotesk", data: medium, weight: 500, style: "normal" },
+        { name: "Instrument Serif", data: serifItalic, weight: 400, style: "italic" },
       ],
     }
   );
