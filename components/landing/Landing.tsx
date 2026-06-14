@@ -42,7 +42,7 @@ const REPO = "https://github.com/KyngKai909/nova-editor";
 const OSS_FACTS = [
   { title: "AGPL 3.0", sub: "License · forks stay open" },
   { title: "TypeScript", sub: "End-to-end, strictly typed" },
-  { title: "1 repo", sub: "Editor · canvas · AI" },
+  { title: "1 Monorepo", sub: "Code Editor · canvas · AI" },
   { title: "No telemetry", sub: "Nothing tracked. Ever." },
 ];
 
@@ -452,10 +452,10 @@ export default function Landing() {
           <Github size={14} className="text-accent" /> Open source
         </p>
         <h2 className="reveal mx-auto max-w-3xl font-display text-[clamp(2rem,6vw,4.5rem)] font-semibold leading-[1.0] tracking-tightest">
-          If you don't like something, <span className="font-serif italic text-accent">fork it.</span>
+          Fork it, theme it, <span className="font-serif italic text-accent">ship it.</span>
         </h2>
         <p className="reveal mx-auto mt-6 max-w-xl text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
-          Nova is as open as they come — built to be modified, themed, and forked. The editor, the canvas, the AI bridge: it's all here, and it stays yours. Go nuts; that's the whole point.
+          Built to be modified, themed, and forked. It's all yours — go nuts; that's the whole point.
         </p>
 
         <div className="reveal mt-14 grid gap-4 text-left lg:grid-cols-5 lg:items-stretch">
