@@ -21,7 +21,7 @@ interface AuthState {
 
   init: () => void;
   checkInvite: (code: string) => Promise<boolean>;
-  sendMagicLink: (email: string, inviteCode: string) => Promise<{ error?: string }>;
+  sendMagicLink: (email: string, inviteCode: string, shouldCreateUser?: boolean) => Promise<{ error?: string }>;
   redeemInvite: (code: string) => Promise<boolean>;
   generateInvite: () => Promise<{ code?: string; error?: string }>;
   refreshProfile: () => Promise<void>;
@@ -88,11 +88,12 @@ export const useAuth = create<AuthState>((set, get) => ({
     return data === true;
   },
 
-  sendMagicLink: async (email, inviteCode) => {
+  sendMagicLink: async (email, inviteCode, shouldCreateUser = true) => {
     if (!supabase) return { error: "Auth is not configured." };
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
       options: {
+        shouldCreateUser,
         data: { invite_code: inviteCode.trim() },
         emailRedirectTo: typeof window !== "undefined" ? `${window.location.origin}/dashboard` : undefined,
       },

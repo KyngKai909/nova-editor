@@ -9,7 +9,7 @@ import Welcome from "./Welcome";
 import SyncManager from "@/components/sync/SyncManager";
 
 // Routes that stay public even when auth is enabled.
-const PUBLIC = new Set(["/", "/docs"]);
+const PUBLIC = new Set(["/", "/docs", "/login"]);
 
 function Loader() {
   return (

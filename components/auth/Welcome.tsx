@@ -6,14 +6,14 @@ import { useAuth } from "@/store/authStore";
 import AlphaPill from "@/components/AlphaPill";
 import { useRouteTransition } from "@/components/transition/RouteTransition";
 
-export default function Welcome({ mode }: { mode: "signin" | "redeem" }) {
+export default function Welcome({ mode }: { mode: "signin" | "redeem" | "login" }) {
   const checkInvite = useAuth((s) => s.checkInvite);
   const sendMagicLink = useAuth((s) => s.sendMagicLink);
   const redeemInvite = useAuth((s) => s.redeemInvite);
   const signOut = useAuth((s) => s.signOut);
   const { navigate } = useRouteTransition();
 
-  const [step, setStep] = useState<"code" | "email" | "sent">("code");
+  const [step, setStep] = useState<"code" | "email" | "sent">(mode === "login" ? "email" : "code");
   const [code, setCode] = useState("");
   const [email, setEmail] = useState("");
   const [busy, setBusy] = useState(false);
@@ -41,7 +41,8 @@ export default function Welcome({ mode }: { mode: "signin" | "redeem" }) {
     setError(null);
     setBusy(true);
     try {
-      const { error } = await sendMagicLink(email, code);
+      // On the dedicated login page, don't create an account for an unknown email.
+      const { error } = await sendMagicLink(email, code, mode !== "login");
       if (error) return setError(error);
       setStep("sent");
     } finally {
@@ -90,9 +91,19 @@ export default function Welcome({ mode }: { mode: "signin" | "redeem" }) {
               <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-accent/15 text-accent"><CheckCircle2 size={24} /></span>
               <h1 className="mt-4 font-display text-[19px] font-semibold tracking-tight">Check your email</h1>
               <p className="mx-auto mt-1.5 max-w-[260px] text-[13px] leading-relaxed text-ink-3">
-                We sent a sign-in link to <span className="text-ink-2">{email}</span>. Click it to finish creating your account.
+                We sent a sign-in link to <span className="text-ink-2">{email}</span>. Click it to {mode === "login" ? "sign in" : "finish creating your account"}.
               </p>
             </div>
+          ) : mode === "login" ? (
+            <>
+              <h1 className="font-display text-[20px] font-semibold tracking-tight">Welcome back</h1>
+              <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">Enter your email and we'll send a one-click sign-in link — no invite code needed.</p>
+              <Field icon={<Mail size={15} />} value={email} onChange={setEmail} placeholder="you@example.com" onEnter={send} type="email" />
+              <Primary onClick={send} busy={busy} disabled={!email.trim()}>Send sign-in link</Primary>
+              <p className="mt-4 text-center text-[12.5px] text-ink-3">
+                Need an invite? <button onClick={() => navigate("/dashboard")} className="font-medium text-ink transition-colors hover:text-accent">Get started</button>
+              </p>
+            </>
           ) : step === "email" ? (
             <>
               <h1 className="font-display text-[20px] font-semibold tracking-tight">Almost there</h1>
@@ -107,6 +118,9 @@ export default function Welcome({ mode }: { mode: "signin" | "redeem" }) {
               <p className="mt-1.5 text-[13px] leading-relaxed text-ink-3">Nova is invite-only during the alpha. Enter the code a friend shared with you.</p>
               <Field icon={<KeyRound size={15} />} value={code} onChange={setCode} placeholder="INVITE-CODE" onEnter={verifyCode} mono />
               <Primary onClick={verifyCode} busy={busy} disabled={!code.trim()}>Continue</Primary>
+              <p className="mt-4 text-center text-[12.5px] text-ink-3">
+                Already have an account? <button onClick={() => navigate("/login")} className="font-medium text-ink transition-colors hover:text-accent">Log in</button>
+              </p>
             </>
           )}
 
