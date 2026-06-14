@@ -8,12 +8,15 @@ import Canvas from "./Canvas";
 import Inspector from "./Inspector";
 import ExportPanel from "./ExportPanel";
 import AiPanel from "./AiPanel";
+import ResizeHandle from "./ResizeHandle";
 import CollabSync from "@/components/sync/CollabSync";
 import CommentSync from "@/components/sync/CommentSync";
 import HistorySync from "@/components/sync/HistorySync";
 import { useEditor } from "@/store/editorStore";
 import { useProjects } from "@/store/projectsStore";
 import { useSettings } from "@/store/settingsStore";
+import { useAi } from "@/store/aiStore";
+import { usePanels } from "@/store/panelStore";
 import { fsSupported } from "@/lib/fileSystem";
 import { saveProjectToDevice } from "@/lib/deviceProject";
 
@@ -21,6 +24,9 @@ const CodeEditor = dynamic(() => import("./CodeEditor"), {
   ssr: false,
   loading: () => <div className="grid h-full place-items-center text-sm text-ink-3">Loading editor…</div>,
 });
+
+// clamp a panel width so a persisted desktop size never overflows a phone
+const fit = (px: number) => `min(${px}px, 86vw)`;
 
 export default function EditorShell() {
   const previewMode = useEditor((s) => s.previewMode);
@@ -30,10 +36,16 @@ export default function EditorShell() {
   const files = useEditor((s) => s.files);
   const projectId = useEditor((s) => s.projectId);
   const updateProject = useProjects((s) => s.updateProject);
+  const aiOpen = useAi((s) => s.open);
+  const setAiOpen = useAi((s) => s.setOpen);
+  const leftW = usePanels((s) => s.left);
+  const aiW = usePanels((s) => s.ai);
+  const rightW = usePanels((s) => s.right);
   const [showExport, setShowExport] = useState(false);
   const [left, setLeft] = useState(true);
   const [right, setRight] = useState(true);
   const [mobile, setMobile] = useState(false);
+  const [dragging, setDragging] = useState(false);
 
   // auto-dismiss the transient notice
   useEffect(() => {
@@ -118,16 +130,19 @@ export default function EditorShell() {
 
   const showLeft = left && !previewMode;
   const showRight = right && !previewMode;
-  const drawerOpen = mobile && (showLeft || showRight);
+  const showAi = aiOpen && !previewMode;
+  const drawerOpen = mobile && (showLeft || showRight || showAi);
+  // disable the width transition while dragging so resizing tracks the cursor
+  const sweep = dragging ? "" : "transition-[width] duration-200";
 
   // on mobile only one drawer at a time
   const openLeft = () => {
     setLeft((v) => !v);
-    if (mobile) setRight(false);
+    if (mobile) { setRight(false); setAiOpen(false); }
   };
   const openRight = () => {
     setRight((v) => !v);
-    if (mobile) setLeft(false);
+    if (mobile) { setLeft(false); setAiOpen(false); }
   };
 
   return (
@@ -144,18 +159,26 @@ export default function EditorShell() {
       />
 
       <div className="relative flex min-h-0 flex-1">
-        {/* AI assistant — overlays the left side when open */}
-        <AiPanel />
-
-        {/* left panel */}
+        {/* left panel — layers / files / assets */}
         <aside
-          className={`z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface transition-[width] duration-200 ${
-            showLeft ? "w-[264px]" : "w-0"
-          } max-md:absolute max-md:left-0 max-md:top-0 ${showLeft ? "max-md:shadow-2xl" : ""}`}
+          style={{ width: showLeft ? fit(leftW) : 0 }}
+          className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${sweep} max-md:absolute max-md:left-0 max-md:top-0 ${showLeft ? "max-md:shadow-2xl" : ""}`}
         >
-          <div className="h-full w-[264px]">
+          <div className="h-full" style={{ width: fit(leftW) }}>
             <LeftPanel />
           </div>
+          {showLeft && <ResizeHandle panel="left" edge="right" onActiveChange={setDragging} />}
+        </aside>
+
+        {/* AI assistant — its own pushing column, just left of the canvas */}
+        <aside
+          style={{ width: showAi ? fit(aiW) : 0 }}
+          className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${sweep} max-md:absolute max-md:left-0 max-md:top-0 ${showAi ? "max-md:shadow-2xl" : ""}`}
+        >
+          <div className="h-full" style={{ width: fit(aiW) }}>
+            <AiPanel />
+          </div>
+          {showAi && <ResizeHandle panel="ai" edge="right" onActiveChange={setDragging} />}
         </aside>
 
         {/* canvas + code */}
@@ -174,14 +197,18 @@ export default function EditorShell() {
 
         {/* inspector */}
         <aside
-          className={`z-30 h-full shrink-0 overflow-hidden border-l border-line bg-surface transition-[width] duration-200 ${
-            showRight ? "w-[288px]" : "w-0"
-          } max-md:absolute max-md:right-0 max-md:top-0 ${showRight ? "max-md:shadow-2xl" : ""}`}
+          style={{ width: showRight ? fit(rightW) : 0 }}
+          className={`relative z-30 h-full shrink-0 overflow-hidden border-l border-line bg-surface ${sweep} max-md:absolute max-md:right-0 max-md:top-0 ${showRight ? "max-md:shadow-2xl" : ""}`}
         >
-          <div className="h-full w-[288px]">
+          <div className="h-full" style={{ width: fit(rightW) }}>
             <Inspector />
           </div>
+          {showRight && <ResizeHandle panel="right" edge="left" onActiveChange={setDragging} />}
         </aside>
+
+        {/* while dragging a handle, this overlay swallows pointer events so the
+            drag keeps tracking even over the canvas iframe */}
+        {dragging && <div className="fixed inset-0 z-50 cursor-col-resize" />}
 
         {/* mobile drawer backdrop */}
         {drawerOpen && (
@@ -190,6 +217,7 @@ export default function EditorShell() {
             onClick={() => {
               setLeft(false);
               setRight(false);
+              setAiOpen(false);
             }}
           />
         )}

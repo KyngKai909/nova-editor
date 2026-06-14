@@ -75,7 +75,7 @@ export default function AiPanel() {
   const stop = () => abortRef.current?.abort();
 
   return (
-    <div className="absolute left-0 top-0 z-40 flex h-full w-full flex-col border-r border-line bg-surface shadow-2xl md:w-[380px]">
+    <div className="flex h-full w-full flex-col bg-surface">
       {/* header */}
       <div className="flex h-12 shrink-0 items-center justify-between border-b border-line px-3">
         <div className="flex items-center gap-2">
