@@ -104,6 +104,7 @@ export default function Canvas() {
   const reloadKey = useEditor((s) => s.reloadKey);
   const usesTailwind = useEditor((s) => s.usesTailwind);
   const device = useEditor((s) => s.device);
+  const customWidth = useEditor((s) => s.customWidth);
   const zoom = useEditor((s) => s.zoom);
   const previewMode = useEditor((s) => s.previewMode);
   const selectNode = useEditor((s) => s.selectNode);
@@ -227,7 +228,7 @@ export default function Canvas() {
     );
   }
 
-  const width = DEVICE_WIDTH[device];
+  const width = customWidth ?? DEVICE_WIDTH[device];
   // auto-fit so the device frame always fits the available canvas width,
   // then apply the user's zoom on top (Webflow-style).
   const fit = containerW ? Math.min(1, (containerW - 56) / width) : 1;
@@ -296,7 +297,7 @@ export default function Canvas() {
       {/* device label */}
       <div className="pointer-events-none absolute left-1/2 top-2 -translate-x-1/2 rounded-full border border-line bg-surface/80 px-2.5 py-0.5 text-[10px] tabular-nums text-ink-3 backdrop-blur">
         {isolate && <span className="text-accent">component · </span>}
-        {device} · {width}px · {Math.round(scale * 100)}%
+        {customWidth ? "custom" : device} · {width}px · {Math.round(scale * 100)}%
       </div>
     </div>
   );

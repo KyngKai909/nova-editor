@@ -24,6 +24,14 @@ export const DEVICE_WIDTH: Record<Device, number> = {
   mobile: 390,
 };
 
+// A point-in-time copy of the editable document state, for undo/redo.
+interface HistorySnapshot {
+  files: SourceFile[];
+  activePath: string | null;
+  selectedId: string | null;
+}
+const HISTORY_LIMIT = 60;
+
 interface EditorState {
   files: SourceFile[];
   assets: AssetMap;
@@ -37,6 +45,7 @@ interface EditorState {
   usesTailwind: boolean;    // active project styles with Tailwind utilities
 
   device: Device;
+  customWidth: number | null; // user-typed canvas width (overrides the preset)
   previewMode: boolean;
   zoom: number;
   projectId: string | null;
@@ -46,15 +55,21 @@ interface EditorState {
   role: "owner" | "editor" | "commentor" | "viewer";
   viewMode: "design" | "code" | "split";
   codeReveal: { path: string; line: number; ts: number } | null;
+  past: HistorySnapshot[];
+  future: HistorySnapshot[];
 
   loadFiles: (files: SourceFile[], assets?: AssetMap, baseHref?: string | null, projectId?: string | null) => void;
   setCollab: (ownerId: string | null, role: "owner" | "editor" | "commentor" | "viewer") => void;
   canEditDoc: () => boolean;
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
   selectFile: (path: string) => void;
   selectNode: (id: string | null) => void;
   hoverNode: (id: string | null) => void;
 
   setDevice: (d: Device) => void;
+  setCustomWidth: (w: number | null) => void;
   togglePreview: () => void;
   setZoom: (z: number) => void;
   setViewMode: (m: "design" | "code" | "split") => void;
@@ -109,11 +124,14 @@ export const useEditor = create<EditorState>((set, get) => ({
   device: "desktop",
   previewMode: false,
   zoom: 1,
+  customWidth: null,
   projectId: null,
   ownerId: null,
   role: "owner",
   viewMode: "design",
   codeReveal: null,
+  past: [],
+  future: [],
   notice: null,
 
   loadFiles: (files, assets = {}, baseHref = null, projectId = null) => {
@@ -121,7 +139,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const withCat = files.map((f) =>
       f.category ? f : { ...f, category: classifyFile(f.path, f.kind) }
     );
-    set({ files: withCat, assets, baseHref, projectId, ownerId: null, role: "owner" });
+    set({ files: withCat, assets, baseHref, projectId, ownerId: null, role: "owner", past: [], future: [] });
     const firstPage = withCat.find((f) => f.category === "page") || withCat[0];
     if (firstPage) get().selectFile(firstPage.path);
 
@@ -172,7 +190,35 @@ export const useEditor = create<EditorState>((set, get) => ({
     return r === "owner" || r === "editor";
   },
 
-  setDevice: (d) => set({ device: d }),
+  // Snapshot the current document before an edit (called from updateContent, the
+  // single choke point every content change funnels through). Clears the redo
+  // stack since a new edit forks history.
+  pushHistory: () => {
+    const { files, activePath, selectedId, past } = get();
+    const snap: HistorySnapshot = { files: files.map((f) => ({ ...f })), activePath, selectedId };
+    set({ past: [...past.slice(-(HISTORY_LIMIT - 1)), snap], future: [] });
+  },
+
+  undo: () => {
+    const { past, files, activePath, selectedId, future } = get();
+    if (!past.length) return;
+    const prev = past[past.length - 1];
+    const current: HistorySnapshot = { files: files.map((f) => ({ ...f })), activePath, selectedId };
+    set({ past: past.slice(0, -1), future: [current, ...future].slice(0, HISTORY_LIMIT) });
+    applySnapshot(set, get, prev);
+  },
+
+  redo: () => {
+    const { future, files, activePath, selectedId, past } = get();
+    if (!future.length) return;
+    const next = future[0];
+    const current: HistorySnapshot = { files: files.map((f) => ({ ...f })), activePath, selectedId };
+    set({ future: future.slice(1), past: [...past, current].slice(-HISTORY_LIMIT) });
+    applySnapshot(set, get, next);
+  },
+
+  setDevice: (d) => set({ device: d, customWidth: null }),
+  setCustomWidth: (w) => set({ customWidth: w && w > 0 ? Math.min(5000, Math.round(w)) : null }),
   togglePreview: () => set({ previewMode: !get().previewMode, selectedId: null }),
   setZoom: (z) => set({ zoom: Math.min(2, Math.max(0.25, z)) }),
   setViewMode: (m) => set({ viewMode: m }),
@@ -608,5 +654,32 @@ function updateContent(
   path: string,
   content: string
 ) {
+  // Every document edit funnels through here — snapshot the pre-edit state for
+  // undo (skipped during undo/redo, which restore via applySnapshot directly).
+  useEditor.getState().pushHistory();
   set({ files: files.map((f) => (f.path === path ? { ...f, content } : f)) });
+}
+
+// Restore a history snapshot: swap files back and re-derive the active doc/tree.
+function applySnapshot(
+  set: (partial: Partial<EditorState>) => void,
+  get: () => EditorState,
+  snap: HistorySnapshot
+) {
+  const files = snap.files.map((f) => ({ ...f }));
+  const file = files.find((f) => f.path === snap.activePath);
+  const base: Partial<EditorState> = {
+    files,
+    activePath: snap.activePath,
+    selectedId: snap.selectedId,
+    reloadKey: get().reloadKey + 1,
+  };
+  if (file && file.kind === "html") {
+    const doc = parseDocument(file.content);
+    set({ ...base, htmlDoc: doc, tree: buildTree(doc) });
+  } else if (file) {
+    set({ ...base, htmlDoc: null, tree: parseJsx(file.content) });
+  } else {
+    set(base);
+  }
 }

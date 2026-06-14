@@ -80,6 +80,13 @@ export default function EditorShell() {
         }
         return;
       }
+      // Undo / redo (Cmd/Ctrl+Z, Cmd/Ctrl+Shift+Z)
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) st.redo();
+        else st.undo();
+        return;
+      }
       if (!st.selectedId) return;
       if ((e.key === "Delete" || e.key === "Backspace") && !st.previewMode) {
         e.preventDefault();
