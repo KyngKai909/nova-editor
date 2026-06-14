@@ -139,6 +139,24 @@ export default function Landing() {
 
   return (
     <div ref={root} className="relative overflow-x-clip bg-bg">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify({
+            "@context": "https://schema.org",
+            "@type": "SoftwareApplication",
+            name: "Nova",
+            applicationCategory: "DeveloperApplication",
+            operatingSystem: "Web",
+            url: "https://nova-editor-six.vercel.app",
+            description:
+              "A browser-based, Git-native visual editor for real codebases. Import any site or GitHub repo, edit it on a live canvas with Webflow-grade controls, ask AI on your own key, and ship the code.",
+            offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+            isAccessibleForFree: true,
+            license: "https://www.gnu.org/licenses/agpl-3.0.html",
+          }),
+        }}
+      />
       <div className="grain" />
 
       {/* nav */}
