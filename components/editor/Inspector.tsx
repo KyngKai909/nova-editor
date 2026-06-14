@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Square, StretchHorizontal, StretchVertical, Rows3, EyeOff,
-  CaseSensitive,
+  CaseSensitive, Italic, Underline, Strikethrough,
 } from "lucide-react";
 import { Copy, Trash2, X, Plus, Component as ComponentIcon } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
@@ -50,6 +50,8 @@ export default function Inspector() {
   const removeProp = useEditor((s) => s.removeProp);
   const updateAttr = useEditor((s) => s.updateAttr);
   const removeAttr = useEditor((s) => s.removeAttr);
+  const assets = useEditor((s) => s.assets);
+  const applyAsset = useEditor((s) => s.applyAsset);
 
   const node = find(tree, selectedId);
   const isHtml = files.find((f) => f.path === activePath)?.kind === "html";
@@ -92,6 +94,7 @@ export default function Inspector() {
   const isFlex = display === "flex" || display === "inline-flex";
   const isGrid = display === "grid";
   const position = baseKeyword(s.position);
+  const imageAssets = Object.entries(assets).filter(([p]) => /\.(png|jpe?g|gif|svg|webp|avif)$/i.test(p));
 
   return (
     <div className="scroll-thin h-full overflow-y-auto pb-24">
@@ -201,6 +204,16 @@ export default function Inspector() {
                 <Field label="Gap">
                   <NumberUnit value={s.gap} onCommit={(v) => set("gap", v)} placeholder="0" />
                 </Field>
+                {isGrid && (
+                  <>
+                    <Field label="Columns">
+                      <TextInput value={s.gridTemplateColumns === "none" ? "" : s.gridTemplateColumns} onCommit={(v) => set("gridTemplateColumns", v)} placeholder="repeat(3, 1fr)" mono />
+                    </Field>
+                    <Field label="Rows">
+                      <TextInput value={s.gridTemplateRows === "none" ? "" : s.gridTemplateRows} onCommit={(v) => set("gridTemplateRows", v)} placeholder="auto" mono />
+                    </Field>
+                  </>
+                )}
                 {isFlex && (
                   <Field label="Wrap">
                     <Segmented
@@ -230,6 +243,17 @@ export default function Inspector() {
                 <NumberUnit value={s.left} onCommit={(v) => set("left", v)} placeholder="left" />
               </div>
             )}
+          </Section>
+
+          <Section title="Flex child" defaultOpen={false}>
+            <Field label="Align self">
+              <Select value={s.alignSelf} onChange={(v) => set("alignSelf", v)} options={kw(["auto", "flex-start", "center", "flex-end", "stretch", "baseline"])} />
+            </Field>
+            <div className="grid grid-cols-3 gap-x-2 gap-y-2">
+              <Mini label="Grow"><TextInput value={s.flexGrow ?? ""} onCommit={(v) => set("flexGrow", v)} placeholder="0" /></Mini>
+              <Mini label="Shrink"><TextInput value={s.flexShrink ?? ""} onCommit={(v) => set("flexShrink", v)} placeholder="1" /></Mini>
+              <Mini label="Order"><TextInput value={s.order ?? ""} onCommit={(v) => set("order", v)} placeholder="0" /></Mini>
+            </div>
           </Section>
 
           <Section title="Spacing">
@@ -287,6 +311,29 @@ export default function Inspector() {
                 ]}
               />
             </Field>
+            <div className="grid grid-cols-2 gap-x-2.5">
+              <Mini label="Style">
+                <Segmented
+                  value={baseKeyword(s.fontStyle) === "italic" ? "italic" : "normal"}
+                  onChange={(v) => set("fontStyle", v)}
+                  options={[
+                    { value: "normal", label: "Aa", title: "normal" },
+                    { value: "italic", icon: <Italic size={13} />, title: "italic" },
+                  ]}
+                />
+              </Mini>
+              <Mini label="Decorate">
+                <Segmented
+                  value={baseKeyword(s.textDecorationLine) || "none"}
+                  onChange={(v) => set("textDecorationLine", v)}
+                  options={[
+                    { value: "none", label: "—", title: "none" },
+                    { value: "underline", icon: <Underline size={13} />, title: "underline" },
+                    { value: "line-through", icon: <Strikethrough size={13} />, title: "line-through" },
+                  ]}
+                />
+              </Mini>
+            </div>
             <Field label="Color">
               <ColorField value={s.color} onChange={(v) => set("color", v)} />
             </Field>
@@ -299,6 +346,24 @@ export default function Inspector() {
             <Field label="Image">
               <TextInput value={s.backgroundImage === "none" ? "" : s.backgroundImage} onCommit={(v) => set("backgroundImage", v)} placeholder="url(...) / gradient" />
             </Field>
+            {imageAssets.length > 0 && (
+              <div>
+                <div className="mb-1.5 text-[10px] text-ink-3">From assets</div>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {imageAssets.map(([path, url]) => (
+                    <button
+                      key={path}
+                      onClick={() => applyAsset(path, "background")}
+                      title={`${path}\nUse as background`}
+                      className="aspect-square overflow-hidden rounded border border-line transition-colors hover:border-accent/60"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={url} alt="" className="h-full w-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </Section>
 
           <Section title="Border">
@@ -337,6 +402,12 @@ export default function Inspector() {
             </Field>
             <Field label="Shadow">
               <TextInput value={s.boxShadow === "none" ? "" : s.boxShadow} onCommit={(v) => set("boxShadow", v)} placeholder="0 8px 24px rgba(0,0,0,.3)" mono />
+            </Field>
+            <Field label="Transform">
+              <TextInput value={s.transform === "none" ? "" : s.transform} onCommit={(v) => set("transform", v)} placeholder="translateY(-4px) scale(1.02)" mono />
+            </Field>
+            <Field label="Transition">
+              <TextInput value={isDefaultTransition(s.transition) ? "" : s.transition} onCommit={(v) => set("transition", v)} placeholder="all .2s ease" mono />
             </Field>
           </Section>
 
@@ -639,4 +710,8 @@ function px(v?: string): string {
 function cleanFont(v?: string): string {
   if (!v) return "";
   return v.split(",")[0].replace(/["']/g, "").trim();
+}
+// getComputedStyle returns "all 0s ease 0s" (or "all") when no transition is set.
+function isDefaultTransition(v?: string): boolean {
+  return !v || v === "all" || /^all 0s/.test(v) || /\b0s\b.*\b0s\b/.test(v);
 }

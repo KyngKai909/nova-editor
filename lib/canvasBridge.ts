@@ -59,6 +59,8 @@ if (typeof window !== "undefined") {
 // Properties the style panel reads/writes.
 export const STYLE_PROPS = [
   "display", "flexDirection", "flexWrap", "justifyContent", "alignItems", "gap",
+  "alignSelf", "flexGrow", "flexShrink", "order",
+  "gridTemplateColumns", "gridTemplateRows",
   "position", "top", "right", "bottom", "left", "zIndex",
   "marginTop", "marginRight", "marginBottom", "marginLeft",
   "paddingTop", "paddingRight", "paddingBottom", "paddingLeft",
@@ -69,7 +71,7 @@ export const STYLE_PROPS = [
   "borderRadius", "borderTopLeftRadius", "borderTopRightRadius",
   "borderBottomRightRadius", "borderBottomLeftRadius",
   "borderWidth", "borderStyle", "borderColor",
-  "opacity", "boxShadow", "filter", "transform", "overflow", "cursor",
+  "opacity", "boxShadow", "filter", "transform", "transition", "overflow", "cursor",
 ] as const;
 
 export type StyleProp = (typeof STYLE_PROPS)[number];

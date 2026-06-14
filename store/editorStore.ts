@@ -69,7 +69,7 @@ interface EditorState {
   updateAttr: (id: string, name: string, value: string) => void;
   removeAttr: (id: string, name: string) => void;
   addAsset: (file: File) => string;
-  applyAsset: (repoPath: string) => void;
+  applyAsset: (repoPath: string, as?: "auto" | "src" | "background") => void;
 
   notice: string | null;
   setNotice: (n: string | null) => void;
@@ -495,7 +495,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   // Apply an asset to the selected element. Writes the idiomatic repo path to
   // the source (so exports stay clean) but pushes the blob URL to the live
   // iframe so it renders immediately; on reload, rewriteAssetUrls re-maps it.
-  applyAsset: (repoPath) => {
+  applyAsset: (repoPath, as = "auto") => {
     const { selectedId, tree, assets } = get();
     if (!selectedId) {
       get().setNotice("Select an element on the canvas first.");
@@ -504,7 +504,8 @@ export const useEditor = create<EditorState>((set, get) => ({
     const node = findNode(tree, selectedId);
     if (!node) return;
     const blob = assets[repoPath];
-    if (node.tag.toLowerCase() === "img") {
+    const useSrc = as === "src" || (as === "auto" && node.tag.toLowerCase() === "img");
+    if (useSrc) {
       get().updateAttr(selectedId, "src", repoPath);
       if (blob) applyAttrToIframe(selectedId, "src", blob);
       get().setNotice("Set image source");
