@@ -6,7 +6,7 @@ import { instrument } from "@/lib/htmlParser";
 import { injectJsxIds, prepareJsxModule } from "@/lib/jsxCanvas";
 import { setIframe, highlight, hoverElement, setPreview, markCanvasReady, resetCanvasReady, BRIDGE_SCRIPT, STORAGE_SHIM } from "@/lib/canvasBridge";
 import { bundleComponent, needsBundling } from "@/lib/bundler";
-import { getDragComponent, setDragComponent } from "@/lib/dnd";
+import { getDragComponent, setDragComponent, getDragElement, setDragElement } from "@/lib/dnd";
 
 function buildJsxDoc(source: string, tree: any, isolate: boolean): string {
   const injected = injectJsxIds(source, tree);
@@ -99,6 +99,7 @@ export default function Canvas() {
   const hoverNode = useEditor((s) => s.hoverNode);
   const updateText = useEditor((s) => s.updateText);
   const insertComponent = useEditor((s) => s.insertComponent);
+  const insertElement = useEditor((s) => s.insertElement);
 
   const file = files.find((f) => f.path === activePath);
   const isolate = file?.category === "component";
@@ -138,8 +139,11 @@ export default function Canvas() {
       else if (d.type === "wfc-text") updateText(d.id, d.text);
       else if (d.type === "wfc-drop") {
         const comp = getDragComponent();
+        const el = getDragElement();
         if (comp && d.id) insertComponent(comp, d.id, "after");
+        else if (el && d.id) insertElement(el, d.id, "after");
         setDragComponent(null);
+        setDragElement(null);
       } else if (d.type === "wfc-ready") {
         // the iframe's bridge is up — flush queued commands and re-apply state
         markCanvasReady();
@@ -150,7 +154,7 @@ export default function Canvas() {
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
-  }, [selectNode, hoverNode, updateText, insertComponent]);
+  }, [selectNode, hoverNode, updateText, insertComponent, insertElement]);
 
   // register the iframe element once (its contentWindow is read fresh per post)
   useEffect(() => {

@@ -63,6 +63,7 @@ interface EditorState {
   duplicateNode: (id: string) => void;
   moveNode: (dragId: string, targetId: string, position: "before" | "after" | "inside") => void;
   insertComponent: (componentPath: string, targetId: string, position: "before" | "after" | "inside") => void;
+  insertElement: (snippet: string, targetId: string, position: "before" | "after" | "inside") => void;
   updateProp: (id: string, name: string, value: string) => void;
   removeProp: (id: string, name: string) => void;
   updateAttr: (id: string, name: string, value: string) => void;
@@ -381,6 +382,49 @@ export const useEditor = create<EditorState>((set, get) => ({
     get().setNotice(`Inserted <${name} />`);
   },
 
+  // Insert a standard element (raw HTML snippet) relative to a target node.
+  // HTML pages insert into the live Document; JSX pages splice the snippet as
+  // JSX (class → className, void elements self-closed).
+  insertElement: (snippet, targetId, position) => {
+    const { files, activePath, htmlDoc, tree } = get();
+    const file = files.find((f) => f.path === activePath);
+    if (!file) return;
+
+    if (file.kind === "html" && htmlDoc) {
+      const target = htmlDoc.querySelector(`[data-wfc-id="${targetId}"]`);
+      if (!target) return;
+      const tpl = htmlDoc.createElement("template");
+      tpl.innerHTML = snippet.trim();
+      const nodes = Array.from(tpl.content.childNodes);
+      if (!nodes.length) return;
+      if (position === "inside") nodes.forEach((n) => target.appendChild(n));
+      else if (position === "before") target.before(...nodes);
+      else target.after(...nodes);
+      reloadHtml(set, get, files, activePath, htmlDoc, null);
+    } else {
+      const node = findNode(tree, targetId);
+      if (!node?.sourceLocation) return;
+      const jsx = htmlToJsx(snippet.trim());
+      const content = file.content;
+      let offset: number;
+      let insertText: string;
+      if (position === "before") {
+        offset = node.sourceLocation.start;
+        insertText = jsx + "\n" + lineIndent(content, offset);
+      } else if (position === "inside" && node.children[0]?.sourceLocation) {
+        offset = node.children[0].sourceLocation.start;
+        insertText = jsx + "\n" + lineIndent(content, offset);
+      } else {
+        offset = node.sourceLocation.end;
+        insertText = "\n" + lineIndent(content, node.sourceLocation.start) + jsx;
+      }
+      const newContent = content.slice(0, offset) + insertText + content.slice(offset);
+      updateContent(set, files, file.path, newContent);
+      set({ tree: parseJsx(newContent), reloadKey: get().reloadKey + 1 });
+    }
+    get().setNotice("Inserted element");
+  },
+
   updateProp: (id, name, value) => {
     const { files, activePath, tree } = get();
     const file = files.find((f) => f.path === activePath);
@@ -493,6 +537,14 @@ function reloadHtml(
   const fresh = parseDocument(content); // reassigns stable ids
   updateContent(set, files, path!, content);
   set({ htmlDoc: fresh, tree: buildTree(fresh), selectedId: selectId, reloadKey: get().reloadKey + 1 });
+}
+
+// Convert a curated HTML snippet to JSX for insertion into a JSX/TSX page.
+function htmlToJsx(html: string): string {
+  return html
+    .replace(/\bclass=/g, "className=")
+    .replace(/\bfor=/g, "htmlFor=")
+    .replace(/<(img|input|br|hr)(\s[^>]*?)?(?<!\/)>/g, "<$1$2 />");
 }
 
 function lineIndent(content: string, offset: number): string {

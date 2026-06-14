@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, FileCode2, Type, Box, Image as ImageIcon, Link2, Square, Code2,
   MousePointer2, Files, Layers, Component, FolderTree, FileText, Copy, Trash2, GripVertical,
-  Upload,
+  Upload, Columns2, Rows2, Grid3x3, Heading, List, Minus, TextCursorInput, RectangleHorizontal,
 } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
-import { setDragComponent, getDragComponent } from "@/lib/dnd";
+import { setDragComponent, getDragComponent, setDragElement, getDragElement } from "@/lib/dnd";
 import type { EditorNode, SourceFile } from "@/lib/types";
 
 // id of the layer row currently being dragged (module-level so it crosses rows)
@@ -41,6 +41,7 @@ function LayerRow({ node, depth }: { node: EditorNode; depth: number }) {
   const deleteNode = useEditor((s) => s.deleteNode);
   const moveNode = useEditor((s) => s.moveNode);
   const insertComponent = useEditor((s) => s.insertComponent);
+  const insertElement = useEditor((s) => s.insertElement);
   const isHtml = useEditor((s) => s.files.find((f) => f.path === s.activePath)?.kind === "html");
   const [open, setOpen] = useState(false); // collapsed by default
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
@@ -62,7 +63,7 @@ function LayerRow({ node, depth }: { node: EditorNode; depth: number }) {
 
   const onDragOver = (e: React.DragEvent) => {
     if (dragSrc === node.id) return;
-    if (!dragSrc && !getDragComponent()) return; // nothing draggable in play
+    if (!dragSrc && !getDragComponent() && !getDragElement()) return; // nothing draggable in play
     e.preventDefault();
     const r = e.currentTarget.getBoundingClientRect();
     const y = (e.clientY - r.top) / r.height;
@@ -72,10 +73,13 @@ function LayerRow({ node, depth }: { node: EditorNode; depth: number }) {
   const onDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const comp = getDragComponent();
+    const el = getDragElement();
     if (comp && drop) insertComponent(comp, node.id, drop);
+    else if (el && drop) insertElement(el, node.id, drop);
     else if (dragSrc && drop) moveNode(dragSrc, node.id, drop);
     dragSrc = null;
     setDragComponent(null);
+    setDragElement(null);
     setDrop(null);
   };
 
@@ -279,6 +283,83 @@ function AssetsTab() {
   );
 }
 
+/* ── Elements palette ────────────────────────────────────────────────────── */
+const ELEMENTS: { group: string; items: { label: string; icon: React.ReactNode; html: string }[] }[] = [
+  {
+    group: "Layout",
+    items: [
+      { label: "Section", icon: <RectangleHorizontal size={14} />, html: `<section class="px-6 py-16"></section>` },
+      { label: "Container", icon: <Box size={14} />, html: `<div class="mx-auto w-full max-w-5xl px-4"></div>` },
+      { label: "Div block", icon: <Square size={14} />, html: `<div class="p-4"></div>` },
+      { label: "Flex row", icon: <Columns2 size={14} />, html: `<div class="flex items-center gap-4"></div>` },
+      { label: "Flex column", icon: <Rows2 size={14} />, html: `<div class="flex flex-col gap-4"></div>` },
+      { label: "Grid", icon: <Grid3x3 size={14} />, html: `<div class="grid grid-cols-3 gap-4"></div>` },
+    ],
+  },
+  {
+    group: "Typography",
+    items: [
+      { label: "Heading", icon: <Heading size={14} />, html: `<h2 class="text-2xl font-semibold">Heading</h2>` },
+      { label: "Paragraph", icon: <Type size={14} />, html: `<p class="leading-relaxed">Paragraph text goes here.</p>` },
+      { label: "Text link", icon: <Link2 size={14} />, html: `<a href="#" class="text-blue-600 underline">Link</a>` },
+      { label: "List", icon: <List size={14} />, html: `<ul class="list-disc pl-5"><li>Item one</li><li>Item two</li></ul>` },
+    ],
+  },
+  {
+    group: "Forms & media",
+    items: [
+      { label: "Button", icon: <MousePointer2 size={14} />, html: `<button class="rounded-md bg-black px-4 py-2 text-sm font-medium text-white">Button</button>` },
+      { label: "Image", icon: <ImageIcon size={14} />, html: `<img src="https://placehold.co/600x400" alt="" class="w-full" />` },
+      { label: "Input", icon: <TextCursorInput size={14} />, html: `<input type="text" placeholder="Text" class="rounded-md border px-3 py-2" />` },
+      { label: "Divider", icon: <Minus size={14} />, html: `<hr class="border-t border-gray-200" />` },
+    ],
+  },
+];
+
+function ElementsPalette() {
+  const isHtml = useEditor((s) => s.files.find((f) => f.path === s.activePath)?.kind === "html");
+
+  // Click = insert after the selected node, or append into the last top-level node.
+  const onClick = (html: string) => {
+    const st = useEditor.getState();
+    if (st.selectedId) st.insertElement(html, st.selectedId, "after");
+    else {
+      const last = st.tree[st.tree.length - 1];
+      if (last) st.insertElement(html, last.id, "inside");
+      else st.setNotice("Open a page first.");
+    }
+  };
+
+  return (
+    <div className="border-b border-line p-2">
+      {ELEMENTS.map((g) => (
+        <div key={g.group} className="mb-2">
+          <div className="px-1 pb-1 text-[9px] font-semibold uppercase tracking-wide text-ink-3">{g.group}</div>
+          <div className="grid grid-cols-2 gap-1">
+            {g.items.map((it) => (
+              <button
+                key={it.label}
+                draggable
+                onDragStart={() => setDragElement(it.html)}
+                onDragEnd={() => setDragElement(null)}
+                onClick={() => onClick(it.html)}
+                title={`${it.label} — drag onto the canvas or a layer, or click to insert`}
+                className="flex items-center gap-1.5 rounded-md border border-line bg-bg px-2 py-1.5 text-left text-[11.5px] text-ink-2 transition-colors hover:border-accent/50 hover:text-ink"
+              >
+                <span className="shrink-0 text-ink-3">{it.icon}</span>
+                <span className="truncate">{it.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p className="px-1 pt-0.5 text-[10px] leading-relaxed text-ink-3">
+        {isHtml ? "Drag onto the canvas or a layer, or click to insert." : "Inserts as JSX into the current page."}
+      </p>
+    </div>
+  );
+}
+
 /* ── Panel ───────────────────────────────────────────────────────────────── */
 type Tab = "pages" | "layers" | "components" | "assets" | "files";
 const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
@@ -345,14 +426,20 @@ export default function LeftPanel() {
         )}
 
         {tab === "components" && (
-          components.length ? (
-            <>
-              {components.map((f) => <FileRow key={f.path} file={f} icon={<Component size={13} />} view="design" draggable />)}
-              <p className="px-3 pt-3 text-[10.5px] leading-relaxed text-ink-3">
-                Click to edit in isolation, or drag onto a JSX page (canvas or layer) to insert an instance.
-              </p>
-            </>
-          ) : <Empty>No components — open a .jsx / .tsx file to edit one in isolation.</Empty>
+          <>
+            <ElementsPalette />
+            <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3">Project components</div>
+            {components.length ? (
+              <>
+                {components.map((f) => <FileRow key={f.path} file={f} icon={<Component size={13} />} view="design" draggable />)}
+                <p className="px-3 pt-2 text-[10.5px] leading-relaxed text-ink-3">
+                  Click to edit in isolation, or drag onto a JSX page (canvas or layer) to insert an instance.
+                </p>
+              </>
+            ) : (
+              <p className="px-3 pt-1 text-[10.5px] leading-relaxed text-ink-3">No project components yet — open a .jsx / .tsx file to edit one in isolation.</p>
+            )}
+          </>
         )}
 
         {tab === "assets" && <AssetsTab />}
