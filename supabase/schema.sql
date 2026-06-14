@@ -135,6 +135,142 @@ exception when duplicate_object then null;
 end $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- COLLABORATION (Phase 8 — invite editors / commentors / viewers)
+-- A project is owned by one user (their cloud_projects row). Collaborators are
+-- invited by email and granted a role; RLS enforces the role on both the project
+-- data and its comments. Inviting an EDITOR requires the owner be on Studio.
+-- ─────────────────────────────────────────────────────────────────────────────
+create table if not exists public.project_collaborators (
+  owner_id        uuid not null references public.profiles(id) on delete cascade,
+  project_id      text not null,                       -- the owner's cloud_projects.id
+  email           text not null,
+  collaborator_id uuid references public.profiles(id) on delete cascade, -- null until they sign up
+  role            text not null check (role in ('editor','commentor','viewer')),
+  invited_by      uuid references public.profiles(id),
+  status          text not null default 'pending',     -- 'pending' | 'active'
+  created_at      timestamptz not null default now(),
+  primary key (owner_id, project_id, email)
+);
+alter table public.project_collaborators enable row level security;
+
+create table if not exists public.project_comments (
+  id            uuid primary key default gen_random_uuid(),
+  owner_id      uuid not null references public.profiles(id) on delete cascade,
+  project_id    text not null,
+  element_id    text not null,
+  element_label text,
+  body          text not null,
+  x             real,                                  -- 0–1 pin position
+  y             real,
+  author_id     uuid references public.profiles(id),
+  resolved      boolean not null default false,
+  created_at    timestamptz not null default now()
+);
+alter table public.project_comments enable row level security;
+
+-- Access helpers (SECURITY DEFINER: read the collaborators table past RLS).
+create or replace function public.can_access_project(p_owner uuid, p_project text)
+returns boolean language sql security definer stable set search_path = public as $$
+  select p_owner = auth.uid() or exists (
+    select 1 from public.project_collaborators pc
+    where pc.owner_id = p_owner and pc.project_id = p_project
+      and pc.collaborator_id = auth.uid() and pc.status = 'active');
+$$;
+create or replace function public.can_edit_project(p_owner uuid, p_project text)
+returns boolean language sql security definer stable set search_path = public as $$
+  select p_owner = auth.uid() or exists (
+    select 1 from public.project_collaborators pc
+    where pc.owner_id = p_owner and pc.project_id = p_project
+      and pc.collaborator_id = auth.uid() and pc.status = 'active' and pc.role = 'editor');
+$$;
+create or replace function public.can_comment_project(p_owner uuid, p_project text)
+returns boolean language sql security definer stable set search_path = public as $$
+  select p_owner = auth.uid() or exists (
+    select 1 from public.project_collaborators pc
+    where pc.owner_id = p_owner and pc.project_id = p_project
+      and pc.collaborator_id = auth.uid() and pc.status = 'active' and pc.role in ('editor','commentor'));
+$$;
+
+-- project_collaborators RLS: the owner manages; a collaborator sees their rows.
+drop policy if exists "collab: owner manage" on public.project_collaborators;
+create policy "collab: owner manage" on public.project_collaborators
+  for all using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+drop policy if exists "collab: see mine" on public.project_collaborators;
+create policy "collab: see mine" on public.project_collaborators
+  for select using (collaborator_id = auth.uid() or email = (select email from public.profiles where id = auth.uid()));
+
+-- cloud_projects: collaborators read; the owner + editors write.
+drop policy if exists "cloud_projects: own" on public.cloud_projects;
+drop policy if exists "cloud_projects: read" on public.cloud_projects;
+create policy "cloud_projects: read" on public.cloud_projects
+  for select using (public.can_access_project(user_id, id));
+drop policy if exists "cloud_projects: write" on public.cloud_projects;
+create policy "cloud_projects: write" on public.cloud_projects
+  for all using (public.can_edit_project(user_id, id)) with check (public.can_edit_project(user_id, id));
+
+-- project_comments RLS by role: anyone with access reads; editors+commentors add
+-- (their own); authors + editors edit/delete.
+drop policy if exists "comments: read" on public.project_comments;
+create policy "comments: read" on public.project_comments
+  for select using (public.can_access_project(owner_id, project_id));
+drop policy if exists "comments: add" on public.project_comments;
+create policy "comments: add" on public.project_comments
+  for insert with check (author_id = auth.uid() and public.can_comment_project(owner_id, project_id));
+drop policy if exists "comments: edit" on public.project_comments;
+create policy "comments: edit" on public.project_comments
+  for update using (author_id = auth.uid() or public.can_edit_project(owner_id, project_id))
+  with check (author_id = auth.uid() or public.can_edit_project(owner_id, project_id));
+drop policy if exists "comments: delete" on public.project_comments;
+create policy "comments: delete" on public.project_comments
+  for delete using (author_id = auth.uid() or public.can_edit_project(owner_id, project_id));
+
+-- Invite a collaborator. Inviting an EDITOR requires Studio (or admin) — enforced
+-- here so it can't be bypassed from the client.
+create or replace function public.invite_collaborator(p_project text, p_email text, p_role text)
+returns text language plpgsql security definer set search_path = public as $$
+declare v_plan text; v_admin boolean; v_status text; v_uid uuid;
+begin
+  if p_role not in ('editor','commentor','viewer') then raise exception 'invalid role'; end if;
+  select plan, is_admin into v_plan, v_admin from public.profiles where id = auth.uid();
+  if p_role = 'editor' and coalesce(v_plan,'free') <> 'studio' and not coalesce(v_admin,false) then
+    raise exception 'Inviting editors requires the Studio plan';
+  end if;
+  select id into v_uid from public.profiles where lower(email) = lower(p_email);
+  insert into public.project_collaborators (owner_id, project_id, email, role, invited_by, collaborator_id, status)
+  values (auth.uid(), p_project, lower(p_email), p_role, auth.uid(), v_uid,
+          case when v_uid is not null then 'active' else 'pending' end)
+  on conflict (owner_id, project_id, email) do update set role = excluded.role
+  returning status into v_status;
+  return v_status;
+end; $$;
+grant execute on function public.invite_collaborator(text, text, text) to authenticated;
+
+-- Link any pending invites to the signed-in user (call after sign-in).
+create or replace function public.link_collaborations()
+returns void language sql security definer set search_path = public as $$
+  update public.project_collaborators
+  set collaborator_id = auth.uid(), status = 'active'
+  where collaborator_id is null
+    and lower(email) = lower((select email from public.profiles where id = auth.uid()));
+$$;
+grant execute on function public.link_collaborations() to authenticated;
+
+-- Projects shared WITH the current user (for the dashboard, with role + data).
+create or replace function public.my_shared_projects()
+returns table (owner_id uuid, project_id text, role text, name text, data jsonb, rev bigint, updated_at timestamptz)
+language sql security definer stable set search_path = public as $$
+  select pc.owner_id, pc.project_id, pc.role, cp.name, cp.data, cp.rev, cp.updated_at
+  from public.project_collaborators pc
+  join public.cloud_projects cp on cp.user_id = pc.owner_id and cp.id = pc.project_id and not cp.deleted
+  where pc.collaborator_id = auth.uid() and pc.status = 'active';
+$$;
+grant execute on function public.my_shared_projects() to authenticated;
+
+-- Realtime for live comments + collaborator changes.
+do $$ begin alter publication supabase_realtime add table public.project_comments; exception when duplicate_object then null; end $$;
+do $$ begin alter publication supabase_realtime add table public.project_collaborators; exception when duplicate_object then null; end $$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- ADMIN: seed the first invite codes to hand to friends, e.g.
 --   insert into public.invites (code) values ('NOVA-ALPHA-1'), ('NOVA-ALPHA-2');
 -- Make yourself admin after you sign up:
