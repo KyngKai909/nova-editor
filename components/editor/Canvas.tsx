@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useEditor, DEVICE_WIDTH } from "@/store/editorStore";
 import { instrument } from "@/lib/htmlParser";
 import { injectJsxIds, prepareJsxModule } from "@/lib/jsxCanvas";
-import { setIframe, highlight, hoverElement, setPreview, markCanvasReady, resetCanvasReady, BRIDGE_SCRIPT, STORAGE_SHIM } from "@/lib/canvasBridge";
+import { setIframe, highlight, hoverElement, setPreview, markCanvasReady, resetCanvasReady, applyCommentPins, BRIDGE_SCRIPT, STORAGE_SHIM } from "@/lib/canvasBridge";
+import { useComments } from "@/store/commentsStore";
 import { bundleComponent, needsBundling } from "@/lib/bundler";
 import { getDragComponent, setDragComponent, getDragElement, setDragElement } from "@/lib/dnd";
 
@@ -100,6 +101,9 @@ export default function Canvas() {
   const updateText = useEditor((s) => s.updateText);
   const insertComponent = useEditor((s) => s.insertComponent);
   const insertElement = useEditor((s) => s.insertElement);
+  const projectId = useEditor((s) => s.projectId);
+  const panelOpen = useComments((s) => s.panelOpen);
+  const commentsByProject = useComments((s) => s.byProject);
 
   const file = files.find((f) => f.path === activePath);
   const isolate = file?.category === "component";
@@ -130,6 +134,16 @@ export default function Canvas() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [file?.path, file?.kind, reloadKey, file?.kind === "jsx" ? file?.content : null]);
 
+  // Draw comment pins on the canvas while the Comments panel is open (cleared
+  // otherwise). Queued through the bridge until the iframe is ready.
+  useEffect(() => {
+    const list = (projectId ? commentsByProject[projectId] : undefined) || [];
+    const pins = panelOpen
+      ? list.filter((c) => !c.resolved).map((c, i) => ({ id: c.elementId, key: String(i + 1), commentId: c.id }))
+      : [];
+    applyCommentPins(pins);
+  }, [panelOpen, projectId, commentsByProject, doc]);
+
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       const d = e.data;
@@ -144,12 +158,19 @@ export default function Canvas() {
         else if (el && d.id) insertElement(el, d.id, "after");
         setDragComponent(null);
         setDragElement(null);
+      } else if (d.type === "wfc-comment-click") {
+        highlight(d.id);
+        useComments.getState().setFocused(d.commentId);
       } else if (d.type === "wfc-ready") {
         // the iframe's bridge is up — flush queued commands and re-apply state
         markCanvasReady();
         const st = useEditor.getState();
         highlight(st.selectedId);
         setPreview(st.previewMode);
+        // re-draw comment pins on the freshly loaded canvas
+        const cs = useComments.getState();
+        const list = (st.projectId ? cs.byProject[st.projectId] : undefined) || [];
+        applyCommentPins(cs.panelOpen ? list.filter((c) => !c.resolved).map((c, i) => ({ id: c.elementId, key: String(i + 1), commentId: c.id })) : []);
       }
     };
     window.addEventListener("message", onMsg);

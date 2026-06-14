@@ -1,15 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Square, StretchHorizontal, StretchVertical, Rows3, EyeOff,
   CaseSensitive, Italic, Underline, Strikethrough,
 } from "lucide-react";
-import { Copy, Trash2, X, Plus, Component as ComponentIcon } from "lucide-react";
+import {
+  Copy, Trash2, X, Plus, Component as ComponentIcon,
+  Paintbrush2, Settings2, MessageSquare, Send, Check,
+} from "lucide-react";
 import { useEditor } from "@/store/editorStore";
+import { useComments, type Comment } from "@/store/commentsStore";
 import type { EditorNode } from "@/lib/types";
-import { readStyles } from "@/lib/canvasBridge";
+import { readStyles, highlight } from "@/lib/canvasBridge";
+
+const RIGHT_TABS = [
+  { id: "style", icon: <Paintbrush2 size={15} />, label: "Style" },
+  { id: "settings", icon: <Settings2 size={15} />, label: "Settings" },
+  { id: "comments", icon: <MessageSquare size={15} />, label: "Comments" },
+] as const;
+type RightTab = (typeof RIGHT_TABS)[number]["id"];
+
+const EMPTY_COMMENTS: Comment[] = [];
 import { componentNameFromPath } from "@/lib/jsxEdit";
 import { extractComponentProps } from "@/lib/componentProps";
 import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField } from "./controls";
@@ -52,6 +65,10 @@ export default function Inspector() {
   const removeAttr = useEditor((s) => s.removeAttr);
   const assets = useEditor((s) => s.assets);
   const applyAsset = useEditor((s) => s.applyAsset);
+  const projectId = useEditor((s) => s.projectId);
+  const commentsByProject = useComments((s) => s.byProject);
+  const setPanelOpen = useComments((s) => s.setPanelOpen);
+  const comments = projectId ? commentsByProject[projectId] || EMPTY_COMMENTS : EMPTY_COMMENTS;
 
   const node = find(tree, selectedId);
   const isHtml = files.find((f) => f.path === activePath)?.kind === "html";
@@ -59,7 +76,13 @@ export default function Inspector() {
   const isComponentInstance =
     !isHtml && !!node && /^[A-Z]/.test(node.tag) && node.tag !== "{expr}";
   const [s, setS] = useState<Record<string, string>>({});
-  const [tab, setTab] = useState<"style" | "settings">("style");
+  const [tab, setTab] = useState<RightTab>("style");
+
+  // Drive the canvas comment-pin overlay: on while the Comments tab is open.
+  useEffect(() => {
+    setPanelOpen(tab === "comments");
+    return () => setPanelOpen(false);
+  }, [tab, setPanelOpen]);
 
   const refresh = useCallback(() => {
     if (selectedId) readStyles(selectedId).then(setS);
@@ -72,15 +95,68 @@ export default function Inspector() {
     return () => clearTimeout(t);
   }, [refresh, device]);
 
+  const unresolved = comments.filter((c) => !c.resolved).length;
+
+  // Icon tab rail (matches the left panel) + a context header beneath it.
+  const rail = (
+    <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur">
+      <div className="flex items-center gap-0.5 border-b border-line p-1.5">
+        {RIGHT_TABS.map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            title={t.label}
+            className={`relative grid h-8 flex-1 place-items-center rounded-md transition-colors ${
+              tab === t.id ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"
+            }`}
+          >
+            {t.icon}
+            {t.id === "comments" && unresolved > 0 && (
+              <span className="absolute right-1 top-0.5 text-[8px] tabular-nums text-accent">{unresolved}</span>
+            )}
+          </button>
+        ))}
+      </div>
+      {tab !== "comments" && node ? (
+        <div className="flex items-center justify-between border-b border-line px-3.5 py-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">{node.tag}</span>
+            {node.classList[0] && <span className="truncate font-mono text-[11px] text-ink-3">.{node.classList[0]}</span>}
+          </div>
+          <div className="flex shrink-0 items-center gap-0.5">
+            <button onClick={() => duplicateNode(node.id)} title="Duplicate" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink"><Copy size={13} /></button>
+            <button onClick={() => deleteNode(node.id)} title="Delete" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-red-400"><Trash2 size={13} /></button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex h-7 items-center px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
+          {RIGHT_TABS.find((t) => t.id === tab)!.label}
+        </div>
+      )}
+    </div>
+  );
+
+  if (tab === "comments") {
+    return (
+      <div className="scroll-thin h-full overflow-y-auto pb-24">
+        {rail}
+        <CommentsPanel projectId={projectId} node={node} comments={comments} />
+      </div>
+    );
+  }
+
   if (!node) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <div className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface">
-          <Square size={16} className="text-ink-3" />
+      <div className="scroll-thin h-full overflow-y-auto pb-24">
+        {rail}
+        <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+          <div className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface">
+            <Square size={16} className="text-ink-3" />
+          </div>
+          <p className="max-w-[200px] text-[12px] leading-relaxed text-ink-3">
+            Select an element on the canvas to edit its styles, or double-click text to rewrite it.
+          </p>
         </div>
-        <p className="max-w-[200px] text-[12px] leading-relaxed text-ink-3">
-          Select an element on the canvas to edit its styles, or double-click text to rewrite it.
-        </p>
       </div>
     );
   }
@@ -98,40 +174,7 @@ export default function Inspector() {
 
   return (
     <div className="scroll-thin h-full overflow-y-auto pb-24">
-      {/* element header + tabs (pinned) */}
-      <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur">
-        <div className="flex items-center justify-between border-b border-line px-3.5 py-2.5">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">
-              {node.tag}
-            </span>
-            {node.classList[0] && (
-              <span className="truncate font-mono text-[11px] text-ink-3">.{node.classList[0]}</span>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-0.5">
-            <button onClick={() => duplicateNode(node.id)} title="Duplicate" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
-              <Copy size={13} />
-            </button>
-            <button onClick={() => deleteNode(node.id)} title="Delete" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-red-400">
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </div>
-        <div className="flex border-b border-line px-2">
-          {(["style", "settings"] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`flex-1 border-b-2 py-2 text-[12px] font-medium capitalize transition-colors ${
-                tab === t ? "border-accent text-ink" : "border-transparent text-ink-3 hover:text-ink"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
+      {rail}
 
       {tab === "settings" ? (
         <SettingsPanel
@@ -571,6 +614,142 @@ function AttrList({
         >
           <Plus size={13} />
         </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Comments tab ────────────────────────────────────────────────────────── */
+function CommentsPanel({
+  projectId, node, comments,
+}: {
+  projectId: string | null;
+  node: EditorNode | null;
+  comments: Comment[];
+}) {
+  const add = useComments((s) => s.add);
+  const toggleResolved = useComments((s) => s.toggleResolved);
+  const remove = useComments((s) => s.remove);
+  const focusedId = useComments((s) => s.focusedId);
+  const setFocused = useComments((s) => s.setFocused);
+  const [draft, setDraft] = useState("");
+  const rows = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // A pin click (or a panel click) focuses a comment — scroll it into view.
+  useEffect(() => {
+    if (focusedId) rows.current[focusedId]?.scrollIntoView({ block: "nearest" });
+  }, [focusedId]);
+
+  if (!projectId) {
+    return <div className="px-3.5 py-6 text-[12px] leading-relaxed text-ink-3">Open a project to leave comments.</div>;
+  }
+
+  const open = comments.filter((c) => !c.resolved);
+  const resolved = comments.filter((c) => c.resolved);
+
+  const post = () => {
+    if (!node || !draft.trim()) return;
+    const label = node.textContent
+      ? node.textContent.slice(0, 28)
+      : node.classList[0]
+      ? `${node.tag}.${node.classList[0]}`
+      : node.tag;
+    add(projectId, node.id, label, draft.trim());
+    setDraft("");
+  };
+
+  const go = (c: Comment) => { highlight(c.elementId); setFocused(c.id); };
+
+  return (
+    <div>
+      {/* composer */}
+      <div className="border-b border-line p-3">
+        {node ? (
+          <>
+            <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-ink-3">
+              On <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-accent">{node.tag}</span>
+            </div>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={2}
+              placeholder="Leave a comment…"
+              onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); post(); } }}
+              className="w-full resize-none rounded-md border border-line bg-bg p-2 text-[12px] leading-relaxed text-ink outline-none focus:border-accent/60"
+            />
+            <button
+              onClick={post}
+              disabled={!draft.trim()}
+              className="mt-1.5 flex w-full items-center justify-center gap-1.5 rounded-md bg-accent py-1.5 text-[12px] font-semibold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
+              <Send size={12} /> Comment
+            </button>
+          </>
+        ) : (
+          <p className="text-[12px] leading-relaxed text-ink-3">Select an element on the canvas to comment on it.</p>
+        )}
+      </div>
+
+      {/* list */}
+      {comments.length === 0 ? (
+        <div className="px-3.5 py-6 text-center text-[12px] leading-relaxed text-ink-3">
+          No comments yet. Pick an element and leave one — numbered pins appear on the canvas.
+        </div>
+      ) : (
+        <div className="p-2">
+          {open.map((c, i) => (
+            <CommentRow key={c.id} c={c} n={i + 1} focused={focusedId === c.id} rowRef={(el) => { rows.current[c.id] = el; }} onGo={() => go(c)} onResolve={() => toggleResolved(projectId, c.id)} onRemove={() => remove(projectId, c.id)} />
+          ))}
+          {resolved.length > 0 && (
+            <>
+              <div className="px-1 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-ink-3">Resolved · {resolved.length}</div>
+              {resolved.map((c) => (
+                <CommentRow key={c.id} c={c} n={0} focused={focusedId === c.id} rowRef={(el) => { rows.current[c.id] = el; }} onGo={() => go(c)} onResolve={() => toggleResolved(projectId, c.id)} onRemove={() => remove(projectId, c.id)} />
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommentRow({
+  c, n, focused, rowRef, onGo, onResolve, onRemove,
+}: {
+  c: Comment;
+  n: number;
+  focused: boolean;
+  rowRef: (el: HTMLDivElement | null) => void;
+  onGo: () => void;
+  onResolve: () => void;
+  onRemove: () => void;
+}) {
+  return (
+    <div
+      ref={rowRef}
+      className={`group mb-1.5 rounded-lg border p-2.5 transition-colors ${
+        focused ? "border-accent/60 bg-accent/[0.06]" : "border-line bg-bg"
+      } ${c.resolved ? "opacity-60" : ""}`}
+    >
+      <div className="flex items-start gap-2">
+        <button
+          onClick={onGo}
+          title="Go to element"
+          className={`mt-0.5 grid h-5 min-w-[20px] shrink-0 place-items-center rounded-full px-1 text-[10px] font-bold ${
+            c.resolved ? "bg-raise text-ink-3" : "bg-accent text-accent-ink"
+          }`}
+        >
+          {c.resolved ? <Check size={11} /> : n}
+        </button>
+        <div className="min-w-0 flex-1">
+          <button onClick={onGo} className="block max-w-full truncate text-left font-mono text-[10.5px] text-ink-3 hover:text-accent">{c.elementLabel}</button>
+          <p className={`mt-0.5 whitespace-pre-wrap text-[12.5px] leading-relaxed text-ink ${c.resolved ? "line-through" : ""}`}>{c.body}</p>
+        </div>
+      </div>
+      <div className="mt-1.5 flex items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <button onClick={onResolve} className="rounded px-1.5 py-0.5 text-[11px] text-ink-3 hover:bg-raise hover:text-ink">{c.resolved ? "Reopen" : "Resolve"}</button>
+        <button onClick={onRemove} title="Delete" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:text-red-400"><Trash2 size={12} /></button>
       </div>
     </div>
   );
