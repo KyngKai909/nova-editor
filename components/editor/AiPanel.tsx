@@ -274,15 +274,18 @@ export default function AiPanel() {
 
 function DownloadProgress({ load }: { load: LoadProgress }) {
   const pct = Math.round((load.progress || 0) * 100);
+  const cached = !!load.cached;
   return (
     <div className="rounded-xl border border-line bg-bg p-3">
       <div className="flex items-center gap-2 text-[12px] text-ink-2">
-        <Loader2 size={13} className="animate-spin text-accent" /> Downloading Nova Lite… {pct}%
+        <Loader2 size={13} className="animate-spin text-accent" /> {cached ? "Loading Nova Lite from cache" : "Downloading Nova Lite"}… {pct}%
       </div>
       <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-raise">
         <div className="h-full rounded-full bg-accent transition-[width] duration-300" style={{ width: `${pct}%` }} />
       </div>
-      <p className="mt-2 text-[10.5px] leading-relaxed text-ink-3 line-clamp-2">{load.text || "Fetching model weights — this one-time download is cached for next time."}</p>
+      <p className="mt-2 text-[10.5px] leading-relaxed text-ink-3 line-clamp-2">
+        {load.text || (cached ? "Loading cached weights — no download needed." : "Fetching model weights — this one-time download is cached for next time.")}
+      </p>
     </div>
   );
 }

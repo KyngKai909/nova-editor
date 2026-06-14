@@ -18,10 +18,25 @@ const FALLBACK = "Qwen2.5-Coder-1.5B-Instruct-q4f16_1-MLC";
 export interface LoadProgress {
   text: string; // human-readable status from WebLLM
   progress: number; // 0..1
+  cached?: boolean; // loading from the browser cache vs a fresh download
 }
 
 let enginePromise: Promise<any> | null = null;
 let loadedModel: string | null = null;
+
+// Ask the browser to keep our storage so the ~2 GB of weights survive reloads
+// and aren't evicted under storage pressure (the usual cause of "it downloads
+// again every time"). Best-effort — some browsers grant it silently.
+async function requestPersistentStorage(): Promise<void> {
+  try {
+    const s = (navigator as any)?.storage;
+    if (s?.persisted && s?.persist) {
+      if (!(await s.persisted())) await s.persist();
+    }
+  } catch {
+    /* not supported — caching still works, just evictable */
+  }
+}
 
 export type GpuStatus = "ok" | "no-webgpu" | "no-adapter";
 
@@ -58,10 +73,16 @@ export async function getLocalEngine(onProgress?: (p: LoadProgress) => void): Pr
   if (enginePromise) return enginePromise;
   enginePromise = (async () => {
     const webllm = await import("@mlc-ai/web-llm");
-    const initProgressCallback = (r: any) => onProgress?.({ text: r?.text || "Loading…", progress: r?.progress ?? 0 });
+    await requestPersistentStorage();
     let lastErr: unknown;
     for (const model of [PRIMARY, FALLBACK]) {
       try {
+        // Is this model already in the browser cache? Lets us label a quick
+        // cache-load as "Loading" instead of a scary "Downloading ~2 GB".
+        const cached = await webllm.hasModelInCache(model).catch(() => false);
+        const initProgressCallback = (r: any) =>
+          onProgress?.({ text: r?.text || "Loading…", progress: r?.progress ?? 0, cached });
+        onProgress?.({ text: cached ? "Loading Nova Lite from cache…" : "Downloading Nova Lite (one-time)…", progress: 0, cached });
         const engine = await webllm.CreateMLCEngine(model, { initProgressCallback });
         loadedModel = model;
         return engine;
