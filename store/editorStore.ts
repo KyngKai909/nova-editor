@@ -7,6 +7,7 @@ import { spliceJsx, setJsxStyle, setJsxProp, removeJsxProp, componentNameFromPat
 import { htmlNodeLine, lineOfOffset } from "@/lib/htmlLocate";
 import { classifyFile, fileKind } from "@/lib/importUtils";
 import { loadAssets, saveAsset } from "@/lib/assetStore";
+import { saveHistory, loadHistory } from "@/lib/historyStore";
 import { detectTailwind, applyTailwind, tailwindSupports } from "@/lib/tailwind";
 import { useSettings } from "@/store/settingsStore";
 import {
@@ -31,6 +32,17 @@ interface HistorySnapshot {
   selectedId: string | null;
 }
 const HISTORY_LIMIT = 60;
+
+// Persist the current project's history to IndexedDB (debounced so a burst of
+// edits doesn't thrash the disk).
+let _historyTimer: ReturnType<typeof setTimeout> | null = null;
+function scheduleHistoryPersist() {
+  if (_historyTimer) clearTimeout(_historyTimer);
+  _historyTimer = setTimeout(() => {
+    const { projectId, past, future } = useEditor.getState();
+    if (projectId) saveHistory(projectId, { past, future });
+  }, 800);
+}
 
 interface EditorState {
   files: SourceFile[];
@@ -152,6 +164,15 @@ export const useEditor = create<EditorState>((set, get) => ({
         }
       });
     }
+
+    // Restore this project's undo/redo history so it survives reloads.
+    if (projectId) {
+      loadHistory<{ past: HistorySnapshot[]; future: HistorySnapshot[] }>(projectId).then((h) => {
+        if (h && get().projectId === projectId) {
+          set({ past: Array.isArray(h.past) ? h.past : [], future: Array.isArray(h.future) ? h.future : [] });
+        }
+      });
+    }
   },
 
   selectFile: (path) => {
@@ -197,6 +218,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const { files, activePath, selectedId, past } = get();
     const snap: HistorySnapshot = { files: files.map((f) => ({ ...f })), activePath, selectedId };
     set({ past: [...past.slice(-(HISTORY_LIMIT - 1)), snap], future: [] });
+    scheduleHistoryPersist();
   },
 
   undo: () => {
@@ -206,6 +228,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const current: HistorySnapshot = { files: files.map((f) => ({ ...f })), activePath, selectedId };
     set({ past: past.slice(0, -1), future: [current, ...future].slice(0, HISTORY_LIMIT) });
     applySnapshot(set, get, prev);
+    scheduleHistoryPersist();
   },
 
   redo: () => {
@@ -215,6 +238,7 @@ export const useEditor = create<EditorState>((set, get) => ({
     const current: HistorySnapshot = { files: files.map((f) => ({ ...f })), activePath, selectedId };
     set({ future: future.slice(1), past: [...past, current].slice(-HISTORY_LIMIT) });
     applySnapshot(set, get, next);
+    scheduleHistoryPersist();
   },
 
   setDevice: (d) => set({ device: d, customWidth: null }),

@@ -18,6 +18,7 @@ import { importRepoFilesAuth } from "@/lib/githubApi";
 import { reopenFolder } from "@/lib/deviceProject";
 import { toSourceFiles } from "@/lib/importUtils";
 import { deleteProjectAssets } from "@/lib/assetStore";
+import { deleteHistory } from "@/lib/historyStore";
 import { useAuth } from "@/store/authStore";
 import { mySharedProjects, type SharedProject } from "@/lib/collab";
 import ProjectCard from "./ProjectCard";
@@ -164,7 +165,7 @@ export default function Dashboard() {
               <ProjectCard
                 project={p}
                 onOpen={() => openProject(p)}
-                onDelete={() => { removeProject(p.id); deleteProjectAssets(p.id); }}
+                onDelete={() => { removeProject(p.id); deleteProjectAssets(p.id); deleteHistory(p.id); }}
                 onTogglePublish={() => updateProject(p.id, { status: { ...p.status, published: !p.status.published } })}
                 onDuplicate={() =>
                   addProject({
