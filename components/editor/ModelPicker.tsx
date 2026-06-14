@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Search, Check, KeyRound, Sparkles, CornerDownLeft, Cpu } from "lucide-react";
 import { PROVIDERS, type ProviderDef, type ModelDef } from "@/lib/aiProviders";
 import { useAi } from "@/store/aiStore";
@@ -67,13 +67,27 @@ export default function ModelPicker({ onClose }: { onClose: () => void }) {
           >
             <Sparkles size={16} />
           </button>
-          {PROVIDERS.map((p) => {
+          {/* Nova's own family first, set apart from bring-your-own-key brands */}
+          {PROVIDERS.filter((p) => p.managed).map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setBrand(p.id)}
+              title={p.brand}
+              className={`relative grid h-9 w-9 place-items-center rounded-lg ring-1 transition-colors ${
+                brand === p.id ? "bg-accent/15 ring-accent/50" : "ring-accent/25 hover:bg-raise"
+              }`}
+            >
+              <Monogram provider={p} size={22} />
+            </button>
+          ))}
+          <div className="my-1 h-px w-6 shrink-0 bg-line" />
+          {PROVIDERS.filter((p) => !p.managed).map((p) => {
             const hasKey = !!keys[p.id];
             return (
               <button
                 key={p.id}
                 onClick={() => setBrand(p.id)}
-                title={p.managed ? p.brand : p.brand + (hasKey ? "" : " · no key")}
+                title={p.brand + (hasKey ? "" : " · no key")}
                 className={`relative grid h-9 w-9 place-items-center rounded-lg transition-colors ${brand === p.id ? "bg-raise" : "hover:bg-raise"}`}
               >
                 <Monogram provider={p} size={22} />
@@ -93,14 +107,23 @@ export default function ModelPicker({ onClose }: { onClose: () => void }) {
           )}
           {rows.length === 0 && <p className="px-2 py-6 text-center text-[12px] text-ink-3">No models match “{q}”.</p>}
           <div className="flex flex-col gap-0.5">
-            {rows.map(({ provider, model }) => {
+            {rows.map(({ provider, model }, idx) => {
               const isSel = selected.provider === provider.id && selected.model === model.id;
               const hasKey = !!keys[provider.id];
               const soon = !!model.disabled;
               const onDevice = !!model.local;
+              // in the "all" view, set Nova's family apart from BYOK models
+              const divide = !brand && idx > 0 && rows[idx - 1].provider.managed && !provider.managed;
               return (
+                <Fragment key={provider.id + model.id}>
+                  {divide && (
+                    <div className="my-1.5 flex items-center gap-2 px-1">
+                      <div className="h-px flex-1 bg-line" />
+                      <span className="text-[9.5px] font-medium uppercase tracking-wide text-ink-3">Bring your own key</span>
+                      <div className="h-px flex-1 bg-line" />
+                    </div>
+                  )}
                 <button
-                  key={provider.id + model.id}
                   onClick={() => !soon && choose(provider.id, model.id)}
                   disabled={soon}
                   className={`flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors ${
@@ -127,6 +150,7 @@ export default function ModelPicker({ onClose }: { onClose: () => void }) {
                   )}
                   {isSel && <Check size={14} className="shrink-0 text-accent" />}
                 </button>
+                </Fragment>
               );
             })}
           </div>

@@ -57,8 +57,8 @@ const STEPS = [
 const DIFF = [
   { icon: <Boxes size={18} />, title: "Edit anything, not just React", body: "HTML, JSX, TSX and Tailwind — any framework, any repo, even a single pasted component. Not locked to one stack." },
   { icon: <Play size={18} />, title: "Run the real app, live", body: "Boot the entire project in the browser and edit it as it actually runs — not a faked preview of a static mock." },
-  { icon: <ShieldCheck size={18} />, title: "Your code, your Git, your keys", body: "Local-first and fully open source. Files live on your disk, changes go through your Git, AI runs on your own key. No backend, no lock-in." },
-  { icon: <Bot size={18} />, title: "Bring your own AI", body: "Connect any model with your own API key. The assistant reads and edits your real files — and the canvas updates instantly." },
+  { icon: <ShieldCheck size={18} />, title: "Your code, your Git, your keys", body: "Local-first and fully open source. Files live on your disk, changes go through your Git, AI runs on your device or your own key. No backend, no lock-in." },
+  { icon: <Bot size={18} />, title: "Free AI, on your device", body: "Nova Lite runs a coding model right in your browser — free, private, no key. Want more power? Bring your own key, or upgrade to a managed Nova model. Either way it edits your real files and the canvas updates instantly." },
   { icon: <Zap size={18} />, title: "Visual edits stay free", body: "Direct manipulation never burns a token. Use AI when you want leverage, your mouse when you don't — you choose the cost." },
   { icon: <GitBranch size={18} />, title: "One tab, the whole loop", body: "Design, code, run, and commit in a single place. No export step, no handoff, no context-switch between tools." },
 ];
@@ -81,7 +81,8 @@ const PRICING = [
     features: [
       "Visual + code editor, unlimited projects",
       "Run apps live in the browser",
-      "AI assistant with your own API key",
+      "Nova Lite — free AI that runs on your device",
+      "Or bring your own key for Claude, GPT & more",
       "Commit, push & PRs to your GitHub",
       "Invite unlimited viewers & commenters",
     ],
@@ -98,7 +99,7 @@ const PRICING = [
       "Cloud backup of every project",
       "Real-time sync across devices & browsers",
       "Offline edits sync when you reconnect",
-      "Pick up any project, anywhere",
+      "Nova Pro — managed AI, no key to set up (soon)",
     ],
     cta: "Get Pro",
   },
@@ -112,7 +113,7 @@ const PRICING = [
       "Everything in Pro",
       "Invite unlimited editor collaborators",
       "Real-time shared projects in the cloud",
-      "Managed AI — no API key to set up",
+      "Nova Studio — our most capable managed AI",
     ],
     cta: "Coming soon",
   },
@@ -152,7 +153,7 @@ export default function Landing() {
             operatingSystem: "Web",
             url: "https://nova-editor-six.vercel.app",
             description:
-              "A browser-based, Git-native visual editor for real codebases. Import any site or GitHub repo, edit it on a live canvas with Webflow-grade controls, ask AI on your own key, and ship the code.",
+              "A browser-based, Git-native visual editor for real codebases. Import any site or GitHub repo, edit it on a live canvas with Webflow-grade controls, use free on-device AI or your own key, and ship the code.",
             offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
             isAccessibleForFree: true,
             license: "https://www.gnu.org/licenses/agpl-3.0.html",

@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Rocket, FolderInput, MousePointerClick, Sparkles, Play, GitPullRequest,
   HelpCircle, KeyRound, ShieldCheck, Code2, ArrowRight,
-  Users, MessageSquare, Boxes, Image as ImageIcon, SlidersHorizontal,
+  Users, MessageSquare, Boxes, Image as ImageIcon, SlidersHorizontal, Cpu,
 } from "lucide-react";
 import AlphaPill from "@/components/AlphaPill";
 import { useRouteTransition } from "@/components/transition/RouteTransition";
@@ -246,15 +246,18 @@ owner/repo`}</pre>
 
           {/* ai */}
           <section className="space-y-5">
-            <H id="ai" kicker="Bring your own key, any model">AI assistant</H>
+            <H id="ai" kicker="Free on-device, or your own key">AI assistant</H>
             <p className="text-[14px] leading-relaxed text-ink-2">
               Open it with the <b className="text-ink">AI</b> button. It reads and edits your real files — the canvas updates as it works — and your conversation is saved per project.
             </p>
-            <Card icon={<KeyRound size={14} />} title="An API key ≠ a chat subscription">
-              ChatGPT Plus / Claude Pro don't include API access. Get a developer key from the provider's console (Settings → AI). Keys stay in your browser and go straight to the provider — never through a Nova server.
+            <Card icon={<Cpu size={14} />} title="Nova Lite — free, runs on your device">
+              The default model runs entirely in your browser on your GPU (WebGPU). Your first message downloads it once (~2 GB) into the browser cache; after that it's instant, works offline, and <b className="text-ink-2">nothing ever leaves your device</b>. No key, no cost. Needs a recent Chrome, Edge, Arc, or Safari 18+, and edits one file at a time — ideal for quick tweaks and questions.
+            </Card>
+            <Card icon={<KeyRound size={14} />} title="Bring your own key for more power">
+              For bigger, multi-file changes, add a provider key (Settings → AI). An API key is separate from a ChatGPT Plus / Claude Pro subscription — get a developer key from the provider's console. Keys stay in your browser and go straight to the provider, never through a Nova server.
             </Card>
             <p className="text-[13.5px] leading-relaxed text-ink-2">
-              Supported: <b className="text-ink">Anthropic, OpenAI, Google, xAI, DeepSeek, Mistral, Groq, and OpenRouter</b> (one key for nearly any model). Need something else? Use the <b className="text-ink">Custom model ID</b> field in the picker. The assistant edits .html/.jsx/.tsx files; cost is on your key, and inspector tweaks stay free.
+              Supported keys: <b className="text-ink">Anthropic, OpenAI, Google, xAI, DeepSeek, Mistral, Groq, and OpenRouter</b> (one key for nearly any model), plus a <b className="text-ink">Custom model ID</b> field. Managed <b className="text-ink">Nova Pro / Studio</b> models — capable, with no key to manage — are coming for paid plans. The assistant edits .html/.jsx/.tsx files, and inspector tweaks always stay free.
             </p>
           </section>
 
@@ -292,13 +295,14 @@ owner/repo`}</pre>
             <H id="faq" kicker="Answers & fixes">FAQ & troubleshooting</H>
             <div className="divide-y divide-line rounded-2xl border border-line">
               {[
-                ["Is Nova free?", "Yes — the editor is free and runs in your browser. The only cost is your own AI API usage, if you use the assistant."],
+                ["Is Nova free?", "Yes — the editor is free and runs in your browser, and it includes Nova Lite, a free AI that runs on your own device (no key, no cost). Bringing your own API key or upgrading is optional, for more power."],
                 ["Do I need an account?", "During the alpha, yes — Nova is invite-only. Enter an invite code and sign in with an email magic link. Each member gets 10 invites to share (Settings → Account & invites)."],
                 ["What's cloud sync?", "An optional Pro feature: your projects back up to the cloud and sync in real-time across devices and browsers, with offline edits flushed when you reconnect. Everything still works locally without it."],
-                ["How much does Nova cost?", "Free forever for the editor (visual + code editing, run live, GitHub, and AI with your own key). Pro is $8/month and adds cloud backup + cross-device sync. Studio — a managed-AI tier where AI is included with no API key to manage — is coming soon."],
+                ["How much does Nova cost?", "Free forever for the editor (visual + code editing, run live, GitHub) plus Nova Lite, our free on-device AI. Add your own API key any time for more capable models. Pro is $8/month and adds cloud backup + cross-device sync; Studio adds editor collaborators and the most capable managed AI (no key to manage) — coming soon."],
                 ["“Rate limit reached (no token).”", "Anonymous GitHub requests are limited. Connect GitHub in Settings and re-import."],
                 ["“No editable .html/.jsx/.tsx files.”", "Nova's canvas opens HTML/JSX/TSX. Check the branch, or full-clone to work with the whole project."],
-                ["The AI errors immediately.", "401 = bad key (re-check in Settings → AI); 429 = rate-limited / out of credit. Make sure the selected model's provider has a key (green dot in the picker)."],
+                ["The AI errors immediately.", "On a bring-your-own-key model: 401 = bad key (re-check in Settings → AI); 429 = rate-limited / out of credit. Make sure the selected provider has a key (green dot in the picker)."],
+                ["Nova Lite won't load.", "It needs a WebGPU browser (recent Chrome, Edge, Arc, or Safari 18+) and downloads ~2 GB on first use, cached for next time. On a low-memory GPU it auto-falls back to a smaller model. No WebGPU? Add your own API key and pick another model instead."],
                 ["“Run app” won't start.", "Run mode needs a folder-backed full clone on a Chromium browser. Set a projects folder in Settings → Storage and re-import."],
                 ["Which browsers work?", "Editing works anywhere modern; folder storage and Run app need a Chromium browser (Chrome / Edge / Arc)."],
               ].map(([q, a]) => (

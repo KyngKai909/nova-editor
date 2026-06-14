@@ -2,8 +2,8 @@
 // no runtime dependency); OpenAI added manually. Providers without an entry
 // fall back to the lettered monogram.
 export const BRAND_LOGOS: Record<string, string> = {
-  // Nova's own sparkle mark (4-point star).
-  nova: "M12 2 L13.8 8.2 L20 10 L13.8 11.8 L12 18 L10.2 11.8 L4 10 L10.2 8.2 Z",
+  // Nova's own sparkle mark — a 4-point star centered on (12,12).
+  nova: "M12 4 L14 10 L20 12 L14 14 L12 20 L10 14 L4 12 L10 10 Z",
   anthropic: "M17.3041 3.541h-3.6718l6.696 16.918H24Zm-10.6082 0L0 20.459h3.7442l1.3693-3.5527h7.0052l1.3693 3.5528h3.7442L10.5363 3.5409Zm-.3712 10.2232 2.2914-5.9456 2.2914 5.9456Z",
   google: "M11.04 19.32Q12 21.51 12 24q0-2.49.93-4.68.96-2.19 2.58-3.81t3.81-2.55Q21.51 12 24 12q-2.49 0-4.68-.93a12.3 12.3 0 0 1-3.81-2.58 12.3 12.3 0 0 1-2.58-3.81Q12 2.49 12 0q0 2.49-.96 4.68-.93 2.19-2.55 3.81a12.3 12.3 0 0 1-3.81 2.58Q2.49 12 0 12q2.49 0 4.68.96 2.19.93 3.81 2.55t2.55 3.81",
   // xAI's product mark is Grok (sourced from lobehub icons); shown instead of the plain X.

@@ -80,24 +80,30 @@ export const useAi = create<AiState>()(
     {
       name: "nova-ai",
       storage: createJSONStorage(() => encryptedStorage()),
-      version: 1,
+      version: 2,
       partialize: (s) => ({
         keys: s.keys,
         customModels: s.customModels,
         selected: s.selected,
         conversations: s.conversations,
       }),
-      // migrate the v0 shape ({ provider, model:{anthropic,openai}, keys:{anthropic,openai} })
       migrate: (persisted: any, version) => {
-        if (version === 0 && persisted) {
+        let p = persisted;
+        // v0 → v1: { provider, model:{anthropic,openai}, keys:{anthropic,openai} }
+        if (version === 0 && p) {
           const keys: Record<string, string> = {};
-          if (persisted.keys?.anthropic) keys.anthropic = persisted.keys.anthropic;
-          if (persisted.keys?.openai) keys.openai = persisted.keys.openai;
-          const provider = persisted.provider || "anthropic";
-          const model = persisted.model?.[provider] || "claude-sonnet-4-6";
-          return { keys, customModels: {}, selected: { provider, model }, conversations: persisted.conversations || {} };
+          if (p.keys?.anthropic) keys.anthropic = p.keys.anthropic;
+          if (p.keys?.openai) keys.openai = p.keys.openai;
+          const provider = p.provider || "anthropic";
+          const model = p.model?.[provider] || "claude-sonnet-4-6";
+          p = { keys, customModels: {}, selected: { provider, model }, conversations: p.conversations || {} };
         }
-        return persisted as any;
+        // → v2: anyone parked on a model they have no key for moves to the free,
+        // on-device Nova Lite (the new default). Keeps a working BYOK choice.
+        if (p?.selected && p.selected.provider !== "nova" && !p.keys?.[p.selected.provider]) {
+          p.selected = { provider: "nova", model: "nova-lite" };
+        }
+        return p;
       },
     }
   )
