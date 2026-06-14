@@ -224,20 +224,34 @@ drop policy if exists "comments: delete" on public.project_comments;
 create policy "comments: delete" on public.project_comments
   for delete using (author_id = auth.uid() or public.can_edit_project(owner_id, project_id));
 
--- Undo/redo history that rides with a cloud project (paid). One row per project
--- holding the { past, future } snapshot blob. Only editors (owner + editor role)
--- can read/write it — viewers/commenters never edit, so they have no history.
+-- Undo/redo history that rides with a cloud project (paid). PER COLLABORATOR:
+-- one row per (project, user) so each person's undo stack is their own —
+-- pressing undo never walks through someone else's actions. (Sync isn't
+-- real-time / last-write-wins, so a shared stack would be confusing.) Only
+-- editors get history; viewers/commenters don't edit.
 create table if not exists public.project_history (
   owner_id   uuid not null references public.profiles(id) on delete cascade,
   project_id text not null,
+  user_id    uuid not null references public.profiles(id) on delete cascade,
   data       jsonb not null,
   updated_at timestamptz not null default now(),
-  primary key (owner_id, project_id)
+  primary key (owner_id, project_id, user_id)
 );
+-- migrate an earlier (owner_id, project_id)-keyed version of this table, if present
+alter table public.project_history add column if not exists user_id uuid references public.profiles(id) on delete cascade;
+update public.project_history set user_id = owner_id where user_id is null;
+do $$ begin alter table public.project_history alter column user_id set not null; exception when others then null; end $$;
+do $$ begin
+  alter table public.project_history drop constraint if exists project_history_pkey;
+  alter table public.project_history add primary key (owner_id, project_id, user_id);
+exception when others then null; end $$;
 alter table public.project_history enable row level security;
 drop policy if exists "history: editors" on public.project_history;
-create policy "history: editors" on public.project_history
-  for all using (public.can_edit_project(owner_id, project_id)) with check (public.can_edit_project(owner_id, project_id));
+drop policy if exists "history: mine" on public.project_history;
+-- each user reads/writes ONLY their own history row, for projects they can edit
+create policy "history: mine" on public.project_history
+  for all using (user_id = auth.uid() and public.can_edit_project(owner_id, project_id))
+  with check (user_id = auth.uid() and public.can_edit_project(owner_id, project_id));
 
 -- Invite a collaborator. Inviting an EDITOR requires Studio (or admin) — enforced
 -- here so it can't be bypassed from the client.
