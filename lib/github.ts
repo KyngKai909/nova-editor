@@ -1,6 +1,11 @@
 import type { SourceFile } from "./types";
-import { fileKind, classifyFile } from "./importUtils";
+import type { AssetMap } from "./assets";
+import { fileKind, classifyFile, isAsset } from "./importUtils";
 import { fetchRetry, pMapLimit, RateLimitError } from "./net";
+
+// Skip downloading a single asset larger than this (avoids pulling huge videos);
+// logos, images and fonts are far smaller.
+const MAX_ASSET_BYTES = 15 * 1024 * 1024;
 
 interface RepoRef {
   owner: string;
@@ -41,7 +46,7 @@ export function parseRepoUrl(input: string): RepoRef | null {
 export async function fetchRepoFiles(
   ref: RepoRef,
   onProgress?: (msg: string) => void
-): Promise<{ files: SourceFile[]; baseHref: string; owner: string; repo: string; branch: string; truncated: boolean }> {
+): Promise<{ files: SourceFile[]; assets: AssetMap; baseHref: string; owner: string; repo: string; branch: string; truncated: boolean }> {
   const { owner, repo } = ref;
   let branch = ref.branch;
 
@@ -56,7 +61,9 @@ export async function fetchRepoFiles(
     `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch!)}?recursive=1`
   );
 
-  const all: { path: string }[] = (tree.tree || []).filter((t: any) => t.type === "blob");
+  const all: { path: string; size: number }[] = (tree.tree || [])
+    .filter((t: any) => t.type === "blob")
+    .map((t: any) => ({ path: t.path, size: t.size || 0 }));
   const editable = all.filter((t) => fileKind(t.path) !== null);
 
   if (!editable.length) {
@@ -88,8 +95,30 @@ export async function fetchRepoFiles(
 
   if (!files.length) throw new Error("Found editable files but none could be downloaded. Try again, or connect GitHub.");
 
+  // Download the project's binary assets (images, svgs, fonts, …) into real
+  // blobs so the import is a true, self-contained copy — these show up in the
+  // Assets panel and persist to device storage / the cloud.
+  const assetList = all.filter((t) => isAsset(t.path) && t.size <= MAX_ASSET_BYTES);
+  const assets: AssetMap = {};
+  let ad = 0;
+  await pMapLimit(assetList, 8, async ({ path }) => {
+    onProgress?.(`Downloading assets ${++ad}/${assetList.length}…`);
+    try {
+      const res = await fetchRetry(
+        `https://raw.githubusercontent.com/${owner}/${repo}/${encodeURIComponent(branch!)}/${path
+          .split("/")
+          .map(encodeURIComponent)
+          .join("/")}`
+      );
+      if (!res.ok) return;
+      assets[path] = URL.createObjectURL(await res.blob());
+    } catch {
+      /* skip an asset that won't load rather than failing the import */
+    }
+  });
+
   const baseHref = `https://cdn.jsdelivr.net/gh/${owner}/${repo}@${branch}/`;
-  return { files, baseHref, owner, repo, branch: branch!, truncated: !!tree.truncated };
+  return { files, assets, baseHref, owner, repo, branch: branch!, truncated: !!tree.truncated };
 }
 
 async function ghJson(url: string): Promise<any> {

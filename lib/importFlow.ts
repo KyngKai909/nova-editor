@@ -37,10 +37,10 @@ export async function importGithub(
 ): Promise<ImportResult> {
   const ref = parseRepoUrl(url);
   if (!ref) throw new Error("Enter a GitHub URL like https://github.com/owner/repo");
-  const { files, baseHref, owner, repo, branch, truncated } = await fetchRepoFiles(ref, onProgress);
+  const { files, assets, baseHref, owner, repo, branch, truncated } = await fetchRepoFiles(ref, onProgress);
   return {
     files,
-    assets: {},
+    assets,
     baseHref,
     repoUrl: url,
     github: { owner, repo, branch },

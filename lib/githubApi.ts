@@ -1,8 +1,10 @@
 import type { SourceFile } from "./types";
-import { fileKind, classifyFile } from "./importUtils";
+import type { AssetMap } from "./assets";
+import { fileKind, classifyFile, isAsset } from "./importUtils";
 import { fetchRetry, pMapLimit } from "./net";
 
 const API = "https://api.github.com";
+const MAX_ASSET_BYTES = 15 * 1024 * 1024;
 
 export interface GitHubUser {
   login: string;
@@ -86,15 +88,16 @@ export async function importRepoFilesAuth(
   repo: string,
   branch: string,
   onProgress?: (msg: string) => void
-): Promise<SourceFile[]> {
+): Promise<{ files: SourceFile[]; assets: AssetMap }> {
   onProgress?.("Reading file tree…");
   const br = await gh(token, `/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`);
   const treeSha = br.commit.commit.tree.sha;
   const tree = await gh(token, `/repos/${owner}/${repo}/git/trees/${treeSha}?recursive=1`);
 
-  const blobs: { path: string; sha: string }[] = (tree.tree || [])
-    .filter((t: any) => t.type === "blob" && fileKind(t.path) !== null)
-    .map((t: any) => ({ path: t.path, sha: t.sha }));
+  const treeBlobs: any[] = (tree.tree || []).filter((t: any) => t.type === "blob");
+  const blobs: { path: string; sha: string }[] = treeBlobs
+    .filter((t) => fileKind(t.path) !== null)
+    .map((t) => ({ path: t.path, sha: t.sha }));
 
   if (!blobs.length) throw new Error("No editable .html/.jsx/.tsx files on that branch. (Use a full clone to bring the whole project.)");
 
@@ -112,8 +115,24 @@ export async function importRepoFilesAuth(
     }
   });
   if (!files.length) throw new Error("Found editable files but none could be downloaded — try again.");
+
+  // Download binary assets (images/svg/fonts/…) into real blobs — a true copy.
+  const assetBlobs = treeBlobs.filter((t) => isAsset(t.path) && (t.size || 0) <= MAX_ASSET_BYTES);
+  const assets: AssetMap = {};
+  let ad = 0;
+  await pMapLimit(assetBlobs, 8, async ({ path, sha }) => {
+    onProgress?.(`Downloading assets ${++ad}/${assetBlobs.length}…`);
+    try {
+      const blob = await gh(token, `/repos/${owner}/${repo}/git/blobs/${sha}`);
+      if (blob.encoding !== "base64" || !blob.content) return;
+      assets[path] = URL.createObjectURL(new Blob([base64ToBytes(blob.content) as unknown as BlobPart]));
+    } catch {
+      /* skip an unreadable asset */
+    }
+  });
+
   if (tree.truncated) onProgress?.("Note: repo is large; GitHub truncated the file list — some files may be missing.");
-  return files;
+  return { files, assets };
 }
 
 // Full clone: download EVERY file (incl. binaries) so the device folder is a

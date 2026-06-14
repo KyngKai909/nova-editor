@@ -51,10 +51,10 @@ export default function GitBar() {
     if (changed && !confirm("Switching branches discards unsaved edits. Continue?")) return;
     setBusy(true);
     try {
-      const f = await importRepoFilesAuth(token, gh.owner, gh.repo, branch);
+      const { files: f, assets } = await importRepoFilesAuth(token, gh.owner, gh.repo, branch);
       const base = baseHrefFor(branch);
       updateProject(project!.id, { github: { ...gh, branch }, baseHref: base, files: undefined });
-      loadFiles(f, {}, base, project!.id);
+      loadFiles(f, assets, base, project!.id);
     } catch (e: any) {
       alert(e.message);
     } finally { setBusy(false); setMenu(false); }
