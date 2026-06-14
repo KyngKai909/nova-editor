@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Rocket, FolderInput, MousePointerClick, Sparkles, Play, GitPullRequest,
   HelpCircle, KeyRound, ShieldCheck, Code2, ArrowRight,
+  Users, MessageSquare, Boxes, Image as ImageIcon, SlidersHorizontal,
 } from "lucide-react";
 import AlphaPill from "@/components/AlphaPill";
 import { useRouteTransition } from "@/components/transition/RouteTransition";
@@ -14,6 +15,7 @@ const SECTIONS = [
   { id: "getting-started", label: "Getting started", icon: <Rocket size={14} /> },
   { id: "importing", label: "Importing", icon: <FolderInput size={14} /> },
   { id: "editing", label: "Visual & code editing", icon: <MousePointerClick size={14} /> },
+  { id: "collaboration", label: "Comments & sharing", icon: <Users size={14} /> },
   { id: "ai", label: "AI assistant", icon: <Sparkles size={14} /> },
   { id: "running", label: "Running live", icon: <Play size={14} /> },
   { id: "publishing", label: "Publishing & GitHub", icon: <GitPullRequest size={14} /> },
@@ -212,13 +214,33 @@ owner/repo`}</pre>
               <EditorAnatomy />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <Card icon={<MousePointerClick size={14} />} title="The inspector">Layout, spacing, size, typography, and color — written straight into your source. Tailwind projects get responsive utility classes.</Card>
+              <Card icon={<SlidersHorizontal size={14} />} title="Style & Settings">The right panel has a Style tab (layout, flexbox & grid, spacing, size, typography, backgrounds, borders, effects) and a Settings tab (element ID, link URL, image alt, visibility, custom attributes). Tailwind projects get responsive utility classes.</Card>
               <Card icon={<Code2 size={14} />} title="The code editor">A built-in Monaco editor with autocomplete, two-way synced to the canvas. Right-click a layer → View in code to jump to the line.</Card>
+              <Card icon={<ImageIcon size={14} />} title="Assets">The left panel's Assets tab gathers the images, SVGs & fonts from your project — upload more, then click one to set it as an image source or a background.</Card>
+              <Card icon={<Boxes size={14} />} title="Elements">Drag in sections, containers, grids, headings, buttons, links and more from the Components tab — real HTML/JSX, inserted where you drop it.</Card>
             </div>
             <ul className="space-y-1.5 text-[13.5px] leading-relaxed text-ink-2">
               <li>• <b className="text-ink">Double-click</b> text to edit it in place.</li>
               <li>• Switch <b className="text-ink">desktop / tablet / mobile</b> breakpoints; hit <b className="text-ink">Preview</b> to use the page as a visitor.</li>
               <li>• <b className="text-ink">Delete</b> removes the selection, <b className="text-ink">Cmd/Ctrl+D</b> duplicates; drag layers to reorder.</li>
+            </ul>
+          </section>
+
+          {/* collaboration */}
+          <section className="space-y-5">
+            <H id="collaboration" kicker="Comment, share & co-build">Comments & collaboration</H>
+            <p className="text-[14px] leading-relaxed text-ink-2">
+              Open the <b className="text-ink">Comments</b> tab in the right panel to leave feedback pinned to the canvas.
+              Right-click any element — on the canvas or in the layer tree — to drop a comment exactly where you clicked,
+              and click a comment to jump straight to it.
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Card icon={<MessageSquare size={14} />} title="Pinned comments">Numbered pins appear on the canvas while the Comments tab is open. Resolve, reopen, or delete from the panel; everything syncs live for collaborators.</Card>
+              <Card icon={<Users size={14} />} title="Roles">Invite people by email from <b className="text-ink-2">Share</b>. Viewers can look, commenters can comment, and editors get full editing — each in their own account.</Card>
+            </div>
+            <ul className="space-y-1.5 text-[13.5px] leading-relaxed text-ink-2">
+              <li>• Shared projects appear in each collaborator's dashboard with a role tag, and live in the cloud so everyone stays in sync.</li>
+              <li>• <b className="text-ink">Viewers & commenters are free</b> on every plan; inviting <b className="text-ink">editors</b> is a Studio-plan feature.</li>
             </ul>
           </section>
 

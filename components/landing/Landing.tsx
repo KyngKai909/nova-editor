@@ -11,7 +11,7 @@ import {
   ArrowUpRight, MousePointerClick, Layers, Smartphone, GitPullRequest,
   Code2, FolderUp, Menu, X, Sparkles,
   Play, ShieldCheck, Bot, Zap, GitBranch, Boxes, Check,
-  Star, GitFork, BookOpen,
+  Star, GitFork, BookOpen, SlidersHorizontal, MessageSquare,
 } from "lucide-react";
 
 // lucide dropped its brand marks, so inline the GitHub octocat (uses currentColor).
@@ -67,6 +67,8 @@ const FEATURES = [
   { icon: <MousePointerClick size={18} />, title: "Direct manipulation", body: "Select, restyle, and rewrite text right on the rendered page — what you see is the real DOM." },
   { icon: <Layers size={18} />, title: "Layer tree + code", body: "Navigate nested structure, collapse branches, and jump straight to the source line in the built-in editor." },
   { icon: <Smartphone size={18} />, title: "Responsive by design", body: "Design across desktop, tablet, and mobile breakpoints, then flip into a true preview mode." },
+  { icon: <SlidersHorizontal size={18} />, title: "A full design panel", body: "Style + Settings tabs, flexbox & grid, an assets manager, and a drag-in palette of sections, buttons, and more." },
+  { icon: <MessageSquare size={18} />, title: "Comment & collaborate", body: "Pin comments anywhere on the canvas, and invite teammates as editors, commenters, or viewers — synced in the cloud." },
   { icon: <Code2 size={18} />, title: "Code, not lock-in", body: "Nova edits your files, not a proprietary format. Leave any time with code that reads like you wrote it." },
 ];
 
@@ -81,7 +83,7 @@ const PRICING = [
       "Run apps live in the browser",
       "AI assistant with your own API key",
       "Commit, push & PRs to your GitHub",
-      "Local-first — your files stay yours",
+      "Invite unlimited viewers & commenters",
     ],
     cta: "Start free",
   },
@@ -105,12 +107,12 @@ const PRICING = [
     price: "Soon",
     period: "",
     soon: true,
-    tagline: "AI built in — no API key to manage.",
+    tagline: "Build together, with AI built in.",
     features: [
       "Everything in Pro",
-      "Managed AI — nothing to set up",
-      "Metered usage, billed simply",
-      "Higher limits & top models",
+      "Invite unlimited editor collaborators",
+      "Real-time shared projects in the cloud",
+      "Managed AI — no API key to set up",
     ],
     cta: "Coming soon",
   },
@@ -316,7 +318,7 @@ export default function Landing() {
             </div>
           </div>
 
-          <div className="mt-16 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-16 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
             {FEATURES.map((f) => (
               <div key={f.title} className="tile bg-bg p-6">
                 <div className="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent">{f.icon}</div>

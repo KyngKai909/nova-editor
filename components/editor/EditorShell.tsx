@@ -9,6 +9,7 @@ import Inspector from "./Inspector";
 import ExportPanel from "./ExportPanel";
 import AiPanel from "./AiPanel";
 import CollabSync from "@/components/sync/CollabSync";
+import CommentSync from "@/components/sync/CommentSync";
 import { useEditor } from "@/store/editorStore";
 import { useProjects } from "@/store/projectsStore";
 import { useSettings } from "@/store/settingsStore";
@@ -124,6 +125,7 @@ export default function EditorShell() {
   return (
     <div className="flex h-[100dvh] flex-col bg-bg-2">
       <CollabSync />
+      <CommentSync />
       <TopBar
         onExport={() => setShowExport(true)}
         left={left}
