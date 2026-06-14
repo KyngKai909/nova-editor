@@ -11,7 +11,17 @@ import {
   ArrowUpRight, MousePointerClick, Layers, Smartphone, GitPullRequest,
   Code2, FolderUp, Menu, X, Sparkles,
   Play, ShieldCheck, Bot, Zap, GitBranch, Boxes, Check,
+  Star, GitFork, BookOpen,
 } from "lucide-react";
+
+// lucide dropped its brand marks, so inline the GitHub octocat (uses currentColor).
+function Github({ size = 14, className }: { size?: number; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" className={className} aria-hidden>
+      <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+    </svg>
+  );
+}
 
 const ThreeHero = dynamic(() => import("./ThreeHero"), { ssr: false });
 
@@ -25,6 +35,15 @@ const NAV = [
 const MARQUEE = [
   "HTML", "JSX", "TSX", "Tailwind", "Any repo", "Run it live",
   "Your code", "Your Git", "Your AI keys", "No lock-in", "In-browser",
+];
+
+const REPO = "https://github.com/KyngKai909/nova-editor";
+
+const OSS_FACTS = [
+  { title: "AGPL 3.0", sub: "License · forks stay open" },
+  { title: "TypeScript", sub: "End-to-end, strictly typed" },
+  { title: "Next.js 14", sub: "App Router · React · Tailwind" },
+  { title: "No telemetry", sub: "Nothing tracked. Ever." },
 ];
 
 const STEPS = [
@@ -427,6 +446,61 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* open source */}
+      <section id="open-source" className="mx-auto max-w-7xl px-5 py-24 text-center sm:px-8 sm:py-32">
+        <p className="reveal mb-5 flex items-center justify-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3">
+          <Github size={14} className="text-accent" /> Open source
+        </p>
+        <h2 className="reveal mx-auto max-w-3xl font-display text-[clamp(2rem,6vw,4.5rem)] font-semibold leading-[1.0] tracking-tightest">
+          If you don't like something, <span className="font-serif italic text-accent">fork it.</span>
+        </h2>
+        <p className="reveal mx-auto mt-6 max-w-xl text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+          Nova is as open as they come — built to be modified, themed, and forked. The editor, the canvas, the AI bridge: it's all here, and it stays yours. Go nuts; that's the whole point.
+        </p>
+
+        <div className="reveal mt-14 grid gap-4 text-left lg:grid-cols-5 lg:items-stretch">
+          {/* terminal */}
+          <div className="overflow-hidden rounded-2xl border border-line-2 bg-bg shadow-2xl lg:col-span-3">
+            <div className="flex items-center gap-2 border-b border-line bg-surface px-4 py-3">
+              <span className="h-3 w-3 rounded-full bg-[#ff5f57]" /><span className="h-3 w-3 rounded-full bg-[#febc2e]" /><span className="h-3 w-3 rounded-full bg-[#28c840]" />
+              <span className="ml-3 font-mono text-[12px] text-ink-3">~/nova</span>
+            </div>
+            <div className="space-y-2 p-5 font-mono text-[12.5px] leading-relaxed sm:p-6 sm:text-[13px]">
+              <div><span className="text-accent">$</span> <span className="text-ink">gh repo fork KyngKai909/nova-editor --clone</span></div>
+              <div className="text-ink-3"><span className="text-[#28c840]">✓</span> Cloned nova-editor into ./nova-editor</div>
+              <div><span className="text-accent">$</span> <span className="text-ink">cd nova-editor &amp;&amp; npm install</span></div>
+              <div className="text-ink-3"><span className="text-[#28c840]">✓</span> Packages installed in 6.1s</div>
+              <div><span className="text-accent">$</span> <span className="text-ink">npm run dev</span></div>
+              <div className="text-ink-3"><span className="text-accent">▲</span> Nova ready → <span className="text-accent">http://localhost:3000</span></div>
+              <div><span className="text-accent">$</span> <span className="ml-1 inline-block h-[14px] w-[7px] translate-y-[2px] animate-pulse bg-ink-2" /></div>
+            </div>
+          </div>
+
+          {/* facts */}
+          <div className="grid grid-cols-2 gap-4 lg:col-span-2 lg:grid-rows-2">
+            {OSS_FACTS.map((c) => (
+              <div key={c.title} className="rounded-2xl border border-line bg-surface/40 p-5">
+                <div className="font-display text-[22px] font-semibold tracking-tight">{c.title}</div>
+                <div className="mt-1.5 text-[10.5px] uppercase tracking-wide leading-relaxed text-ink-3">{c.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* actions */}
+        <div className="reveal mt-10 flex flex-wrap items-center justify-center gap-3">
+          <a href={REPO} target="_blank" rel="noreferrer" className="group flex items-center gap-2 rounded-full border border-line-2 px-5 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-surface">
+            <Star size={15} className="text-accent" /> Star on GitHub <ArrowUpRight size={14} className="text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </a>
+          <a href={`${REPO}/fork`} target="_blank" rel="noreferrer" className="group flex items-center gap-2 rounded-full border border-line-2 px-5 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-surface">
+            <GitFork size={15} className="text-accent" /> Fork the repo <ArrowUpRight size={14} className="text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </a>
+          <Link href="/docs" onClick={(e) => { e.preventDefault(); navigate("/docs"); }} className="group flex items-center gap-2 rounded-full border border-line-2 px-5 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-surface">
+            <BookOpen size={15} className="text-accent" /> Read the docs <ArrowUpRight size={14} className="text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+          </Link>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="relative mx-auto max-w-7xl px-5 py-28 text-center sm:px-8 sm:py-40">
         <p className="reveal mb-6 text-[13px] uppercase tracking-[0.3em] text-ink-3">Free to start · invite-only alpha</p>
@@ -451,6 +525,7 @@ export default function Landing() {
           <div className="flex items-center gap-5">
             <Link href="/docs" onClick={(e) => { e.preventDefault(); navigate("/docs"); }} className="transition-colors hover:text-ink">Docs</Link>
             <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} className="transition-colors hover:text-ink">Dashboard</Link>
+            <a href={REPO} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 transition-colors hover:text-ink"><Github size={14} /> GitHub</a>
             <span>© 2026</span>
           </div>
         </div>
