@@ -42,7 +42,7 @@ const REPO = "https://github.com/KyngKai909/nova-editor";
 const OSS_FACTS = [
   { title: "AGPL 3.0", sub: "License · forks stay open" },
   { title: "TypeScript", sub: "End-to-end, strictly typed" },
-  { title: "Next.js 14", sub: "App Router · React · Tailwind" },
+  { title: "1 repo", sub: "Editor · canvas · AI" },
   { title: "No telemetry", sub: "Nothing tracked. Ever." },
 ];
 
@@ -466,7 +466,7 @@ export default function Landing() {
               <span className="ml-3 font-mono text-[12px] text-ink-3">~/nova</span>
             </div>
             <div className="space-y-2 p-5 font-mono text-[12.5px] leading-relaxed sm:p-6 sm:text-[13px]">
-              <div><span className="text-accent">$</span> <span className="text-ink">gh repo fork KyngKai909/nova-editor --clone</span></div>
+              <div><span className="text-accent">$</span> <span className="text-ink">gh repo fork useNova/nova-editor --clone</span></div>
               <div className="text-ink-3"><span className="text-[#28c840]">✓</span> Cloned nova-editor into ./nova-editor</div>
               <div><span className="text-accent">$</span> <span className="text-ink">cd nova-editor &amp;&amp; npm install</span></div>
               <div className="text-ink-3"><span className="text-[#28c840]">✓</span> Packages installed in 6.1s</div>
