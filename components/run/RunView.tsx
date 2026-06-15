@@ -6,11 +6,12 @@ import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
   Pencil, MousePointer2, Code2, ChevronDown, ChevronUp, Paintbrush2, SlidersHorizontal, Trash2,
   Monitor, Tablet, Smartphone, PanelRight, PanelLeft, AlignLeft, AlignCenter, AlignRight, Square,
-  Layers as LayersIcon, ChevronRight, Sparkles, Upload,
+  Layers as LayersIcon, ChevronRight, Sparkles, Upload, Undo2, Redo2, FileText, MessageSquare, Check, Send, X,
 } from "lucide-react";
 import { useAi } from "@/store/aiStore";
 import { useEditor } from "@/store/editorStore";
 import { useGitHub } from "@/store/githubStore";
+import { useComments, type Comment } from "@/store/commentsStore";
 import AiPanel from "@/components/editor/AiPanel";
 import ExportPanel from "@/components/editor/ExportPanel";
 import { makeWcBackend } from "@/lib/aiBackend";
@@ -38,6 +39,7 @@ interface Selection {
   className: string;
   text: string | null;
   styles?: Record<string, string>; // computed styles reported by the bridge
+  id?: string; // the element's data-nova-id (for comments / re-select)
 }
 
 interface LayerNode {
@@ -57,6 +59,23 @@ const DEVICES: { id: Device; icon: React.ReactNode; label: string }[] = [
   { id: "mobile", icon: <Smartphone size={15} />, label: "Mobile · 390px" },
 ];
 const DEVICE_W: Record<Device, string> = { desktop: "100%", tablet: "834px", mobile: "390px" };
+
+interface PageRoute { route: string; label: string; path: string; }
+
+// Map a page file to the URL route the dev server serves it at.
+function routeForPage(path: string): string | null {
+  const p = path.replace(/^src\//, "");
+  let m = p.match(/^app\/(.*\/)?page\.[tj]sx?$/); // Next App Router
+  if (m) return "/" + (m[1] || "").replace(/\/$/, "");
+  m = p.match(/^pages\/(.+)\.[tj]sx?$/); // Next Pages Router
+  if (m) {
+    if (/_app|_document|api\//.test(m[1])) return null;
+    return "/" + m[1].replace(/\/index$/, "").replace(/^index$/, "");
+  }
+  m = p.match(/^(?:public\/)?(.+)\.html?$/); // static html
+  if (m) return "/" + (m[1] === "index" ? "" : m[1] + ".html");
+  return null;
+}
 
 // Single WebContainer per page (the API allows only one boot).
 let wcBootPromise: Promise<any> | null = null;
@@ -105,8 +124,16 @@ export default function RunView() {
   const [runId, setRunId] = useState(0);
   const [selected, setSelected] = useState<Selection | null>(null);
   const [editMode, setEditMode] = useState(true);
-  const [tab, setTab] = useState<"style" | "element">("style");
+  const [tab, setTab] = useState<"style" | "element" | "comments">("style");
+  const [leftTab, setLeftTab] = useState<"pages" | "layers">("layers");
+  const [pages, setPages] = useState<PageRoute[]>([]);
+  const [route, setRoute] = useState("/");
+  const [past, setPast] = useState<{ path: string; before: string; after: string }[]>([]);
+  const [future, setFuture] = useState<{ path: string; before: string; after: string }[]>([]);
   const [consoleOpen, setConsoleOpen] = useState(true);
+  const commentsKey = projectId || "run";
+  const comments = useComments((s) => s.byProject[commentsKey] || []);
+  const pendingComment = useComments((s) => s.pending);
   const [device, setDevice] = useState<Device>("desktop");
   const [rightOpen, setRightOpen] = useState(true);
   const [leftOpen, setLeftOpen] = useState(true);
@@ -126,11 +153,44 @@ export default function RunView() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wcRef = useRef<any>(null);
   const handleRef = useRef<any>(null); // the on-disk folder, for write-through
+  const recordRef = useRef<(p: string, b: string, a: string) => void>(() => {});
   const append = (s: string) => setLog((l) => [...l, s]);
+
+  // Write a file to the WebContainer and the on-disk folder (HMR + git).
+  const writeThrough = async (path: string, content: string) => {
+    const wc = wcRef.current;
+    if (!wc) return;
+    await wc.fs.writeFile(path, content);
+    if (handleRef.current) { try { await writeFiles(handleRef.current, [{ path, content }]); } catch { /* best-effort */ } }
+  };
+  // Record an edit for undo (clears the redo stack). Capped to recent edits.
+  const record = (path: string, before: string, after: string) => {
+    if (before === after) return;
+    setPast((p) => [...p.slice(-59), { path, before, after }]);
+    setFuture([]);
+  };
+  recordRef.current = record;
+  const undo = async () => {
+    const last = past[past.length - 1];
+    if (!last) return;
+    setPast((p) => p.slice(0, -1));
+    setFuture((f) => [last, ...f]);
+    await writeThrough(last.path, last.before);
+  };
+  const redo = async () => {
+    const next = future[0];
+    if (!next) return;
+    setFuture((f) => f.slice(1));
+    setPast((p) => [...p, next]);
+    await writeThrough(next.path, next.after);
+  };
 
   // AI edits the running app's files (WebContainer + disk write-through), ready
   // once the dev server is up. (Refs are declared above, so this is safe.)
-  const backend = useMemo(() => (url && wcRef.current ? makeWcBackend(wcRef.current, handleRef.current) : undefined), [url]);
+  const backend = useMemo(
+    () => (url && wcRef.current ? makeWcBackend(wcRef.current, handleRef.current, (p, b, a) => recordRef.current(p, b, a)) : undefined),
+    [url]
+  );
 
   // Run opens in a new tab from the editor, so "back" should close this tab and
   // return to the editor tab already open. Fall back to navigating if this tab
@@ -155,12 +215,8 @@ export default function RunView() {
     if (!node) return;
     const next = fn(content, node);
     if (next && next !== content) {
-      await wc.fs.writeFile(path, next);
-      // write through to the on-disk folder too, so edits land in your real
-      // files and show up in `git diff` (the inception-loop punchline).
-      if (handleRef.current) {
-        try { await writeFiles(handleRef.current, [{ path, content: next }]); } catch { /* disk write best-effort */ }
-      }
+      record(path, content, next); // undo history (write-through lands in disk + git)
+      await writeThrough(path, next);
     }
   };
 
@@ -236,12 +292,21 @@ export default function RunView() {
       const d = e.data;
       if (!d?.type) return;
       if (d.type === "nova-select") {
-        setSelected({ file: d.file, line: d.line, tag: d.tag, className: d.className || "", text: d.text, styles: d.styles || undefined });
+        setSelected({ file: d.file, line: d.line, tag: d.tag, className: d.className || "", text: d.text, styles: d.styles || undefined, id: d.id || undefined });
         setSelectedId(d.id || null);
       } else if (d.type === "nova-text") {
         editFile(d.line, d.file, (content, node) => spliceJsx(content, node, "text", d.text));
       } else if (d.type === "nova-tree") {
         setTree(Array.isArray(d.tree) ? d.tree : []);
+      } else if (d.type === "nova-comment-click") {
+        useComments.getState().setFocused(d.commentId);
+        setTab("comments");
+      } else if (d.type === "nova-context") {
+        // right-click → start a comment pinned at the click point
+        const label = d.text ? String(d.text).slice(0, 28) : d.className ? `${d.tag}.${String(d.className).split(/\s+/)[0]}` : d.tag;
+        useComments.getState().setPending({ elementId: d.id, label, x: d.x, y: d.y });
+        setTab("comments");
+        setRightOpen(true);
       }
     };
     window.addEventListener("message", onMsg);
@@ -255,6 +320,59 @@ export default function RunView() {
     const t = setTimeout(refreshTree, 800);
     return () => clearTimeout(t);
   }, [url]);
+
+  // navigate the live app to a route (Pages tab)
+  const goToRoute = (r: string) => {
+    if (!url || !iframeRef.current) return;
+    iframeRef.current.src = url.replace(/\/$/, "") + (r === "/" ? "/" : r);
+    setRoute(r);
+    setSelected(null);
+    setSelectedId(null);
+  };
+
+  // derive the app's pages/routes from its files
+  useEffect(() => {
+    if (!url || !backend) { setPages([]); return; }
+    let alive = true;
+    backend.list().then((list) => {
+      if (!alive) return;
+      const seen = new Set<string>();
+      const out: PageRoute[] = [];
+      for (const f of list) {
+        if (f.category !== "page") continue;
+        const r = routeForPage(f.path);
+        if (r == null || seen.has(r)) continue;
+        seen.add(r);
+        out.push({ route: r, label: r === "/" ? "/ (home)" : r, path: f.path });
+      }
+      out.sort((a, b) => a.route.localeCompare(b.route));
+      setPages(out);
+    });
+    return () => { alive = false; };
+  }, [url, backend]);
+
+  // draw comment pins in the running app while the Comments tab is open
+  useEffect(() => {
+    const open = tab === "comments" && rightOpen;
+    const pins = open
+      ? comments.filter((c) => !c.resolved).map((c, i) => ({ id: c.elementId, key: String(i + 1), commentId: c.id, x: c.x, y: c.y }))
+      : [];
+    post({ type: "nova-comments", pins });
+  }, [tab, rightOpen, comments, url]);
+
+  // undo / redo keyboard shortcuts
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const t = e.target as HTMLElement;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) redo(); else undo();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -379,6 +497,13 @@ export default function RunView() {
           <button onClick={() => setAiOpen(!aiOpen)} title="Nova AI assistant" className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium transition-colors ${aiOpen ? "bg-accent text-accent-ink" : "text-ink-2 hover:bg-raise hover:text-ink"}`}>
             <Sparkles size={14} /> <span className="hidden lg:inline">AI</span>
           </button>
+          <div className="mx-0.5 hidden h-5 w-px bg-line lg:block" />
+          <button onClick={undo} disabled={!past.length} title="Undo (⌘Z)" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-raise hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3">
+            <Undo2 size={15} />
+          </button>
+          <button onClick={redo} disabled={!future.length} title="Redo (⌘⇧Z)" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-raise hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3">
+            <Redo2 size={15} />
+          </button>
           <Play size={14} className="shrink-0 text-accent" />
           <span className="truncate text-[13px] font-medium">{project?.name || "Run"}</span>
           <span className={`flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] ${phase === "ready" ? "bg-accent/15 text-accent" : phase === "error" ? "bg-red-500/15 text-red-300" : "bg-raise text-ink-2"}`}>
@@ -441,16 +566,43 @@ export default function RunView() {
             className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${dragging ? "" : "transition-[width] duration-200"}`}
           >
             <div className="flex h-full flex-col" style={{ width: leftW }}>
-              <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-                <span className="flex items-center gap-1.5"><LayersIcon size={12} /> Layers</span>
-                {url && (
-                  <button onClick={refreshTree} title="Refresh layers" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
+              {/* Pages / Layers tabs (match the editor's left panel) */}
+              <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-line px-1.5">
+                {([["pages", <FileText key="p" size={13} />, "Pages"], ["layers", <LayersIcon key="l" size={13} />, "Layers"]] as const).map(([id, icon, label]) => (
+                  <button
+                    key={id}
+                    onClick={() => setLeftTab(id)}
+                    className={`flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-[12px] font-medium transition-colors ${leftTab === id ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
+                  >
+                    {icon} {label}
+                  </button>
+                ))}
+                {leftTab === "layers" && url && (
+                  <button onClick={refreshTree} title="Refresh layers" className="grid h-7 w-7 shrink-0 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
                     <RefreshCw size={11} />
                   </button>
                 )}
               </div>
               <div className="scroll-thin min-h-0 flex-1 overflow-auto py-1">
-                {!url ? (
+                {leftTab === "pages" ? (
+                  !url ? (
+                    <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">Start the app to list its pages.</p>
+                  ) : pages.length === 0 ? (
+                    <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">No pages detected. App Router routes (app/**/page) and *.html files show here.</p>
+                  ) : (
+                    pages.map((p) => (
+                      <button
+                        key={p.route}
+                        onClick={() => goToRoute(p.route)}
+                        title={p.path}
+                        className={`flex h-7 w-full items-center gap-2 px-3 text-left text-[12px] transition-colors ${route === p.route ? "bg-accent/15 text-accent" : "text-ink-2 hover:bg-raise hover:text-ink"}`}
+                      >
+                        <FileText size={12} className="shrink-0 opacity-70" />
+                        <span className="truncate">{p.label}</span>
+                      </button>
+                    ))
+                  )
+                ) : !url ? (
                   <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">Start the app to see its layers.</p>
                 ) : tree.length === 0 ? (
                   <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">No layers yet — once the app renders, its structure shows here. (Needs the dev bridge; click Refresh if empty.)</p>
@@ -517,6 +669,10 @@ export default function RunView() {
                 onClass={applyClass}
                 onText={applyText}
                 onColor={applyColor}
+                commentsKey={commentsKey}
+                comments={comments}
+                pending={pendingComment}
+                onPickComment={pickLayer}
               />
             </div>
             {rightOpen && <ResizeHandle panel="right" edge="left" onActiveChange={setDragging} />}
@@ -563,20 +719,26 @@ export default function RunView() {
 const opts = (arr: readonly string[], prefix: string) => arr.map((o) => ({ value: o, label: o.replace(prefix, "") || o }));
 
 function RunInspector({
-  url, selected, tab, setTab, onTokens, onClass, onText, onColor,
+  url, selected, tab, setTab, onTokens, onClass, onText, onColor, commentsKey, comments, pending, onPickComment,
 }: {
   url: string | null;
   selected: Selection | null;
-  tab: "style" | "element";
-  setTab: (t: "style" | "element") => void;
+  tab: "style" | "element" | "comments";
+  setTab: (t: "style" | "element" | "comments") => void;
   onTokens: (t: string[]) => void;
   onClass: (c: string) => void;
   onText: (t: string) => void;
   onColor: (kind: "text" | "bg", hex: string) => void;
+  commentsKey: string;
+  comments: Comment[];
+  pending: import("@/store/commentsStore").PendingAnchor | null;
+  onPickComment: (id: string) => void;
 }) {
+  const unresolved = comments.filter((c) => !c.resolved).length;
   const TABS = [
-    { id: "style" as const, icon: <Paintbrush2 size={15} />, label: "Style" },
-    { id: "element" as const, icon: <SlidersHorizontal size={15} />, label: "Element" },
+    { id: "style" as const, icon: <Paintbrush2 size={15} />, label: "Style", badge: 0 },
+    { id: "element" as const, icon: <SlidersHorizontal size={15} />, label: "Element", badge: 0 },
+    { id: "comments" as const, icon: <MessageSquare size={15} />, label: "Comments", badge: unresolved },
   ];
   const rail = (
     <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur">
@@ -586,13 +748,14 @@ function RunInspector({
             key={t.id}
             onClick={() => setTab(t.id)}
             title={t.label}
-            className={`grid h-8 flex-1 place-items-center rounded-md transition-colors ${tab === t.id ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
+            className={`relative grid h-8 flex-1 place-items-center rounded-md transition-colors ${tab === t.id ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
           >
             {t.icon}
+            {t.badge > 0 && <span className="absolute right-1 top-0.5 text-[8px] tabular-nums text-accent">{t.badge}</span>}
           </button>
         ))}
       </div>
-      {selected ? (
+      {selected && tab !== "comments" ? (
         <div className="flex items-center justify-between border-b border-line px-3.5 py-2">
           <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">{selected.tag}</span>
           {selected.file ? (
@@ -614,15 +777,111 @@ function RunInspector({
   return (
     <div className="scroll-thin h-full overflow-y-auto pb-10">
       {rail}
-      {!url ? (
+      {tab === "comments" ? (
+        <RunComments projectKey={commentsKey} comments={comments} selected={selected} pending={pending} onPick={onPickComment} />
+      ) : !url ? (
         <Empty msg="Start the app to begin editing." />
       ) : !selected ? (
-        <Empty msg="Click an element in the app to select it; double-click text to edit it. Edits write to source and hot-reload." />
+        <Empty msg="Click an element to edit it; right-click to leave a comment. Edits write to source and hot-reload." />
       ) : tab === "style" ? (
         <RunStyle selected={selected} onTokens={onTokens} onClass={onClass} onColor={onColor} />
       ) : (
         <RunElement selected={selected} onText={onText} onClass={onClass} />
       )}
+    </div>
+  );
+}
+
+function RunComments({ projectKey, comments, selected, pending, onPick }: {
+  projectKey: string;
+  comments: Comment[];
+  selected: Selection | null;
+  pending: import("@/store/commentsStore").PendingAnchor | null;
+  onPick: (id: string) => void;
+}) {
+  const add = useComments((s) => s.add);
+  const toggleResolved = useComments((s) => s.toggleResolved);
+  const remove = useComments((s) => s.remove);
+  const setPending = useComments((s) => s.setPending);
+  const focusedId = useComments((s) => s.focusedId);
+  const setFocused = useComments((s) => s.setFocused);
+  const [body, setBody] = useState("");
+
+  // the element to comment on: a right-click pending anchor, else the selection
+  const target = pending
+    ? { elementId: pending.elementId, label: pending.label, x: pending.x, y: pending.y }
+    : selected?.id
+      ? {
+          elementId: selected.id,
+          label: selected.text ? selected.text.slice(0, 28) : selected.className ? `${selected.tag}.${selected.className.split(/\s+/)[0]}` : selected.tag,
+          x: undefined as number | undefined,
+          y: undefined as number | undefined,
+        }
+      : null;
+
+  const submit = () => {
+    if (!body.trim() || !target) return;
+    add(projectKey, target.elementId, target.label, body.trim(), target.x, target.y);
+    setBody("");
+    setPending(null);
+  };
+
+  const open = comments.filter((c) => !c.resolved);
+  const done = comments.filter((c) => c.resolved);
+
+  return (
+    <div className="space-y-3 p-3">
+      {target ? (
+        <div className="rounded-lg border border-line bg-bg p-2.5">
+          <div className="mb-1.5 flex items-center gap-1.5 text-[11px] text-ink-3">
+            <MessageSquare size={11} className="text-accent" /> On <span className="min-w-0 flex-1 truncate font-mono text-ink-2">{target.label}</span>
+            {pending && <button onClick={() => setPending(null)} title="Cancel" className="shrink-0 text-ink-3 hover:text-ink"><X size={12} /></button>}
+          </div>
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) submit(); }}
+            rows={2}
+            placeholder="Leave a note… (⌘/Ctrl+Enter)"
+            className="w-full resize-none rounded-md border border-line bg-surface p-2 text-[12px] text-ink outline-none focus:border-accent/60"
+          />
+          <button onClick={submit} disabled={!body.trim()} className="mt-1.5 flex h-7 w-full items-center justify-center gap-1.5 rounded-md bg-accent text-[12px] font-semibold text-accent-ink disabled:opacity-40"><Send size={12} /> Comment</button>
+        </div>
+      ) : (
+        <p className="rounded-lg border border-dashed border-line px-3 py-2.5 text-[11.5px] leading-relaxed text-ink-3">Select an element — or right-click it in the app — to leave a comment pinned there.</p>
+      )}
+
+      {comments.length === 0 ? (
+        <p className="px-1 py-2 text-[11.5px] leading-relaxed text-ink-3">No comments yet.</p>
+      ) : (
+        <div className="space-y-1.5">
+          {open.map((c) => <CommentRow key={c.id} c={c} projectKey={projectKey} focused={focusedId === c.id} onPick={onPick} onFocus={setFocused} onResolve={toggleResolved} onRemove={remove} />)}
+          {done.length > 0 && <div className="px-1 pt-2 text-[10px] font-semibold uppercase tracking-wide text-ink-3">Resolved</div>}
+          {done.map((c) => <CommentRow key={c.id} c={c} projectKey={projectKey} focused={focusedId === c.id} onPick={onPick} onFocus={setFocused} onResolve={toggleResolved} onRemove={remove} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CommentRow({ c, projectKey, focused, onPick, onFocus, onResolve, onRemove }: {
+  c: Comment; projectKey: string; focused: boolean;
+  onPick: (id: string) => void; onFocus: (id: string | null) => void;
+  onResolve: (projectId: string, id: string) => void; onRemove: (projectId: string, id: string) => void;
+}) {
+  return (
+    <div
+      onClick={() => { onPick(c.elementId); onFocus(c.id); }}
+      className={`group cursor-pointer rounded-lg border p-2.5 transition-colors ${focused ? "border-accent/50 bg-accent/10" : "border-line bg-bg hover:border-line-2"} ${c.resolved ? "opacity-55" : ""}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate font-mono text-[10.5px] text-ink-3">{c.elementLabel}</span>
+        <div className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <button onClick={(e) => { e.stopPropagation(); onResolve(projectKey, c.id); }} title={c.resolved ? "Reopen" : "Resolve"} className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-accent"><Check size={12} /></button>
+          <button onClick={(e) => { e.stopPropagation(); onRemove(projectKey, c.id); }} title="Delete" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-red-400"><Trash2 size={12} /></button>
+        </div>
+      </div>
+      <p className="mt-1 whitespace-pre-wrap text-[12.5px] leading-relaxed text-ink-2">{c.body}</p>
     </div>
   );
 }

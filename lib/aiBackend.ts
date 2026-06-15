@@ -40,7 +40,12 @@ async function walk(wc: any, dir: string, acc: string[], depth: number): Promise
 
 // WebContainer-backed file ops, writing through to the on-disk folder handle so
 // AI edits land in the user's real files (and git) — not just the container.
-export function makeWcBackend(wc: any, handle: any | null): FileBackend {
+// onWrite (path, before, after) lets the Run tab fold these into its undo stack.
+export function makeWcBackend(
+  wc: any,
+  handle: any | null,
+  onWrite?: (path: string, before: string, after: string) => void
+): FileBackend {
   return {
     async list() {
       const paths: string[] = [];
@@ -56,10 +61,13 @@ export function makeWcBackend(wc: any, handle: any | null): FileBackend {
     },
     async write(path, content) {
       try {
+        let before = "";
+        try { before = await wc.fs.readFile(path, "utf-8"); } catch { /* new file */ }
         await wc.fs.writeFile(path, content);
         if (handle) {
           try { await writeFiles(handle, [{ path, content }]); } catch { /* disk write best-effort */ }
         }
+        if (before !== content) onWrite?.(path, before, content);
         return { ok: true };
       } catch (e: any) {
         return { ok: false, error: e?.message || String(e) };
