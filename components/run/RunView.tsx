@@ -136,11 +136,9 @@ const PHASE_LABEL: Record<Phase, string> = {
   error: "Error",
 };
 
-export default function RunView({ projectId: projectIdProp, onExit }: { projectId?: string | null; onExit?: () => void } = {}) {
+export default function RunView() {
   const params = useSearchParams();
-  // Embedded in the editor shell (play-as-toggle) the id comes as a prop; opened
-  // as the standalone /run page it comes from the URL.
-  const projectId = projectIdProp ?? params.get("project");
+  const projectId = params.get("project");
   const project = useProjects((s) => s.projects.find((p) => p.id === projectId));
 
   const [phase, setPhase] = useState<Phase>("idle");
@@ -223,7 +221,6 @@ export default function RunView({ projectId: projectIdProp, onExit }: { projectI
   // return to the editor tab already open. Fall back to navigating if this tab
   // wasn't script-opened (e.g. the URL was pasted directly).
   const backToEditor = () => {
-    if (onExit) { onExit(); return; } // embedded in the editor → just toggle back to design
     if (typeof window !== "undefined" && window.opener && !window.opener.closed) {
       window.close();
       setTimeout(() => { if (!window.closed) window.location.href = "/editor"; }, 120);

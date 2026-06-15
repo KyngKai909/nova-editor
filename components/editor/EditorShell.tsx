@@ -25,9 +25,6 @@ const CodeEditor = dynamic(() => import("./CodeEditor"), {
   ssr: false,
   loading: () => <div className="grid h-full place-items-center text-sm text-ink-3">Loading editor…</div>,
 });
-// Lazy — only loads (and pulls in @webcontainer/api) the first time webapp mode
-// is entered, so it doesn't bloat the editor bundle or boot a WC unless asked.
-const RunView = dynamic(() => import("@/components/run/RunView"), { ssr: false });
 
 // clamp a panel width so a persisted desktop size never overflows a phone
 const fit = (px: number) => `min(${px}px, 86vw)`;
@@ -50,17 +47,6 @@ export default function EditorShell() {
   const [right, setRight] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [dragging, setDragging] = useState(false);
-  // play-as-toggle: "webapp" mode shows the live WebContainer app in-place (the
-  // editor page is cross-origin isolated, so the WC can boot here). enteredWebapp
-  // keeps RunView mounted once opened so the container persists across toggles.
-  const [mode, setMode] = useState<"design" | "webapp">("design");
-  const [enteredWebapp, setEnteredWebapp] = useState(false);
-  const toggleMode = () =>
-    setMode((m) => {
-      const next = m === "design" ? "webapp" : "design";
-      if (next === "webapp") setEnteredWebapp(true);
-      return next;
-    });
 
   // auto-dismiss the transient notice
   useEffect(() => {
@@ -171,8 +157,6 @@ export default function EditorShell() {
         right={right}
         onToggleLeft={openLeft}
         onToggleRight={openRight}
-        webapp={mode === "webapp"}
-        onToggleWebapp={toggleMode}
       />
 
       <div className="relative flex min-h-0 flex-1">
@@ -248,15 +232,6 @@ export default function EditorShell() {
 
       {showExport && <ExportPanel onClose={() => setShowExport(false)} />}
       <ConflictResolver />
-
-      {/* webapp mode: the live WebContainer app, in the same page (play-as-toggle).
-          Mounted once it's first opened and hidden (not unmounted) when toggling
-          back to design, so the container keeps running. */}
-      {enteredWebapp && projectId && (
-        <div className={`fixed inset-0 z-[60] bg-bg-2 ${mode === "webapp" ? "" : "hidden"}`}>
-          <RunView projectId={projectId} onExit={() => setMode("design")} />
-        </div>
-      )}
     </div>
   );
 }
