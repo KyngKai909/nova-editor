@@ -163,7 +163,7 @@ export default function EditorShell() {
         {/* left panel — layers / files / assets */}
         <aside
           style={{ width: showLeft ? fit(leftW) : 0 }}
-          className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${sweep} max-md:absolute max-md:left-0 max-md:top-0 ${showLeft ? "max-md:shadow-2xl" : ""}`}
+          className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${showLeft ? "border-r border-line" : ""} ${sweep} max-md:absolute max-md:left-0 max-md:top-0 ${showLeft ? "max-md:shadow-2xl" : ""}`}
         >
           <div className="h-full" style={{ width: fit(leftW) }}>
             <LeftPanel />
@@ -174,7 +174,7 @@ export default function EditorShell() {
         {/* AI assistant — its own pushing column, just left of the canvas */}
         <aside
           style={{ width: showAi ? fit(aiW) : 0 }}
-          className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${sweep} max-md:absolute max-md:left-0 max-md:top-0 ${showAi ? "max-md:shadow-2xl" : ""}`}
+          className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${showAi ? "border-r border-line" : ""} ${sweep} max-md:absolute max-md:left-0 max-md:top-0 ${showAi ? "max-md:shadow-2xl" : ""}`}
         >
           <div className="h-full" style={{ width: fit(aiW) }}>
             <AiPanel />
@@ -199,7 +199,7 @@ export default function EditorShell() {
         {/* inspector */}
         <aside
           style={{ width: showRight ? fit(rightW) : 0 }}
-          className={`relative z-30 h-full shrink-0 overflow-hidden border-l border-line bg-surface ${sweep} max-md:absolute max-md:right-0 max-md:top-0 ${showRight ? "max-md:shadow-2xl" : ""}`}
+          className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${showRight ? "border-l border-line" : ""} ${sweep} max-md:absolute max-md:right-0 max-md:top-0 ${showRight ? "max-md:shadow-2xl" : ""}`}
         >
           <div className="h-full" style={{ width: fit(rightW) }}>
             <Inspector />

@@ -90,7 +90,8 @@ export const APP_BRIDGE = `
       // inline style gives an instant preview for values Tailwind hasn't built
       // yet (e.g. an arbitrary color) until HMR recompiles from source.
       if(d.style){ for(var k in d.style){ try{ sel.style[k]=d.style[k]; }catch(_){} } }
-    } else if(d.type==='nova-tree-request'){ sendTree(); }
+    } else if(d.type==='nova-remove'){ if(sel){ try{ sel.remove(); }catch(_){} restore(hov); hov=null; sel=null; } }
+    else if(d.type==='nova-tree-request'){ sendTree(); }
     else if(d.type==='nova-comments'){ commentPins=d.pins||[]; renderPins(); }
     else if(d.type==='nova-hl'){ var h=document.querySelector('[data-nova-id="'+d.id+'"]'); if(h){ restore(hov); hov=h; h.__nvOutline=h.style.outline; h.style.outline='1px dashed #ccff02'; } }
     else if(d.type==='nova-pick'){ var el=document.querySelector('[data-nova-id="'+d.id+'"]'); if(el){ el.scrollIntoView({block:'center'}); restore(sel); restore(hov); hov=null; sel=el; el.__nvOutline=el.style.outline||''; el.style.outline='2px solid #ccff02'; emitSelect(el); } }

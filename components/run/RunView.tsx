@@ -23,7 +23,7 @@ import { getHandle } from "@/lib/handleStore";
 import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
 import { APP_BRIDGE, findNodeByLine, resolveWcPath } from "@/lib/runtime";
 import { parseJsx } from "@/lib/jsxParser";
-import { spliceJsx, setJsxProp } from "@/lib/jsxEdit";
+import { spliceJsx, setJsxProp, removeJsxNode } from "@/lib/jsxEdit";
 import {
   toTokens, toClassName, groupValue, setGroup, setArbitraryColor,
   DISPLAY, FLEX_DIR, JUSTIFY, ALIGN, TEXT_ALIGN, FONT_SIZE, FONT_WEIGHT, PADDING, MARGIN, ROUNDED,
@@ -243,6 +243,14 @@ export default function RunView() {
     iframeRef.current?.contentWindow?.postMessage({ type: "nova-apply", className, ...(style ? { style } : {}) }, "*");
     editFile(selected.line, selected.file, (content, node) => setJsxProp(content, node, "className", className));
   };
+  // Delete the selected element: remove it from the iframe immediately, then
+  // splice it out of the source file (HMR keeps them in sync).
+  const deleteElement = () => {
+    if (!selected) return;
+    iframeRef.current?.contentWindow?.postMessage({ type: "nova-remove" }, "*");
+    editFile(selected.line, selected.file, (content, node) => removeJsxNode(content, node));
+    setSelected(null);
+  };
   // visual style controls edit the class token list, then apply as a className
   const applyTokens = (tokens: string[]) => applyClass(toClassName(tokens));
   // colors → an arbitrary class + an inline-style preview (Tailwind hasn't built
@@ -390,6 +398,9 @@ export default function RunView() {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) redo(); else undo();
+      } else if ((e.key === "Delete" || e.key === "Backspace") && selected) {
+        e.preventDefault();
+        deleteElement();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -585,7 +596,7 @@ export default function RunView() {
           {/* left rail — Layers (mirrors the running app's DOM) */}
           <aside
             style={{ width: leftOpen ? leftW : 0 }}
-            className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${dragging ? "" : "transition-[width] duration-200"}`}
+            className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${leftOpen ? "border-r border-line" : ""} ${dragging ? "" : "transition-[width] duration-200"}`}
           >
             <div className="flex h-full flex-col" style={{ width: leftW }}>
               {/* Pages / Layers tabs (match the editor's left panel) */}
@@ -639,7 +650,7 @@ export default function RunView() {
           {/* AI assistant — its own column, editing the running app's files */}
           <aside
             style={{ width: aiOpen ? aiW : 0 }}
-            className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${dragging ? "" : "transition-[width] duration-200"}`}
+            className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${aiOpen ? "border-r border-line" : ""} ${dragging ? "" : "transition-[width] duration-200"}`}
           >
             <div className="h-full" style={{ width: aiW }}>
               {backend ? (
@@ -679,7 +690,7 @@ export default function RunView() {
           {/* right inspector — editor-style, resizable + collapsible */}
           <aside
             style={{ width: rightOpen ? rightW : 0 }}
-            className={`relative z-30 h-full shrink-0 overflow-hidden border-l border-line bg-surface ${dragging ? "" : "transition-[width] duration-200"}`}
+            className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${rightOpen ? "border-l border-line" : ""} ${dragging ? "" : "transition-[width] duration-200"}`}
           >
             <div className="h-full" style={{ width: rightW }}>
               <RunInspector
@@ -692,6 +703,7 @@ export default function RunView() {
                 onText={applyText}
                 onColor={applyColor}
                 onSpacing={applySpacing}
+                onDelete={deleteElement}
                 commentsKey={commentsKey}
                 comments={comments}
                 pending={pendingComment}
@@ -742,7 +754,7 @@ export default function RunView() {
 const opts = (arr: readonly string[], prefix: string) => arr.map((o) => ({ value: o, label: o.replace(prefix, "") || o }));
 
 function RunInspector({
-  url, selected, tab, setTab, onTokens, onClass, onText, onColor, onSpacing, commentsKey, comments, pending, onPickComment,
+  url, selected, tab, setTab, onTokens, onClass, onText, onColor, onSpacing, onDelete, commentsKey, comments, pending, onPickComment,
 }: {
   url: string | null;
   selected: Selection | null;
@@ -753,6 +765,7 @@ function RunInspector({
   onText: (t: string) => void;
   onColor: (kind: "text" | "bg", hex: string) => void;
   onSpacing: (prop: string, v: string) => void;
+  onDelete: () => void;
   commentsKey: string;
   comments: Comment[];
   pending: import("@/store/commentsStore").PendingAnchor | null;
@@ -780,15 +793,25 @@ function RunInspector({
         ))}
       </div>
       {selected && tab !== "comments" ? (
-        <div className="flex items-center justify-between border-b border-line px-3.5 py-2">
-          <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">{selected.tag}</span>
-          {selected.file ? (
-            <span className="flex items-center gap-1 truncate font-mono text-[11px] text-ink-3" title={selected.file}>
-              <Code2 size={10} /> {selected.file.split("/").pop()}:{selected.line}
-            </span>
-          ) : (
-            <span className="text-[10px] text-amber-300/70">no source map</span>
-          )}
+        <div className="flex items-center justify-between gap-2 border-b border-line px-3.5 py-2">
+          <span className="shrink-0 rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">{selected.tag}</span>
+          <div className="flex min-w-0 items-center gap-1.5">
+            {selected.file ? (
+              <span className="flex min-w-0 items-center gap-1 truncate font-mono text-[11px] text-ink-3" title={selected.file}>
+                <Code2 size={10} className="shrink-0" /> {selected.file.split("/").pop()}:{selected.line}
+              </span>
+            ) : (
+              <span className="text-[10px] text-amber-300/70">no source map</span>
+            )}
+            <button
+              onClick={onDelete}
+              disabled={!selected.file}
+              title={selected.file ? "Delete element (Del)" : "Needs a source map to delete"}
+              className="grid h-6 w-6 shrink-0 place-items-center rounded text-ink-3 transition-colors hover:bg-raise hover:text-red-400 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3"
+            >
+              <Trash2 size={13} />
+            </button>
+          </div>
         </div>
       ) : (
         <div className="flex h-7 items-center px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">

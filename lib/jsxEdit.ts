@@ -59,6 +59,22 @@ export function setJsxProp(source: string, node: EditorNode, name: string, value
   return source.slice(0, at) + ` ${name}="${value}"` + source.slice(at);
 }
 
+// Remove a whole JSX element (its full opening→closing span). When the element
+// sits alone on its line, also swallow that line's indentation + trailing newline
+// so deletion doesn't leave a blank line behind. Returns null if unlocatable.
+export function removeJsxNode(source: string, node: EditorNode): string | null {
+  if (!node.sourceLocation) return null;
+  let { start } = node.sourceLocation;
+  let { end } = node.sourceLocation;
+  let s = start;
+  while (s > 0 && (source[s - 1] === " " || source[s - 1] === "\t")) s--;
+  if (s === 0 || source[s - 1] === "\n") {
+    start = s; // element starts the line — include its indentation
+    if (source[end] === "\n") end++; // and drop the trailing newline
+  }
+  return source.slice(0, start) + source.slice(end);
+}
+
 // Remove a prop (whole attribute, plus the preceding space).
 export function removeJsxProp(source: string, node: EditorNode, name: string): string {
   const attr = node.jsxAttrs?.find((a) => a.name === name);
