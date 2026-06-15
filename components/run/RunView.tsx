@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
@@ -24,7 +24,10 @@ import { getHandle } from "@/lib/handleStore";
 import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
 import { APP_BRIDGE, findNodeByLine, resolveWcPath } from "@/lib/runtime";
 import { parseJsx } from "@/lib/jsxParser";
-import { spliceJsx, setJsxProp, removeJsxNode } from "@/lib/jsxEdit";
+import { spliceJsx, setJsxProp, removeJsxProp, removeJsxNode } from "@/lib/jsxEdit";
+import { InspectorView } from "@/components/editor/Inspector";
+import type { EditorSurface } from "@/lib/editorSurface";
+import type { EditorNode } from "@/lib/types";
 import {
   toTokens, toClassName, groupValue, setGroup, setArbitraryColor,
   DISPLAY, FLEX_DIR, JUSTIFY, ALIGN, TEXT_ALIGN, FONT_SIZE, FONT_WEIGHT, PADDING, MARGIN, ROUNDED,
@@ -153,6 +156,7 @@ export default function RunView() {
   const [consoleOpen, setConsoleOpen] = useState(true);
   const commentsKey = projectId || "run";
   const comments = useComments((s) => s.byProject[commentsKey] || []);
+  const commentsPanelOpen = useComments((s) => s.panelOpen);
   const pendingComment = useComments((s) => s.pending);
   const [device, setDevice] = useState<Device>("desktop");
   const [rightOpen, setRightOpen] = useState(true);
@@ -339,6 +343,90 @@ export default function RunView() {
   const pickLayer = (id: string) => post({ type: "nova-pick", id });
   const hoverLayer = (id: string | null) => id && post({ type: "nova-hl", id });
 
+  // ── EditorSurface backed by the WebContainer ───────────────────────────────
+  // Lets the SAME inspector (components/editor/Inspector InspectorView) drive the
+  // running app: selection → a synthesized node, computed styles from the bridge,
+  // and edits mapped to source (arbitrary-property Tailwind classes for styles,
+  // setJsxProp for attrs/props) via the existing editFile/applyClass write path.
+  const selRef = useRef(selected); selRef.current = selected;
+  const fns = useRef({ applyClass, applyText, editFile, deleteElement, post });
+  fns.current = { applyClass, applyText, editFile, deleteElement, post };
+
+  const kebab = (p: string) => p.replace(/[A-Z]/g, (m) => "-" + m.toLowerCase());
+  const wcRead = useCallback(async () => selRef.current?.styles ?? {}, []);
+  const wcHighlight = useCallback((id: string | null) => { if (id) fns.current.post({ type: "nova-pick", id }); }, []);
+  const wcSetStyle = useCallback((_id: string, prop: string, value: string) => {
+    const sel = selRef.current; if (!sel) return;
+    const kb = kebab(prop);
+    const re = new RegExp("^\\[" + kb.replace(/-/g, "\\-") + ":");
+    const tokens = toTokens(sel.className).filter((t) => !re.test(t));
+    if (value !== "") tokens.push(`[${kb}:${value.replace(/\s+/g, "_")}]`);
+    fns.current.applyClass(toClassName(tokens), { [prop]: value });
+  }, []);
+  const wcSetClassList = useCallback((_id: string, classes: string[]) => fns.current.applyClass(classes.join(" ")), []);
+  const wcSetText = useCallback((_id: string, text: string) => fns.current.applyText(text), []);
+  const wcSetAttr = useCallback((_id: string, name: string, value: string) => {
+    const sel = selRef.current; if (!sel) return;
+    fns.current.editFile(sel.line, sel.file, (c: string, n: any) => setJsxProp(c, n, name, value));
+  }, []);
+  const wcRemoveAttr = useCallback((_id: string, name: string) => {
+    const sel = selRef.current; if (!sel) return;
+    fns.current.editFile(sel.line, sel.file, (c: string, n: any) => removeJsxProp(c, n, name));
+  }, []);
+  const wcDuplicate = useCallback((_id: string) => {
+    const sel = selRef.current; if (!sel) return;
+    fns.current.editFile(sel.line, sel.file, (c: string, n: any) => {
+      if (!n.sourceLocation) return null;
+      const { start, end } = n.sourceLocation;
+      const ls = c.lastIndexOf("\n", start - 1) + 1;
+      const indent = (c.slice(ls, start).match(/^[ \t]*/) || [""])[0];
+      return c.slice(0, end) + "\n" + indent + c.slice(start, end) + c.slice(end);
+    });
+  }, []);
+  const wcRemove = useCallback(() => fns.current.deleteElement(), []);
+  const wcApplyAsset = useCallback((path: string, as: "background" | "src") => {
+    if (as === "src") wcSetAttr("", "src", path);
+    else wcSetStyle("", "backgroundImage", `url(${path})`);
+  }, [wcSetAttr, wcSetStyle]);
+
+  const wcSurface = useMemo<EditorSurface>(() => {
+    const node: EditorNode | null = selected
+      ? {
+          id: selected.id || "",
+          tag: selected.tag,
+          attributes: {},
+          classList: selected.className ? selected.className.split(/\s+/).filter(Boolean) : [],
+          textContent: selected.text ?? "",
+          children: [],
+          sourceLocation: null,
+        }
+      : null;
+    return {
+      node,
+      selectedId: selected?.id ?? null,
+      canEdit: true,
+      isHtml: /\.html?$/i.test(selected?.file || ""),
+      isComponentInstance: !!selected && /^[A-Z]/.test(selected.tag),
+      device,
+      readyTick: 0,
+      files: [],
+      projectId: commentsKey,
+      imageAssets: [],
+      readStyles: wcRead,
+      highlight: wcHighlight,
+      setStyle: wcSetStyle,
+      setClassList: wcSetClassList,
+      setText: wcSetText,
+      setAttr: wcSetAttr,
+      removeAttr: wcRemoveAttr,
+      setProp: wcSetAttr,
+      removeProp: wcRemoveAttr,
+      duplicate: wcDuplicate,
+      remove: wcRemove,
+      applyAsset: wcApplyAsset,
+    };
+  }, [selected, device, commentsKey, wcRead, wcHighlight, wcSetStyle, wcSetClassList, wcSetText, wcSetAttr, wcRemoveAttr, wcDuplicate, wcRemove, wcApplyAsset]);
+
   // receive selection / inline-edit / layer-tree messages from the running app
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -404,14 +492,15 @@ export default function RunView() {
     return () => { alive = false; };
   }, [url, backend]);
 
-  // draw comment pins in the running app while the Comments tab is open
+  // draw comment pins in the running app while the inspector's Comments tab is
+  // open (InspectorView sets the shared store's panelOpen flag).
   useEffect(() => {
-    const open = tab === "comments" && rightOpen;
+    const open = commentsPanelOpen && rightOpen;
     const pins = open
       ? comments.filter((c) => !c.resolved).map((c, i) => ({ id: c.elementId, key: String(i + 1), commentId: c.id, x: c.x, y: c.y }))
       : [];
     post({ type: "nova-comments", pins });
-  }, [tab, rightOpen, comments, url]);
+  }, [commentsPanelOpen, rightOpen, comments, url]);
 
   // undo / redo keyboard shortcuts
   useEffect(() => {
@@ -731,22 +820,9 @@ export default function RunView() {
             className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${rightOpen ? "border-l border-line" : ""} ${dragging ? "" : "transition-[width] duration-200"}`}
           >
             <div className="h-full" style={{ width: rightW }}>
-              <RunInspector
-                url={url}
-                selected={selected}
-                tab={tab}
-                setTab={setTab}
-                onTokens={applyTokens}
-                onClass={applyClass}
-                onText={applyText}
-                onColor={applyColor}
-                onSpacing={applySpacing}
-                onDelete={deleteElement}
-                commentsKey={commentsKey}
-                comments={comments}
-                pending={pendingComment}
-                onPickComment={pickLayer}
-              />
+              {/* the SAME inspector the canvas editor uses, driven by the
+                  WebContainer surface (was RunInspector — now unified) */}
+              <InspectorView surface={wcSurface} />
             </div>
             {rightOpen && <ResizeHandle panel="right" edge="left" onActiveChange={setDragging} />}
           </aside>

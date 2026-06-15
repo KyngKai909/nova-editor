@@ -13,7 +13,7 @@ import {
 import { useEditor } from "@/store/editorStore";
 import { useComments, type Comment } from "@/store/commentsStore";
 import type { EditorNode } from "@/lib/types";
-import { highlight } from "@/lib/canvasBridge";
+import type { EditorSurface } from "@/lib/editorSurface";
 import { useCanvasSurface } from "./useCanvasSurface";
 
 const RIGHT_TABS = [
@@ -39,10 +39,13 @@ function Mini({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+// The editor mounts this; Run mounts InspectorView directly with a WebContainer
+// surface. Same component, two backends — features added here work in both.
 export default function Inspector() {
-  // All editing goes through the EditorSurface seam (canvas backend here), so the
-  // same inspector can later drive the Run/WebContainer backend unchanged.
-  const surface = useCanvasSurface();
+  return <InspectorView surface={useCanvasSurface()} />;
+}
+
+export function InspectorView({ surface }: { surface: EditorSurface }) {
   const {
     node, selectedId, canEdit, isHtml, isComponentInstance, device, files, projectId,
     imageAssets, applyAsset,
@@ -141,7 +144,7 @@ export default function Inspector() {
     return (
       <div className="scroll-thin h-full overflow-y-auto pb-24">
         {rail}
-        <CommentsPanel projectId={projectId} node={node} comments={comments} />
+        <CommentsPanel projectId={projectId} node={node} comments={comments} highlight={surface.highlight} />
       </div>
     );
   }
@@ -645,11 +648,12 @@ function AttrList({
 
 /* ── Comments tab ────────────────────────────────────────────────────────── */
 function CommentsPanel({
-  projectId, node, comments,
+  projectId, node, comments, highlight,
 }: {
   projectId: string | null;
   node: EditorNode | null;
   comments: Comment[];
+  highlight: (id: string | null) => void;
 }) {
   const add = useComments((s) => s.add);
   const toggleResolved = useComments((s) => s.toggleResolved);

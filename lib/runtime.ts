@@ -19,14 +19,11 @@ export const APP_BRIDGE = `
   function restore(el){ if(el&&el.__nvOutline!==undefined){ el.style.outline=el.__nvOutline; delete el.__nvOutline; } }
   document.addEventListener('mouseover',function(e){ var t=e.target; if(t===sel||t===hov)return; restore(hov); hov=t; t.__nvOutline=t.style.outline; t.style.outline='1px dashed #ccff02'; },true);
   document.addEventListener('mouseout',function(e){ if(e.target===hov){ restore(hov); hov=null; } },true);
+  // Report the full computed-style set the unified inspector reads (mirrors
+  // canvasBridge STYLE_PROPS), keyed camelCase, plus a 'background' alias.
+  var STYLE_PROPS=['display','flexDirection','flexWrap','justifyContent','alignItems','gap','alignSelf','flexGrow','flexShrink','order','gridTemplateColumns','gridTemplateRows','position','top','right','bottom','left','zIndex','marginTop','marginRight','marginBottom','marginLeft','paddingTop','paddingRight','paddingBottom','paddingLeft','width','height','minWidth','maxWidth','minHeight','maxHeight','fontFamily','fontSize','fontWeight','fontStyle','lineHeight','letterSpacing','textAlign','textTransform','textDecorationLine','color','backgroundColor','backgroundImage','backgroundSize','backgroundPosition','borderRadius','borderTopLeftRadius','borderTopRightRadius','borderBottomRightRadius','borderBottomLeftRadius','borderWidth','borderStyle','borderColor','opacity','boxShadow','filter','transform','transition','overflow','cursor'];
   function stylesOf(t){
-    try{ var c=getComputedStyle(t); return {
-      display:c.display, color:c.color, background:c.backgroundColor,
-      fontSize:c.fontSize, fontWeight:c.fontWeight, textAlign:c.textAlign,
-      padding:c.padding, margin:c.margin, radius:c.borderRadius,
-      paddingTop:c.paddingTop, paddingRight:c.paddingRight, paddingBottom:c.paddingBottom, paddingLeft:c.paddingLeft,
-      marginTop:c.marginTop, marginRight:c.marginRight, marginBottom:c.marginBottom, marginLeft:c.marginLeft
-    }; }catch(_){ return null; }
+    try{ var c=getComputedStyle(t),o={},i; for(i=0;i<STYLE_PROPS.length;i++){ o[STYLE_PROPS[i]]=c[STYLE_PROPS[i]]; } o.background=c.backgroundColor; return o; }catch(_){ return null; }
   }
   // ── layer tree: serialize the live DOM so the /run Layers panel can mirror it
   var __nid=0, __count=0;
