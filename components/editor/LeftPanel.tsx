@@ -6,7 +6,7 @@ import {
   MousePointer2, Files, Layers, Component, FolderTree, FileText, Copy, Trash2, GripVertical,
   Upload, MessageSquare,
 } from "lucide-react";
-import { ELEMENTS } from "@/lib/elements";
+import ElementsPalette from "./ElementsPalette";
 import { useEditor } from "@/store/editorStore";
 import { useComments } from "@/store/commentsStore";
 import { setDragComponent, getDragComponent, setDragElement, getDragElement } from "@/lib/dnd";
@@ -296,12 +296,10 @@ function AssetsTab() {
   );
 }
 
-/* ── Elements palette ────────────────────────────────────────────────────── */
-function ElementsPalette() {
+/* ── Elements palette: canvas insert (after selection, or append) ─────────── */
+function CanvasElements() {
   const isHtml = useEditor((s) => s.files.find((f) => f.path === s.activePath)?.kind === "html");
-
-  // Click = insert after the selected node, or append into the last top-level node.
-  const onClick = (html: string) => {
+  const insert = (html: string) => {
     const st = useEditor.getState();
     if (st.selectedId) st.insertElement(html, st.selectedId, "after");
     else {
@@ -310,33 +308,9 @@ function ElementsPalette() {
       else st.setNotice("Open a page first.");
     }
   };
-
   return (
-    <div className="border-b border-line p-2">
-      {ELEMENTS.map((g) => (
-        <div key={g.group} className="mb-2">
-          <div className="px-1 pb-1 text-[9px] font-semibold uppercase tracking-wide text-ink-3">{g.group}</div>
-          <div className="grid grid-cols-2 gap-1">
-            {g.items.map((it) => (
-              <button
-                key={it.label}
-                draggable
-                onDragStart={() => setDragElement(it.html)}
-                onDragEnd={() => setDragElement(null)}
-                onClick={() => onClick(it.html)}
-                title={`${it.label} — drag onto the canvas or a layer, or click to insert`}
-                className="flex items-center gap-1.5 rounded-md border border-line bg-bg px-2 py-1.5 text-left text-[11.5px] text-ink-2 transition-colors hover:border-accent/50 hover:text-ink"
-              >
-                <span className="shrink-0 text-ink-3">{it.icon}</span>
-                <span className="truncate">{it.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      <p className="px-1 pt-0.5 text-[10px] leading-relaxed text-ink-3">
-        {isHtml ? "Drag onto the canvas or a layer, or click to insert." : "Inserts as JSX into the current page."}
-      </p>
+    <div className="border-b border-line">
+      <ElementsPalette onInsert={insert} isHtml={isHtml} draggable />
     </div>
   );
 }
@@ -408,7 +382,7 @@ export default function LeftPanel() {
 
         {tab === "components" && (
           <>
-            <ElementsPalette />
+            <CanvasElements />
             <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3">Project components</div>
             {components.length ? (
               <>

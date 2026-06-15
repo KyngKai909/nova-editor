@@ -26,6 +26,7 @@ import { APP_BRIDGE, findNodeByLine, resolveWcPath } from "@/lib/runtime";
 import { parseJsx } from "@/lib/jsxParser";
 import { spliceJsx, setJsxProp, removeJsxProp, removeJsxNode } from "@/lib/jsxEdit";
 import { InspectorView } from "@/components/editor/Inspector";
+import ElementsPalette from "@/components/editor/ElementsPalette";
 import type { EditorSurface } from "@/lib/editorSurface";
 import type { EditorNode } from "@/lib/types";
 import {
@@ -35,7 +36,7 @@ import {
 import { usePanels } from "@/store/panelStore";
 import ResizeHandle from "@/components/editor/ResizeHandle";
 import { Section, Field, Segmented, Select, ColorField, SpacingBox } from "@/components/editor/controls";
-import { ELEMENTS, htmlToJsx } from "@/lib/elements";
+import { htmlToJsx } from "@/lib/elements";
 
 // margin/padding side → Tailwind prefix, for the Run spacing box (class-based).
 const SPACING_TW: Record<string, string> = {
@@ -743,7 +744,7 @@ export default function RunView() {
               </div>
               <div className="scroll-thin min-h-0 flex-1 overflow-auto py-1">
                 {leftTab === "components" ? (
-                  <RunElements onInsert={insertElement} hasSelection={!!selected?.file} />
+                  <ElementsPalette onInsert={insertElement} hasSelection={!!selected?.file} />
                 ) : leftTab === "pages" ? (
                   !url ? (
                     <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">Start the app to list its pages.</p>
@@ -859,38 +860,6 @@ export default function RunView() {
 
       {/* the editor's own Publish panel, reused here against the running files */}
       {showExport && <ExportPanel onClose={() => setShowExport(false)} />}
-    </div>
-  );
-}
-
-// ── components tab: the canvas elements palette, inserting into the running source
-function RunElements({ onInsert, hasSelection }: { onInsert: (html: string) => void; hasSelection: boolean }) {
-  return (
-    <div className="p-2">
-      {!hasSelection && (
-        <p className="mb-2 rounded-md border border-line bg-bg px-2 py-1.5 text-[10.5px] leading-relaxed text-ink-3">
-          Click an element in the app first — new blocks insert right after it.
-        </p>
-      )}
-      {ELEMENTS.map((g) => (
-        <div key={g.group} className="mb-2">
-          <div className="px-1 pb-1 text-[9px] font-semibold uppercase tracking-wide text-ink-3">{g.group}</div>
-          <div className="grid grid-cols-2 gap-1">
-            {g.items.map((it) => (
-              <button
-                key={it.label}
-                onClick={() => onInsert(it.html)}
-                title={`Insert ${it.label} after the selected element`}
-                className="flex items-center gap-1.5 rounded-md border border-line bg-bg px-2 py-1.5 text-left text-[11.5px] text-ink-2 transition-colors hover:border-accent/50 hover:text-ink"
-              >
-                <span className="shrink-0 text-ink-3">{it.icon}</span>
-                <span className="truncate">{it.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      <p className="px-1 pt-0.5 text-[10px] leading-relaxed text-ink-3">Inserts into the page source and hot-reloads.</p>
     </div>
   );
 }
