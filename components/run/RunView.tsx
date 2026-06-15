@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
   Pencil, MousePointer2, Code2, ChevronDown, ChevronUp, Paintbrush2, SlidersHorizontal, Trash2,
+  Monitor, Tablet, Smartphone, PanelRight, AlignLeft, AlignCenter, AlignRight, Square,
 } from "lucide-react";
 import { useProjects } from "@/store/projectsStore";
 import { getHandle } from "@/lib/handleStore";
@@ -13,9 +14,12 @@ import { APP_BRIDGE, findNodeByLine, resolveWcPath } from "@/lib/runtime";
 import { parseJsx } from "@/lib/jsxParser";
 import { spliceJsx, setJsxProp } from "@/lib/jsxEdit";
 import {
-  toTokens, toClassName, groupValue, setGroup,
+  toTokens, toClassName, groupValue, setGroup, setArbitraryColor,
   DISPLAY, FLEX_DIR, JUSTIFY, ALIGN, TEXT_ALIGN, FONT_SIZE, FONT_WEIGHT, PADDING, MARGIN, ROUNDED,
 } from "@/lib/runStyle";
+import { usePanels } from "@/store/panelStore";
+import ResizeHandle from "@/components/editor/ResizeHandle";
+import { Section, Field, Segmented, Select, ColorField } from "@/components/editor/controls";
 
 interface Selection {
   file?: string;
@@ -23,9 +27,18 @@ interface Selection {
   tag: string;
   className: string;
   text: string | null;
+  styles?: Record<string, string>; // computed styles reported by the bridge
 }
 
 type Phase = "idle" | "booting" | "mounting" | "installing" | "starting" | "ready" | "error";
+type Device = "desktop" | "tablet" | "mobile";
+
+const DEVICES: { id: Device; icon: React.ReactNode; label: string }[] = [
+  { id: "desktop", icon: <Monitor size={15} />, label: "Desktop" },
+  { id: "tablet", icon: <Tablet size={15} />, label: "Tablet · 834px" },
+  { id: "mobile", icon: <Smartphone size={15} />, label: "Mobile · 390px" },
+];
+const DEVICE_W: Record<Device, string> = { desktop: "100%", tablet: "834px", mobile: "390px" };
 
 // Single WebContainer per page (the API allows only one boot).
 let wcBootPromise: Promise<any> | null = null;
@@ -76,6 +89,10 @@ export default function RunView() {
   const [editMode, setEditMode] = useState(true);
   const [tab, setTab] = useState<"style" | "element">("style");
   const [consoleOpen, setConsoleOpen] = useState(true);
+  const [device, setDevice] = useState<Device>("desktop");
+  const [rightOpen, setRightOpen] = useState(true);
+  const [dragging, setDragging] = useState(false);
+  const rightW = usePanels((s) => s.right);
   const logRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wcRef = useRef<any>(null);
@@ -112,21 +129,28 @@ export default function RunView() {
     iframeRef.current?.contentWindow?.postMessage({ type: "nova-apply", text }, "*");
     editFile(selected.line, selected.file, (content, node) => spliceJsx(content, node, "text", text));
   };
-  const applyClass = (className: string) => {
+  const applyClass = (className: string, style?: Record<string, string>) => {
     if (!selected) return;
     setSelected({ ...selected, className });
-    iframeRef.current?.contentWindow?.postMessage({ type: "nova-apply", className }, "*");
+    iframeRef.current?.contentWindow?.postMessage({ type: "nova-apply", className, ...(style ? { style } : {}) }, "*");
     editFile(selected.line, selected.file, (content, node) => setJsxProp(content, node, "className", className));
   };
   // visual style controls edit the class token list, then apply as a className
   const applyTokens = (tokens: string[]) => applyClass(toClassName(tokens));
+  // colors → an arbitrary class + an inline-style preview (Tailwind hasn't built
+  // the new class yet; the inline style shows it instantly until HMR catches up).
+  const applyColor = (kind: "text" | "bg", hex: string) => {
+    if (!selected) return;
+    const next = setArbitraryColor(toTokens(selected.className), kind, hex);
+    applyClass(toClassName(next), { [kind === "text" ? "color" : "backgroundColor"]: hex });
+  };
 
   // receive selection / inline-edit messages from the running app's bridge
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       const d = e.data;
       if (!d?.type) return;
-      if (d.type === "nova-select") setSelected({ file: d.file, line: d.line, tag: d.tag, className: d.className || "", text: d.text });
+      if (d.type === "nova-select") setSelected({ file: d.file, line: d.line, tag: d.tag, className: d.className || "", text: d.text, styles: d.styles || undefined });
       else if (d.type === "nova-text") editFile(d.line, d.file, (content, node) => spliceJsx(content, node, "text", d.text));
     };
     window.addEventListener("message", onMsg);
@@ -243,26 +267,43 @@ export default function RunView() {
 
   return (
     <div className="flex h-[100dvh] flex-col bg-bg-2">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-3">
-        <div className="flex items-center gap-2">
-          <button onClick={backToEditor} className="grid h-7 w-7 place-items-center rounded-md text-ink-3 hover:bg-raise hover:text-ink" title="Back to editor">
+      <header className="grid h-12 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-line bg-surface px-3">
+        {/* left — navigate · name · status */}
+        <div className="flex min-w-0 items-center gap-2">
+          <button onClick={backToEditor} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-3 hover:bg-raise hover:text-ink" title="Back to editor">
             <ArrowLeft size={15} />
           </button>
-          <Play size={14} className="text-accent" />
-          <span className="text-[13px] font-medium">{project?.name || "Run"}</span>
-          <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] ${phase === "ready" ? "bg-accent/15 text-accent" : phase === "error" ? "bg-red-500/15 text-red-300" : "bg-raise text-ink-2"}`}>
+          <Play size={14} className="shrink-0 text-accent" />
+          <span className="truncate text-[13px] font-medium">{project?.name || "Run"}</span>
+          <span className={`flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] ${phase === "ready" ? "bg-accent/15 text-accent" : phase === "error" ? "bg-red-500/15 text-red-300" : "bg-raise text-ink-2"}`}>
             {phase === "ready" ? <CheckCircle2 size={11} /> : phase === "error" ? <AlertTriangle size={11} /> : <Loader2 size={11} className="animate-spin" />}
-            {PHASE_LABEL[phase]}
+            <span className="hidden lg:inline">{PHASE_LABEL[phase]}</span>
           </span>
         </div>
-        <div className="flex items-center gap-2">
+
+        {/* center — device sizes (frame the live app) */}
+        <div className="hidden items-center rounded-lg border border-line bg-bg p-0.5 md:flex">
+          {DEVICES.map((d) => (
+            <button
+              key={d.id}
+              onClick={() => setDevice(d.id)}
+              title={d.label}
+              className={`grid h-7 w-8 place-items-center rounded-md transition-colors ${device === d.id ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
+            >
+              {d.icon}
+            </button>
+          ))}
+        </div>
+
+        {/* right — edit · open · restart · panel toggle */}
+        <div className="flex items-center justify-end gap-2">
           {url && (
             <button
               onClick={() => setEditMode((v) => !v)}
               title="Toggle click-to-edit on the running app"
               className={`flex h-7 items-center gap-1.5 rounded-md px-2.5 text-[12px] font-medium transition-colors ${editMode ? "bg-accent text-accent-ink" : "border border-line text-ink-2 hover:bg-raise"}`}
             >
-              {editMode ? <Pencil size={12} /> : <MousePointer2 size={12} />} {editMode ? "Editing" : "Interact"}
+              {editMode ? <Pencil size={12} /> : <MousePointer2 size={12} />} <span className="hidden lg:inline">{editMode ? "Editing" : "Interact"}</span>
             </button>
           )}
           {url && (
@@ -270,21 +311,26 @@ export default function RunView() {
               Open <ExternalLink size={12} />
             </a>
           )}
-          <button onClick={() => setRunId((n) => n + 1)} className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2.5 text-[12px] text-ink-2 hover:bg-raise hover:text-ink">
-            <RefreshCw size={12} /> Restart
+          <button onClick={() => setRunId((n) => n + 1)} title="Restart" className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2.5 text-[12px] text-ink-2 hover:bg-raise hover:text-ink">
+            <RefreshCw size={12} /> <span className="hidden lg:inline">Restart</span>
+          </button>
+          <button onClick={() => setRightOpen((o) => !o)} title="Toggle inspector" className={`grid h-7 w-7 place-items-center rounded-md transition-colors hover:bg-raise hover:text-ink ${rightOpen ? "text-ink" : "text-ink-3"}`}>
+            <PanelRight size={15} />
           </button>
         </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col">
         {/* app + inspector */}
-        <div className="flex min-h-0 flex-1">
-          {/* live app */}
-          <main className="relative min-w-0 flex-1 bg-white">
+        <div className="relative flex min-h-0 flex-1">
+          {/* live app — framed to the selected device width */}
+          <main className="scroll-thin relative min-w-0 flex-1 overflow-auto bg-bg">
             {url ? (
-              <iframe ref={iframeRef} title="app" src={url} className={`h-full w-full border-0 ${editMode ? "" : "pointer-events-auto"}`} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals" />
+              <div className={`mx-auto h-full bg-white ${dragging ? "" : "transition-[width] duration-200"}`} style={{ width: DEVICE_W[device], maxWidth: "100%" }}>
+                <iframe ref={iframeRef} title="app" src={url} className="h-full w-full border-0" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals" />
+              </div>
             ) : (
-              <div className="grid h-full place-items-center bg-bg">
+              <div className="grid h-full place-items-center">
                 {phase === "error" ? (
                   <div className="max-w-md px-6 text-center">
                     <AlertTriangle size={28} className="mx-auto text-red-400" />
@@ -302,24 +348,27 @@ export default function RunView() {
             )}
           </main>
 
-          {/* right rail: tabbed inspector (Style / Element) */}
-          <aside className="flex w-[320px] shrink-0 flex-col border-l border-line bg-bg-2">
-            <div className="flex h-10 shrink-0 items-center gap-1 border-b border-line px-2">
-              <TabButton active={tab === "style"} onClick={() => setTab("style")} icon={<Paintbrush2 size={14} />} label="Style" />
-              <TabButton active={tab === "element"} onClick={() => setTab("element")} icon={<SlidersHorizontal size={14} />} label="Element" />
+          {/* right inspector — editor-style, resizable + collapsible */}
+          <aside
+            style={{ width: rightOpen ? rightW : 0 }}
+            className={`relative z-30 h-full shrink-0 overflow-hidden border-l border-line bg-surface ${dragging ? "" : "transition-[width] duration-200"}`}
+          >
+            <div className="h-full" style={{ width: rightW }}>
+              <RunInspector
+                url={url}
+                selected={selected}
+                tab={tab}
+                setTab={setTab}
+                onTokens={applyTokens}
+                onClass={applyClass}
+                onText={applyText}
+                onColor={applyColor}
+              />
             </div>
-            <div className="scroll-thin min-h-0 flex-1 overflow-auto">
-              {!url ? (
-                <p className="p-3 text-[11.5px] leading-relaxed text-ink-3">Start the app to begin editing.</p>
-              ) : !selected ? (
-                <p className="p-3 text-[11.5px] leading-relaxed text-ink-3">Click an element in the app to select it; double-click text to edit it. Edits write to source and hot-reload.</p>
-              ) : tab === "style" ? (
-                <StyleTab selected={selected} onTokens={applyTokens} onClass={applyClass} />
-              ) : (
-                <ElementTab selected={selected} onText={applyText} onClass={applyClass} />
-              )}
-            </div>
+            {rightOpen && <ResizeHandle panel="right" edge="left" onActiveChange={setDragging} />}
           </aside>
+
+          {dragging && <div className="fixed inset-0 z-50 cursor-col-resize" />}
         </div>
 
         {/* collapsible console footer (VS Code-style bottom panel) */}
@@ -352,128 +401,186 @@ export default function RunView() {
   );
 }
 
-// ── inspector pieces ──────────────────────────────────────────────────────────
+// ── inspector (a Run-native replica of the editor's Inspector) ───────────────
 
-function TabButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md text-[12px] font-medium transition-colors ${active ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
-    >
-      {icon} {label}
-    </button>
-  );
-}
+const opts = (arr: readonly string[], prefix: string) => arr.map((o) => ({ value: o, label: o.replace(prefix, "") || o }));
 
-function ElementHeader({ selected }: { selected: Selection }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] text-accent">{selected.tag}</span>
-      {selected.file ? (
-        <span className="flex items-center gap-1 truncate font-mono text-[10px] text-ink-3" title={selected.file}>
-          <Code2 size={10} /> {selected.file.split("/").pop()}:{selected.line}
-        </span>
-      ) : (
-        <span className="text-[10px] text-amber-300/70">no source map</span>
-      )}
-    </div>
-  );
-}
-
-// A segmented control bound to a Tailwind class group. Clicking the active
-// option again clears it.
-function Seg({ label, options, value, onChange }: { label: string; options: readonly string[]; value: string | null; onChange: (v: string | null) => void }) {
-  const fmt = (o: string) => o.replace(/^[a-z]+-/, "") || o;
-  return (
-    <div>
-      <div className="mb-1 text-[10px] uppercase tracking-wide text-ink-3">{label}</div>
-      <div className="flex flex-wrap gap-1">
-        {options.map((o) => (
+function RunInspector({
+  url, selected, tab, setTab, onTokens, onClass, onText, onColor,
+}: {
+  url: string | null;
+  selected: Selection | null;
+  tab: "style" | "element";
+  setTab: (t: "style" | "element") => void;
+  onTokens: (t: string[]) => void;
+  onClass: (c: string) => void;
+  onText: (t: string) => void;
+  onColor: (kind: "text" | "bg", hex: string) => void;
+}) {
+  const TABS = [
+    { id: "style" as const, icon: <Paintbrush2 size={15} />, label: "Style" },
+    { id: "element" as const, icon: <SlidersHorizontal size={15} />, label: "Element" },
+  ];
+  const rail = (
+    <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur">
+      <div className="flex items-center gap-0.5 border-b border-line p-1.5">
+        {TABS.map((t) => (
           <button
-            key={o}
-            onClick={() => onChange(value === o ? null : o)}
-            title={o}
-            className={`h-7 min-w-[30px] rounded-md border px-2 text-[11px] capitalize transition-colors ${
-              value === o ? "border-accent/60 bg-accent/15 text-accent" : "border-line text-ink-2 hover:bg-raise hover:text-ink"
-            }`}
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            title={t.label}
+            className={`grid h-8 flex-1 place-items-center rounded-md transition-colors ${tab === t.id ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
           >
-            {fmt(o)}
+            {t.icon}
           </button>
         ))}
       </div>
-    </div>
-  );
-}
-
-function RawClass({ selected, onClass }: { selected: Selection; onClass: (c: string) => void }) {
-  const [v, setV] = useState(selected.className);
-  useEffect(() => setV(selected.className), [selected.className]);
-  return (
-    <div>
-      <label className="text-[10px] uppercase tracking-wide text-ink-3">Classes</label>
-      <textarea
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onBlur={() => onClass(v)}
-        rows={2}
-        spellCheck={false}
-        className="mt-1 w-full resize-none rounded-md border border-line bg-bg p-2 font-mono text-[11px] leading-relaxed text-ink outline-none focus:border-accent/60"
-      />
-    </div>
-  );
-}
-
-function StyleTab({ selected, onTokens, onClass }: { selected: Selection; onTokens: (t: string[]) => void; onClass: (c: string) => void }) {
-  const tokens = toTokens(selected.className);
-  const set = (group: readonly string[], v: string | null) => onTokens(setGroup(tokens, group, v));
-  const display = groupValue(tokens, DISPLAY);
-  return (
-    <div className="space-y-3.5 p-3">
-      <ElementHeader selected={selected} />
-      <Seg label="Display" options={DISPLAY} value={display} onChange={(v) => set(DISPLAY, v)} />
-      {display === "flex" && (
-        <>
-          <Seg label="Direction" options={FLEX_DIR} value={groupValue(tokens, FLEX_DIR)} onChange={(v) => set(FLEX_DIR, v)} />
-          <Seg label="Justify" options={JUSTIFY} value={groupValue(tokens, JUSTIFY)} onChange={(v) => set(JUSTIFY, v)} />
-          <Seg label="Align" options={ALIGN} value={groupValue(tokens, ALIGN)} onChange={(v) => set(ALIGN, v)} />
-        </>
+      {selected ? (
+        <div className="flex items-center justify-between border-b border-line px-3.5 py-2">
+          <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">{selected.tag}</span>
+          {selected.file ? (
+            <span className="flex items-center gap-1 truncate font-mono text-[11px] text-ink-3" title={selected.file}>
+              <Code2 size={10} /> {selected.file.split("/").pop()}:{selected.line}
+            </span>
+          ) : (
+            <span className="text-[10px] text-amber-300/70">no source map</span>
+          )}
+        </div>
+      ) : (
+        <div className="flex h-7 items-center px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
+          {TABS.find((t) => t.id === tab)!.label}
+        </div>
       )}
-      <Seg label="Padding" options={PADDING} value={groupValue(tokens, PADDING)} onChange={(v) => set(PADDING, v)} />
-      <Seg label="Margin" options={MARGIN} value={groupValue(tokens, MARGIN)} onChange={(v) => set(MARGIN, v)} />
-      <Seg label="Radius" options={ROUNDED} value={groupValue(tokens, ROUNDED)} onChange={(v) => set(ROUNDED, v)} />
-      <div className="h-px bg-line" />
-      <Seg label="Font size" options={FONT_SIZE} value={groupValue(tokens, FONT_SIZE)} onChange={(v) => set(FONT_SIZE, v)} />
-      <Seg label="Weight" options={FONT_WEIGHT} value={groupValue(tokens, FONT_WEIGHT)} onChange={(v) => set(FONT_WEIGHT, v)} />
-      <Seg label="Text align" options={TEXT_ALIGN} value={groupValue(tokens, TEXT_ALIGN)} onChange={(v) => set(TEXT_ALIGN, v)} />
-      <div className="h-px bg-line" />
-      <RawClass selected={selected} onClass={onClass} />
-      <p className="text-[10.5px] leading-relaxed text-ink-3">Controls add Tailwind classes and write back to source. For non-Tailwind styling, edit classes directly above.</p>
+    </div>
+  );
+
+  return (
+    <div className="scroll-thin h-full overflow-y-auto pb-10">
+      {rail}
+      {!url ? (
+        <Empty msg="Start the app to begin editing." />
+      ) : !selected ? (
+        <Empty msg="Click an element in the app to select it; double-click text to edit it. Edits write to source and hot-reload." />
+      ) : tab === "style" ? (
+        <RunStyle selected={selected} onTokens={onTokens} onClass={onClass} onColor={onColor} />
+      ) : (
+        <RunElement selected={selected} onText={onText} onClass={onClass} />
+      )}
     </div>
   );
 }
 
-function ElementTab({ selected, onText, onClass }: { selected: Selection; onText: (t: string) => void; onClass: (c: string) => void }) {
+function Empty({ msg }: { msg: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-16 text-center">
+      <div className="grid h-11 w-11 place-items-center rounded-xl border border-line bg-surface">
+        <Square size={16} className="text-ink-3" />
+      </div>
+      <p className="max-w-[200px] text-[12px] leading-relaxed text-ink-3">{msg}</p>
+    </div>
+  );
+}
+
+function RunStyle({
+  selected, onTokens, onClass, onColor,
+}: {
+  selected: Selection;
+  onTokens: (t: string[]) => void;
+  onClass: (c: string) => void;
+  onColor: (kind: "text" | "bg", hex: string) => void;
+}) {
+  const tokens = toTokens(selected.className);
+  const set = (group: readonly string[], v: string) => onTokens(setGroup(tokens, group, v || null));
+  const gv = (group: readonly string[]) => (groupValue(tokens, group) ?? "") as any;
+  const display = groupValue(tokens, DISPLAY);
+  const st = selected.styles || {};
+  return (
+    <>
+      <Section title="Layout">
+        <Field label="Display">
+          <Segmented value={gv(DISPLAY)} options={[{ value: "block", label: "Block" }, { value: "flex", label: "Flex" }, { value: "grid", label: "Grid" }, { value: "hidden", label: "None" }]} onChange={(v) => set(DISPLAY, v)} />
+        </Field>
+        {display === "flex" && (
+          <>
+            <Field label="Direction">
+              <Segmented value={gv(FLEX_DIR)} options={[{ value: "flex-row", label: "Row" }, { value: "flex-col", label: "Column" }]} onChange={(v) => set(FLEX_DIR, v)} />
+            </Field>
+            <Field label="Justify"><Select value={gv(JUSTIFY)} options={opts(JUSTIFY, "justify-")} onChange={(v) => set(JUSTIFY, v)} /></Field>
+            <Field label="Align"><Select value={gv(ALIGN)} options={opts(ALIGN, "items-")} onChange={(v) => set(ALIGN, v)} /></Field>
+          </>
+        )}
+      </Section>
+
+      <Section title="Spacing">
+        <Field label="Padding"><Select value={gv(PADDING)} options={opts(PADDING, "p-")} onChange={(v) => set(PADDING, v)} /></Field>
+        <Field label="Margin"><Select value={gv(MARGIN)} options={opts(MARGIN, "m-")} onChange={(v) => set(MARGIN, v)} /></Field>
+        <Field label="Radius"><Select value={gv(ROUNDED)} options={ROUNDED.map((o) => ({ value: o, label: o.replace("rounded-", "") === "rounded" ? "base" : o.replace("rounded-", "") || "base" }))} onChange={(v) => set(ROUNDED, v)} /></Field>
+      </Section>
+
+      <Section title="Typography">
+        <Field label="Size"><Select value={gv(FONT_SIZE)} options={opts(FONT_SIZE, "text-")} onChange={(v) => set(FONT_SIZE, v)} /></Field>
+        <Field label="Weight"><Select value={gv(FONT_WEIGHT)} options={opts(FONT_WEIGHT, "font-")} onChange={(v) => set(FONT_WEIGHT, v)} /></Field>
+        <Field label="Align">
+          <Segmented value={gv(TEXT_ALIGN)} options={[{ value: "text-left", icon: <AlignLeft size={13} /> }, { value: "text-center", icon: <AlignCenter size={13} /> }, { value: "text-right", icon: <AlignRight size={13} /> }]} onChange={(v) => set(TEXT_ALIGN, v)} />
+        </Field>
+        <Field label="Color"><ColorField value={st.color || ""} onChange={(v) => onColor("text", v)} /></Field>
+      </Section>
+
+      <Section title="Appearance">
+        <Field label="Background"><ColorField value={st.background || ""} onChange={(v) => onColor("bg", v)} /></Field>
+      </Section>
+
+      <Section title="Classes" defaultOpen={false}>
+        <RunClasses selected={selected} onClass={onClass} />
+        <p className="pt-1 text-[10.5px] leading-relaxed text-ink-3">Controls add Tailwind classes and write to source. Edit any class directly here.</p>
+      </Section>
+    </>
+  );
+}
+
+function RunElement({ selected, onText, onClass }: { selected: Selection; onText: (t: string) => void; onClass: (c: string) => void }) {
+  return (
+    <>
+      {selected.text !== null && (
+        <Section title="Content">
+          <RunText selected={selected} onText={onText} />
+        </Section>
+      )}
+      <Section title="Classes">
+        <RunClasses selected={selected} onClass={onClass} />
+      </Section>
+      {!selected.file && (
+        <p className="px-3.5 py-3 text-[10.5px] leading-relaxed text-amber-300/70">No source mapping for this element (needs a React dev build with source info).</p>
+      )}
+    </>
+  );
+}
+
+function RunText({ selected, onText }: { selected: Selection; onText: (t: string) => void }) {
   const [t, setT] = useState(selected.text ?? "");
   useEffect(() => setT(selected.text ?? ""), [selected.text]);
   return (
-    <div className="space-y-3.5 p-3">
-      <ElementHeader selected={selected} />
-      {selected.text !== null && (
-        <div>
-          <label className="text-[10px] uppercase tracking-wide text-ink-3">Text</label>
-          <textarea
-            value={t}
-            onChange={(e) => setT(e.target.value)}
-            onBlur={() => onText(t)}
-            rows={3}
-            className="mt-1 w-full resize-none rounded-md border border-line bg-bg p-2 text-[12px] text-ink outline-none focus:border-accent/60"
-          />
-        </div>
-      )}
-      <RawClass selected={selected} onClass={onClass} />
-      {!selected.file && (
-        <p className="text-[10.5px] leading-relaxed text-amber-300/70">No source mapping for this element (needs a React dev build with source info).</p>
-      )}
-    </div>
+    <textarea
+      value={t}
+      onChange={(e) => setT(e.target.value)}
+      onBlur={() => onText(t)}
+      rows={3}
+      className="w-full resize-none rounded-md border border-line bg-bg p-2 text-[12px] text-ink outline-none focus:border-accent/60"
+    />
+  );
+}
+
+function RunClasses({ selected, onClass }: { selected: Selection; onClass: (c: string) => void }) {
+  const [v, setV] = useState(selected.className);
+  useEffect(() => setV(selected.className), [selected.className]);
+  return (
+    <textarea
+      value={v}
+      onChange={(e) => setV(e.target.value)}
+      onBlur={() => onClass(v)}
+      rows={2}
+      spellCheck={false}
+      className="w-full resize-none rounded-md border border-line bg-bg p-2 font-mono text-[11px] leading-relaxed text-ink outline-none focus:border-accent/60"
+    />
   );
 }

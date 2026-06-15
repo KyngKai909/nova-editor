@@ -28,6 +28,16 @@ export function toggleToken(tokens: string[], token: string): string[] {
   return tokens.includes(token) ? tokens.filter((t) => t !== token) : [...tokens, token];
 }
 
+// Set an arbitrary color class (text-[#hex] / bg-[#hex]), replacing any existing
+// arbitrary color of that kind. Pair with an inline-style preview since a new
+// arbitrary class has no CSS until the app's Tailwind recompiles via HMR.
+export function setArbitraryColor(tokens: string[], kind: "text" | "bg", hex: string): string[] {
+  const re = kind === "text" ? /^text-\[#/i : /^bg-\[#/i;
+  const next = tokens.filter((t) => !re.test(t));
+  if (hex) next.push(`${kind}-[${hex}]`);
+  return next;
+}
+
 // Control groups surfaced in the Run inspector's Style tab.
 export const DISPLAY = ["block", "flex", "grid", "hidden"] as const;
 export const FLEX_DIR = ["flex-row", "flex-col"] as const;

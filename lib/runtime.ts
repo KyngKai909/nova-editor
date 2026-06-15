@@ -19,12 +19,20 @@ export const APP_BRIDGE = `
   function restore(el){ if(el&&el.__nvOutline!==undefined){ el.style.outline=el.__nvOutline; delete el.__nvOutline; } }
   document.addEventListener('mouseover',function(e){ var t=e.target; if(t===sel||t===hov)return; restore(hov); hov=t; t.__nvOutline=t.style.outline; t.style.outline='1px dashed #ccff02'; },true);
   document.addEventListener('mouseout',function(e){ if(e.target===hov){ restore(hov); hov=null; } },true);
+  function stylesOf(t){
+    try{ var c=getComputedStyle(t); return {
+      display:c.display, color:c.color, background:c.backgroundColor,
+      fontSize:c.fontSize, fontWeight:c.fontWeight, textAlign:c.textAlign,
+      padding:c.padding, margin:c.margin, radius:c.borderRadius
+    }; }catch(_){ return null; }
+  }
   document.addEventListener('click',function(e){
     e.preventDefault(); e.stopPropagation();
     var t=e.target, s=srcOf(t);
     restore(sel); restore(hov); hov=null; sel=t; t.__nvOutline=t.style.outline||''; t.style.outline='2px solid #ccff02';
     parent.postMessage({type:'nova-select', file:s&&s.fileName, line:s&&s.lineNumber, col:s&&s.columnNumber,
-      tag:t.tagName.toLowerCase(), className:(typeof t.className==='string'?t.className:''), text:(t.children.length?null:(t.textContent||''))},'*');
+      tag:t.tagName.toLowerCase(), className:(typeof t.className==='string'?t.className:''),
+      text:(t.children.length?null:(t.textContent||'')), styles:stylesOf(t)},'*');
   },true);
   document.addEventListener('dblclick',function(e){
     var t=e.target; if(t.children.length)return;
@@ -40,6 +48,9 @@ export const APP_BRIDGE = `
     if(e.data&&e.data.type==='nova-apply'&&sel){
       if(e.data.className!=null) sel.className=e.data.className;
       if(e.data.text!=null) sel.textContent=e.data.text;
+      // inline style gives an instant preview for values Tailwind hasn't built
+      // yet (e.g. an arbitrary color) until HMR recompiles from source.
+      if(e.data.style){ for(var k in e.data.style){ try{ sel.style[k]=e.data.style[k]; }catch(_){} } }
     }
   });
 })();
