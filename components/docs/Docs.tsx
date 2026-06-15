@@ -5,7 +5,7 @@ import Link from "next/link";
 import {
   ArrowLeft, Rocket, FolderInput, MousePointerClick, Sparkles, Play, GitPullRequest,
   HelpCircle, KeyRound, ShieldCheck, Code2, ArrowRight,
-  Users, MessageSquare, Boxes, Image as ImageIcon, SlidersHorizontal, Cpu,
+  Users, MessageSquare, Boxes, Image as ImageIcon, SlidersHorizontal, Cpu, FolderTree, Globe, Layers,
 } from "lucide-react";
 import AlphaPill from "@/components/AlphaPill";
 import { useRouteTransition } from "@/components/transition/RouteTransition";
@@ -14,6 +14,7 @@ const SECTIONS = [
   { id: "overview", label: "Overview", icon: <Rocket size={14} /> },
   { id: "getting-started", label: "Getting started", icon: <Rocket size={14} /> },
   { id: "importing", label: "Importing", icon: <FolderInput size={14} /> },
+  { id: "structure", label: "Project structure", icon: <FolderTree size={14} /> },
   { id: "editing", label: "Visual & code editing", icon: <MousePointerClick size={14} /> },
   { id: "collaboration", label: "Comments & sharing", icon: <Users size={14} /> },
   { id: "ai", label: "AI assistant", icon: <Sparkles size={14} /> },
@@ -205,6 +206,63 @@ owner/repo`}</pre>
             <p className="text-[13px] leading-relaxed text-ink-3">
               The visual editor opens <b className="text-ink-2">.html, .jsx, and .tsx</b> files. A full clone brings every file to disk; CSS/config files aren't editable on the canvas yet.
             </p>
+          </section>
+
+          {/* structure */}
+          <section className="space-y-5">
+            <H id="structure" kicker="Set up for the smoothest editing">Recommended project structure</H>
+            <p className="text-[14px] leading-relaxed text-ink-2">
+              Nova works with whatever layout you have — but a couple of conventions make the canvas, Assets panel, and AI noticeably better. The rule of thumb: <b className="text-ink">keep visual pieces self-contained</b> (so they render on the canvas), and <b className="text-ink">keep assets together</b> (so Nova can find them).
+            </p>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-ink"><Globe size={14} className="text-accent" /> Websites — static HTML / CSS / JS</div>
+              <pre className="overflow-x-auto rounded-xl border border-line bg-bg-2 p-4 font-mono text-[12px] leading-relaxed text-ink-2">{`my-site/
+├─ index.html          # pages — each opens on the canvas
+├─ about.html
+├─ assets/             # images, svgs & fonts live together
+│  ├─ logo.svg
+│  └─ images/hero.jpg
+└─ styles/
+   └─ main.css         # one stylesheet, linked from each page`}</pre>
+              <p className="text-[13px] leading-relaxed text-ink-3">Put media in <b className="text-ink-2">assets/</b> (or <span className="font-mono text-[12px]">images/</span>, <span className="font-mono text-[12px]">fonts/</span>) so the Assets panel collects them. Reference them with relative paths and they resolve on the canvas.</p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-ink"><Boxes size={14} className="text-accent" /> Web apps — Next.js or Vite + React</div>
+              <pre className="overflow-x-auto rounded-xl border border-line bg-bg-2 p-4 font-mono text-[12px] leading-relaxed text-ink-2">{`my-app/
+├─ app/                # Next.js routes (pages) — preview in Run
+│  ├─ layout.tsx
+│  └─ page.tsx
+├─ components/         # reusable, presentational pieces — edit on the canvas
+│  ├─ Hero.tsx
+│  └─ Button.tsx
+├─ lib/  (or utils/)   # non-visual helpers, stores, types
+├─ public/             # static assets served at /
+└─ package.json        # needed for Run (npm run dev/start)
+
+# Vite: index.html at the root, code under src/ (src/components/…)`}</pre>
+              <p className="text-[13px] leading-relaxed text-ink-3">
+                Pages that use routing, data fetching, or context providers are best previewed with <b className="text-ink-2">Run</b> (the real dev server). The design canvas shines on <b className="text-ink-2">components/</b> — see below.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-[13px] font-semibold text-ink"><Layers size={14} className="text-accent" /> Components — a reusable library</div>
+              <pre className="overflow-x-auto rounded-xl border border-line bg-bg-2 p-4 font-mono text-[12px] leading-relaxed text-ink-2">{`components/
+├─ Button.tsx          # one default-exported component per file
+├─ Card.tsx
+└─ Badge.tsx`}</pre>
+              <ul className="space-y-1.5 text-[13.5px] leading-relaxed text-ink-2">
+                <li>• <b className="text-ink">One component per file</b>, with a <b className="text-ink">default export</b>.</li>
+                <li>• <b className="text-ink">Self-contained</b>: take props with sensible defaults, no data fetching or router/context hooks — that's what lets it render live on the canvas.</li>
+                <li>• Style with <b className="text-ink">Tailwind classes</b> (or co-located CSS) for the best visual-editing experience.</li>
+              </ul>
+            </div>
+
+            <Card icon={<FolderTree size={14} />} title="Why it matters">
+              The canvas bundles one file at a time, so a component that imports only npm packages and other loaded components renders perfectly; one that pulls in stores, server-only APIs, or Next runtime is routed to <b className="text-ink-2">Run</b> instead. Structuring presentational components apart from app wiring gives you the most that's directly editable on the canvas.
+            </Card>
           </section>
 
           {/* editing */}

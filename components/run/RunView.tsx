@@ -6,11 +6,17 @@ import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
   Pencil, MousePointer2, Code2, ChevronDown, ChevronUp, Paintbrush2, SlidersHorizontal, Trash2,
   Monitor, Tablet, Smartphone, PanelRight, PanelLeft, AlignLeft, AlignCenter, AlignRight, Square,
-  Layers as LayersIcon, ChevronRight, Sparkles,
+  Layers as LayersIcon, ChevronRight, Sparkles, Upload,
 } from "lucide-react";
 import { useAi } from "@/store/aiStore";
+import { useEditor } from "@/store/editorStore";
+import { useGitHub } from "@/store/githubStore";
 import AiPanel from "@/components/editor/AiPanel";
+import ExportPanel from "@/components/editor/ExportPanel";
 import { makeWcBackend } from "@/lib/aiBackend";
+import { importRepoFilesAuth } from "@/lib/githubApi";
+import { fileKind, classifyFile } from "@/lib/importUtils";
+import type { SourceFile } from "@/lib/types";
 import { useProjects } from "@/store/projectsStore";
 import { getHandle } from "@/lib/handleStore";
 import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
@@ -112,6 +118,10 @@ export default function RunView() {
   const aiW = usePanels((s) => s.ai);
   const aiOpen = useAi((s) => s.open);
   const setAiOpen = useAi((s) => s.setOpen);
+  const loadFiles = useEditor((s) => s.loadFiles);
+  const ghToken = useGitHub((s) => s.token);
+  const [showExport, setShowExport] = useState(false);
+  const [publishing, setPublishing] = useState(false);
   const logRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wcRef = useRef<any>(null);
@@ -174,6 +184,46 @@ export default function RunView() {
     if (!selected) return;
     const next = setArbitraryColor(toTokens(selected.className), kind, hex);
     applyClass(toClassName(next), { [kind === "text" ? "color" : "backgroundColor"]: hex });
+  };
+
+  // Publish from Run: gather the running project's current files (the
+  // WebContainer mirrors disk after write-through), diff them against the
+  // committed GitHub version, load them into the editor store, and open the
+  // editor's existing Publish panel (download / commit & push / PR).
+  const publishFromRun = async () => {
+    if (!backend || !projectId || publishing) return;
+    setPublishing(true);
+    try {
+      let baseline: Map<string, string> | null = null;
+      const gh = project?.github;
+      if (gh && ghToken) {
+        try {
+          const { files: ghFiles } = await importRepoFilesAuth(ghToken, gh.owner, gh.repo, gh.branch);
+          baseline = new Map(ghFiles.map((f) => [f.path, f.content]));
+        } catch { /* no baseline → diff falls back to "all current" */ }
+      }
+      const files: SourceFile[] = [];
+      for (const f of await backend.list()) {
+        const kind = fileKind(f.path);
+        if (!kind) continue;
+        const content = await backend.read(f.path);
+        if (content == null) continue;
+        files.push({
+          path: f.path,
+          name: f.path.split("/").pop() || f.path,
+          kind,
+          category: classifyFile(f.path, kind),
+          content,
+          original: baseline?.get(f.path) ?? content,
+        });
+      }
+      loadFiles(files, {}, project?.baseHref ?? null, projectId);
+      setShowExport(true);
+    } catch {
+      /* best-effort */
+    } finally {
+      setPublishing(false);
+    }
   };
 
   const post = (msg: any) => iframeRef.current?.contentWindow?.postMessage(msg, "*");
@@ -373,6 +423,12 @@ export default function RunView() {
           <button onClick={() => setRightOpen((o) => !o)} title="Toggle inspector" className={`grid h-7 w-7 place-items-center rounded-md transition-colors hover:bg-raise hover:text-ink ${rightOpen ? "text-ink" : "text-ink-3"}`}>
             <PanelRight size={15} />
           </button>
+          {url && (
+            <button onClick={publishFromRun} disabled={publishing} title="Publish — review changes, commit & push" className="flex h-7 items-center gap-1.5 rounded-md bg-ink px-3 text-[12px] font-semibold text-bg transition-colors hover:bg-white disabled:opacity-60">
+              {publishing ? <Loader2 size={13} className="animate-spin" /> : <Upload size={13} />}
+              <span className="hidden sm:inline">Publish</span>
+            </button>
+          )}
         </div>
       </header>
 
@@ -495,6 +551,9 @@ export default function RunView() {
           )}
         </div>
       </div>
+
+      {/* the editor's own Publish panel, reused here against the running files */}
+      {showExport && <ExportPanel onClose={() => setShowExport(false)} />}
     </div>
   );
 }
