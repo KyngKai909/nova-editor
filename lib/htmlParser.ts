@@ -2,8 +2,16 @@ import type { EditorNode } from "./types";
 import type { AssetMap } from "./assets";
 import { rewriteAssetUrls } from "./assets";
 import { STORAGE_SHIM } from "./canvasBridge";
+import {
+  RAW_TEXT_ELEMENTS,
+  escapeText,
+  serializeAttr,
+  isSelfClosing,
+} from "./htmlSerialize.mjs";
 
 const SKIP_TAGS = new Set(["script", "style", "meta", "link", "base", "br", "hr"]);
+const SVG_NS = "http://www.w3.org/2000/svg";
+const MATHML_NS = "http://www.w3.org/1998/Math/MathML";
 
 // Parse an HTML string into a Document and stamp every element with a stable
 // data-wfc-id (document order). This Document is the clean source of truth:
@@ -15,6 +23,11 @@ export function parseDocument(html: string): Document {
   // remember whether the source was a bare fragment (so the canvas knows to
   // supply a Tailwind runtime instead of assuming the page styles itself).
   doc.documentElement.setAttribute("data-wfc-fragment", isFragment ? "1" : "0");
+  // Preserve the author's exact doctype line. The parsed DOM keeps only the
+  // doctype *name* ("html") and re-serializes it upper-cased ("<!DOCTYPE html>"),
+  // so stash the original substring and re-emit it verbatim on serialize.
+  const dt = html.match(/<!doctype[^>]*>/i);
+  if (dt) doc.documentElement.setAttribute("data-wfc-doctype", dt[0]);
 
   let i = 0;
   doc.querySelectorAll("*").forEach((el) => {
@@ -73,24 +86,76 @@ function nodeOf(el: Element): EditorNode | null {
 
 // Serialize the clean Document back to an HTML string with all instrumentation
 // removed — what the user would commit / what the diff shows.
+//
+// This walks the DOM and emits HTML by hand (see serializeElement) rather than
+// using the browser's `outerHTML`, which is a lossy re-serialization: it
+// upper-cases the doctype, drops void-element `/`, expands bare boolean attrs,
+// and over-escapes `&` in URLs. The hand serializer preserves the author's
+// conventions so a no-op edit round-trips to (near) byte-identical source — only
+// the single whitespace the HTML parser always discards (between <html> and
+// <head>) is re-synthesised.
 export function serializeClean(doc: Document): string {
   const clone = doc.cloneNode(true) as Document;
   clone.querySelectorAll("[data-wfc-id]").forEach((el) =>
     el.removeAttribute("data-wfc-id")
   );
   clone.querySelectorAll("[data-wfc-injected]").forEach((el) => el.remove());
+  const doctype = clone.documentElement.getAttribute("data-wfc-doctype");
   clone.documentElement.removeAttribute("data-wfc-fragment");
+  clone.documentElement.removeAttribute("data-wfc-doctype");
 
-  const isFragment = isFragmentDoc(doc);
-  if (isFragment) {
-    return formatFragment(clone.body.innerHTML);
+  if (isFragmentDoc(doc)) {
+    return serializeChildren(clone.body).trim();
   }
-  return "<!DOCTYPE html>\n" + clone.documentElement.outerHTML + "\n";
+  return (doctype || "<!DOCTYPE html>") + "\n" + serializeElement(clone.documentElement) + "\n";
 }
 
-// Light re-indent for fragment bodies so the diff stays readable.
-function formatFragment(inner: string): string {
-  return inner.trim();
+// Serialize one element and its subtree.
+function serializeElement(el: Element): string {
+  // localName preserves SVG/MathML case (e.g. linearGradient, feTurbulence)
+  // while staying lowercase for HTML.
+  const tag = el.localName;
+  let attrs = "";
+  for (const a of Array.from(el.attributes)) attrs += serializeAttr(a.name, a.value);
+
+  const isForeign = el.namespaceURI === SVG_NS || el.namespaceURI === MATHML_NS;
+  if (isSelfClosing(tag, isForeign, el.childNodes.length > 0)) {
+    return `<${tag}${attrs} />`;
+  }
+
+  // script/style hold raw (CDATA-like) text that must not be escaped.
+  const inner = RAW_TEXT_ELEMENTS.has(tag)
+    ? el.textContent || ""
+    : serializeChildren(el);
+
+  // The HTML parser drops whitespace between <html> and its first child, so a
+  // round-trip would collapse `<html>\n<head>` to `<html><head>`. Re-synthesise
+  // that one newline when <html> opens straight onto an element.
+  const lead =
+    tag === "html" && el.firstChild?.nodeType !== Node.TEXT_NODE ? "\n" : "";
+
+  return `<${tag}${attrs}>` + lead + inner + `</${tag}>`;
+}
+
+function serializeChildren(el: Element): string {
+  let out = "";
+  for (const node of Array.from(el.childNodes)) out += serializeNode(node);
+  return out;
+}
+
+function serializeNode(node: ChildNode): string {
+  switch (node.nodeType) {
+    case Node.ELEMENT_NODE:
+      return serializeElement(node as Element);
+    case Node.TEXT_NODE:
+      return escapeText(node.nodeValue || "");
+    case Node.COMMENT_NODE:
+      return `<!--${node.nodeValue || ""}-->`;
+    case Node.CDATA_SECTION_NODE:
+      return `<![CDATA[${node.nodeValue || ""}]]>`;
+    default:
+      return "";
+  }
 }
 
 // Build the instrumented srcDoc string for the canvas iframe: keeps every
