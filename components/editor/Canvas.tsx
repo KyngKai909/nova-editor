@@ -7,6 +7,7 @@ import { injectJsxIds, prepareJsxModule } from "@/lib/jsxCanvas";
 import { setIframe, highlight, hoverElement, setPreview, markCanvasReady, resetCanvasReady, applyCommentPins, BRIDGE_SCRIPT, STORAGE_SHIM } from "@/lib/canvasBridge";
 import { useComments } from "@/store/commentsStore";
 import { bundleComponent, needsBundling } from "@/lib/bundler";
+import { notPreviewableReason } from "@/lib/previewable";
 import { getDragComponent, setDragComponent, getDragElement, setDragElement } from "@/lib/dnd";
 
 function buildJsxDoc(source: string, tree: any, isolate: boolean): string {
@@ -79,6 +80,26 @@ function buildErrorDoc(message: string, isolate: boolean): string {
   </div></body></html>`;
 }
 
+// Shown when a file can't render on the design canvas (server-only / metadata /
+// route files) — a calm pointer to Code view + Run, not a red error.
+function buildNoticeDoc(message: string, isolate: boolean): string {
+  const bg = isolate ? "transparent" : "#fff";
+  const esc = message.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return `<!doctype html><html><head><meta charset="utf-8"><style>
+    body{margin:0;background:${bg};font-family:system-ui,sans-serif;display:grid;place-items:center;min-height:100vh;padding:32px;color:#444}
+    .box{max-width:420px;text-align:center}
+    .ic{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;margin:0 auto 14px;background:rgba(120,120,120,.1);color:#888;font-size:22px}
+    .t{font-weight:600;font-size:14px;color:#333;margin-bottom:6px}
+    p{font-size:12.5px;line-height:1.6;margin:0;color:#777}
+    .hint{margin-top:12px;font-size:11.5px;color:#999}
+  </style></head><body><div class="box">
+    <div class="ic">◍</div>
+    <div class="t">Not previewable on the canvas</div>
+    <p>${esc}</p>
+    <p class="hint">Switch to <b>Code</b> to edit it, or use <b>Run</b> to preview the whole app live.</p>
+  </div></body></html>`;
+}
+
 // Find a node by data-wfc-id in the editor tree (for right-click comments).
 function findInTree(nodes: any[], id: string): any {
   for (const n of nodes) {
@@ -129,6 +150,11 @@ export default function Canvas() {
       setDoc(htmlDoc ? instrument(htmlDoc, assets, BRIDGE_SCRIPT, baseHref || undefined, usesTailwind) : "");
       return;
     }
+
+    // Server-only / metadata / route files can't render standalone — show a
+    // calm notice (Code view / Run) instead of attempting to bundle them.
+    const reason = notPreviewableReason(file.path, file.content);
+    if (reason) { setDoc(buildNoticeDoc(reason, isolate)); return; }
 
     // JSX/TSX: bundle if it has real imports, else use the fast Babel renderer.
     if (needsBundling(file.content)) {
