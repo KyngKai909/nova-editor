@@ -68,6 +68,63 @@
       position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: 0.04;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     }
+
+    /* Tailwind Preflight + custom-color utilities, baked in so the page renders
+       correctly even where the runtime Tailwind config is overridden — e.g.
+       inside Nova's own editor canvas, which disables preflight and drops the
+       custom theme colors. */
+    *, ::before, ::after { box-sizing: border-box; border-width: 0; border-style: solid; border-color: var(--line-2); }
+    h1, h2, h3, h4, h5, h6, p, figure, blockquote, pre, dl, dd { margin: 0; }
+    h1, h2, h3, h4, h5, h6 { font-size: inherit; font-weight: inherit; }
+    a { color: inherit; text-decoration: inherit; }
+    b, strong { font-weight: bolder; }
+    ol, ul, menu { list-style: none; margin: 0; padding: 0; }
+    button, input, optgroup, select, textarea { font-family: inherit; font-size: 100%; line-height: inherit; color: inherit; margin: 0; padding: 0; }
+    button, select { text-transform: none; }
+    button, [type="button"], [type="reset"], [type="submit"] { -webkit-appearance: button; background-color: transparent; background-image: none; cursor: pointer; }
+    :disabled { cursor: default; }
+    img, svg, video, canvas { display: block; vertical-align: middle; }
+    img, video { max-width: 100%; height: auto; }
+
+    .bg-accent { background-color: var(--accent); }
+    .bg-bg { background-color: var(--bg); }
+    .bg-bg-2 { background-color: var(--bg-2); }
+    .bg-surface { background-color: var(--surface); }
+    .bg-raise { background-color: var(--raise); }
+    .bg-line { background-color: var(--line); }
+    .bg-ink { background-color: var(--ink); }
+    .bg-ink-2 { background-color: var(--ink-2); }
+    .bg-ink-3 { background-color: var(--ink-3); }
+    .text-accent { color: var(--accent); }
+    .text-accent-ink { color: var(--accent-ink); }
+    .text-bg { color: var(--bg); }
+    .text-ink { color: var(--ink); }
+    .text-ink-2 { color: var(--ink-2); }
+    .text-ink-3 { color: var(--ink-3); }
+    .border-line { border-color: var(--line); }
+    .border-line-2 { border-color: var(--line-2); }
+    .divide-line > :not([hidden]) ~ :not([hidden]) { border-color: var(--line); }
+    .bg-accent\/10 { background-color: rgba(204,255,2,.1); }
+    .bg-accent\/70 { background-color: rgba(204,255,2,.7); }
+    .bg-accent\/\[0\.05\] { background-color: rgba(204,255,2,.05); }
+    .bg-bg\/80 { background-color: rgba(8,8,10,.8); }
+    .bg-ink\/40 { background-color: rgba(242,242,244,.4); }
+    .bg-ink\/60 { background-color: rgba(242,242,244,.6); }
+    .bg-ink\/70 { background-color: rgba(242,242,244,.7); }
+    .bg-ink\/80 { background-color: rgba(242,242,244,.8); }
+    .bg-surface\/30 { background-color: rgba(19,19,24,.3); }
+    .bg-surface\/40 { background-color: rgba(19,19,24,.4); }
+    .bg-surface\/60 { background-color: rgba(19,19,24,.6); }
+    .bg-surface\/95 { background-color: rgba(19,19,24,.95); }
+    .border-accent\/40 { border-color: rgba(204,255,2,.4); }
+    .border-accent\/50 { border-color: rgba(204,255,2,.5); }
+    .from-accent\/\[0\.06\] { --tw-gradient-from: rgba(204,255,2,.06); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to, rgba(204,255,2,0)); }
+    .to-bg { --tw-gradient-to: var(--bg); }
+    .hover\:bg-accent:hover { background-color: var(--accent); }
+    .hover\:bg-surface:hover { background-color: var(--surface); }
+    .hover\:bg-surface\/60:hover { background-color: rgba(19,19,24,.6); }
+    .hover\:text-ink:hover { color: var(--ink); }
+    .hover\:text-accent-ink:hover { color: var(--accent-ink); }
   </style>
 </head>
 
