@@ -13,7 +13,8 @@ import {
 import { useEditor } from "@/store/editorStore";
 import { useComments, type Comment } from "@/store/commentsStore";
 import type { EditorNode } from "@/lib/types";
-import { readStyles, highlight } from "@/lib/canvasBridge";
+import { highlight } from "@/lib/canvasBridge";
+import { useCanvasSurface } from "./useCanvasSurface";
 
 const RIGHT_TABS = [
   { id: "style", icon: <Paintbrush2 size={15} />, label: "Style" },
@@ -27,16 +28,6 @@ import { componentNameFromPath } from "@/lib/jsxEdit";
 import { extractComponentProps } from "@/lib/componentProps";
 import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox } from "./controls";
 
-function find(nodes: EditorNode[], id: string | null): EditorNode | null {
-  if (!id) return null;
-  for (const n of nodes) {
-    if (n.id === id) return n;
-    const f = find(n.children, id);
-    if (f) return f;
-  }
-  return null;
-}
-
 // Stacked field (label above a full-width control) — used in 2-column grids so
 // the input has the whole column width and the value stays readable.
 function Mini({ label, children }: { label: string; children: React.ReactNode }) {
@@ -49,36 +40,23 @@ function Mini({ label, children }: { label: string; children: React.ReactNode })
 }
 
 export default function Inspector() {
-  const tree = useEditor((s) => s.tree);
-  const selectedId = useEditor((s) => s.selectedId);
-  const files = useEditor((s) => s.files);
-  const activePath = useEditor((s) => s.activePath);
-  const device = useEditor((s) => s.device);
-  const canvasReadyTick = useEditor((s) => s.canvasReadyTick);
-  const updateClassList = useEditor((s) => s.updateClassList);
-  const updateText = useEditor((s) => s.updateText);
-  const updateStyle = useEditor((s) => s.updateStyle);
-  const duplicateNode = useEditor((s) => s.duplicateNode);
-  const deleteNode = useEditor((s) => s.deleteNode);
-  const updateProp = useEditor((s) => s.updateProp);
-  const removeProp = useEditor((s) => s.removeProp);
-  const updateAttr = useEditor((s) => s.updateAttr);
-  const removeAttr = useEditor((s) => s.removeAttr);
-  const assets = useEditor((s) => s.assets);
-  const applyAsset = useEditor((s) => s.applyAsset);
-  const docRole = useEditor((s) => s.role);
-  const canEdit = docRole === "owner" || docRole === "editor";
-  const projectId = useEditor((s) => s.projectId);
+  // All editing goes through the EditorSurface seam (canvas backend here), so the
+  // same inspector can later drive the Run/WebContainer backend unchanged.
+  const surface = useCanvasSurface();
+  const {
+    node, selectedId, canEdit, isHtml, isComponentInstance, device, files, projectId,
+    imageAssets, applyAsset,
+    setStyle: updateStyle, setClassList: updateClassList, setText: updateText,
+    setAttr: updateAttr, removeAttr, setProp: updateProp, removeProp,
+    duplicate: duplicateNode, remove: deleteNode,
+    readStyles: readStylesFn, readyTick: canvasReadyTick,
+  } = surface;
+
   const commentsByProject = useComments((s) => s.byProject);
   const setPanelOpen = useComments((s) => s.setPanelOpen);
   const pendingAnchor = useComments((s) => s.pending);
   const comments = projectId ? commentsByProject[projectId] || EMPTY_COMMENTS : EMPTY_COMMENTS;
 
-  const node = find(tree, selectedId);
-  const isHtml = files.find((f) => f.path === activePath)?.kind === "html";
-  // a JSX component instance (uppercase tag) gets a Props editor, not styles
-  const isComponentInstance =
-    !isHtml && !!node && /^[A-Z]/.test(node.tag) && node.tag !== "{expr}";
   const [s, setS] = useState<Record<string, string>>({});
   const [tab, setTab] = useState<RightTab>("style");
 
@@ -98,11 +76,11 @@ export default function Inspector() {
   const refresh = useCallback(() => {
     if (!selectedId) return;
     const seq = ++readSeq.current;
-    readStyles(selectedId).then((st) => {
+    readStylesFn(selectedId).then((st) => {
       // ignore empty reads (a timed-out round-trip) so they can't blank the panel
       if (seq === readSeq.current && Object.keys(st).length) setS(st);
     });
-  }, [selectedId]);
+  }, [selectedId, readStylesFn]);
 
   // computed styles need the iframe laid out — read on select + after reflow.
   // canvasReadyTick is bumped when the canvas reports ready after a reload
@@ -193,7 +171,6 @@ export default function Inspector() {
   const isFlex = display === "flex" || display === "inline-flex";
   const isGrid = display === "grid";
   const position = baseKeyword(s.position);
-  const imageAssets = Object.entries(assets).filter(([p]) => /\.(png|jpe?g|gif|svg|webp|avif)$/i.test(p));
 
   return (
     <div className="scroll-thin h-full overflow-y-auto pb-24">
