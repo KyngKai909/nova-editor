@@ -88,6 +88,7 @@ interface EditorState {
   setViewMode: (m: "design" | "code" | "split") => void;
   setFileContent: (path: string, content: string) => void;
   upsertFile: (path: string, content: string) => void;
+  removeFile: (path: string) => void;
   revealInCode: (nodeId: string) => void;
 
   updateClassList: (id: string, classList: string[]) => void;
@@ -285,6 +286,19 @@ export const useEditor = create<EditorState>((set, get) => ({
       original: "",
     };
     set({ files: [...files, file] });
+  },
+
+  // Drop a file from the project (e.g. accepting an upstream deletion in a merge).
+  removeFile: (path) => {
+    const { files, activePath } = get();
+    const next = files.filter((f) => f.path !== path);
+    if (next.length === files.length) return;
+    set({ files: next });
+    if (activePath === path) {
+      const fallback = next.find((f) => f.category === "page") || next[0];
+      if (fallback) get().selectFile(fallback.path);
+      else set({ activePath: null, htmlDoc: null, tree: [], selectedId: null, reloadKey: get().reloadKey + 1 });
+    }
   },
 
   // Jump the code editor to the source line of a node (View in Code Editor).

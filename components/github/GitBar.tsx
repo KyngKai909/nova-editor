@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { GitBranch, ChevronDown, Plus, Loader2, ArrowDownToLine } from "lucide-react";
+import { GitBranch, ChevronDown, Plus, Loader2, ArrowDownToLine, GitMerge } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
 import { useGitHub } from "@/store/githubStore";
 import { useProjects } from "@/store/projectsStore";
 import { listBranches, createBranch, importRepoFilesAuth, getBranchHeadSha } from "@/lib/githubApi";
-import { mergeThreeWay, summarizeMerge } from "@/lib/merge";
+import { mergeThreeWay } from "@/lib/merge";
+import { diff3Strings, conflictCount, buildResolved } from "@/lib/diff3";
+import { useConflicts, type FileConflict } from "@/store/conflictsStore";
 
 // Branch picker + GitHub "Pull & merge" for connected projects. Committing,
 // pushing and PRs live in the Publish panel.
@@ -18,6 +20,9 @@ export default function GitBar() {
   const setNotice = useEditor((s) => s.setNotice);
   const project = useProjects((s) => s.projects.find((p) => p.id === projectId));
   const updateProject = useProjects((s) => s.updateProject);
+  const setConflicts = useConflicts((s) => s.setConflicts);
+  const setConflictsOpen = useConflicts((s) => s.setOpen);
+  const openConflicts = useConflicts((s) => (projectId ? (s.byProject[projectId] || []).length : 0));
 
   const [menu, setMenu] = useState(false);
   const [branches, setBranches] = useState<string[] | null>(null);
@@ -63,7 +68,9 @@ export default function GitBar() {
       : project?.baseHref ?? null;
 
   // Pull the branch HEAD and 3-way merge it with the current working copy:
-  // remote-only changes fast-forward, your edits stay, overlaps are flagged.
+  // remote-only changes fast-forward, your edits stay, and files changed on both
+  // sides get a line-level (diff3) merge — cleanly-mergeable ones auto-resolve,
+  // the rest open the conflict resolver.
   const pull = async () => {
     if (!canPull || !project) return;
     setBusy(true);
@@ -72,16 +79,48 @@ export default function GitBar() {
       const { files: remote, assets, commitSha } = await importRepoFilesAuth(token, gh.owner, gh.repo, gh.branch);
       const local = useEditor.getState().files;
       const result = mergeThreeWay(local, remote);
-      const base = baseHrefFor(gh.branch);
-      loadFiles(result.files, assets, base, project.id);
-      updateProject(project.id, { github: { ...gh, commitSha }, baseHref: base, files: result.files });
+      const remoteByPath = new Map(remote.map((f) => [f.path, f]));
+
+      const trueConflicts: FileConflict[] = [];
+      let autoMerged = 0;
+      const finalFiles = result.files.map((f) => {
+        if (!result.conflicts.includes(f.path)) return f;
+        const L = local.find((x) => x.path === f.path);
+        const R = remoteByPath.get(f.path);
+        const baseTxt = L?.original ?? "";
+        const mine = L?.content ?? "";
+        if (!R) {
+          // edited locally + deleted upstream → file-level conflict
+          trueConflicts.push({ path: f.path, base: baseTxt, mine, theirs: "", deleted: true });
+          return f;
+        }
+        const regions = diff3Strings(mine, baseTxt, R.content);
+        if (conflictCount(regions) === 0) {
+          autoMerged++;
+          return { ...f, content: buildResolved(regions, []) }; // clean line-merge
+        }
+        trueConflicts.push({ path: f.path, base: baseTxt, mine, theirs: R.content });
+        return f;
+      });
+
+      const baseHref = baseHrefFor(gh.branch);
+      loadFiles(finalFiles, assets, baseHref, project.id);
+      updateProject(project.id, { github: { ...gh, commitSha }, baseHref, files: finalFiles });
+      setConflicts(project.id, trueConflicts); // opens the resolver when non-empty
       setBehind(false);
-      if (result.conflicts.length) {
-        useEditor.getState().selectFile(result.conflicts[0]);
-        setNotice(`Pulled with ${result.conflicts.length} conflict${result.conflicts.length === 1 ? "" : "s"} — review ${result.conflicts.join(", ")} (your edits kept; diff is vs upstream).`);
-      } else {
-        setNotice(`Pulled ${gh.branch} · ${summarizeMerge(result)}`);
-      }
+
+      const bits: string[] = [];
+      if (result.pulled.length) bits.push(`${result.pulled.length} updated`);
+      if (result.added.length) bits.push(`${result.added.length} added`);
+      if (result.removed.length) bits.push(`${result.removed.length} removed`);
+      if (autoMerged) bits.push(`${autoMerged} auto-merged`);
+      if (result.kept.length) bits.push(`${result.kept.length} kept`);
+      const summary = bits.join(" · ") || "already up to date";
+      setNotice(
+        trueConflicts.length
+          ? `Pulled — ${trueConflicts.length} file${trueConflicts.length === 1 ? "" : "s"} need resolving${summary !== "already up to date" ? ` · ${summary}` : ""}`
+          : `Pulled ${gh.branch} · ${summary}`
+      );
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -119,7 +158,17 @@ export default function GitBar() {
   };
 
   return (
-    <div ref={ref} className="relative">
+    <div className="flex items-center gap-1.5">
+      {openConflicts > 0 && (
+        <button
+          onClick={() => setConflictsOpen(true)}
+          title="Resolve merge conflicts from the last pull"
+          className="flex h-7 items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 px-2 text-[12px] font-medium text-amber-300 transition-colors hover:bg-amber-500/20"
+        >
+          <GitMerge size={13} /> {openConflicts} conflict{openConflicts === 1 ? "" : "s"}
+        </button>
+      )}
+      <div ref={ref} className="relative">
       <button
         onClick={openMenu}
         title={`${gh.owner}/${gh.repo}${behind ? " · updates available" : ""}`}
@@ -169,6 +218,7 @@ export default function GitBar() {
           )}
         </div>
       )}
+      </div>
     </div>
   );
 }

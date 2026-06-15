@@ -7,6 +7,7 @@ import LeftPanel from "./LeftPanel";
 import Canvas from "./Canvas";
 import Inspector from "./Inspector";
 import ExportPanel from "./ExportPanel";
+import ConflictResolver from "@/components/github/ConflictResolver";
 import AiPanel from "./AiPanel";
 import ResizeHandle from "./ResizeHandle";
 import CollabSync from "@/components/sync/CollabSync";
@@ -230,6 +231,7 @@ export default function EditorShell() {
       )}
 
       {showExport && <ExportPanel onClose={() => setShowExport(false)} />}
+      <ConflictResolver />
     </div>
   );
 }
