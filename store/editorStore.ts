@@ -54,6 +54,7 @@ interface EditorState {
   hoveredId: string | null;
   htmlDoc: Document | null; // clean source of truth for the active HTML file
   reloadKey: number;        // bump to force a canvas reload
+  canvasReadyTick: number;  // bumped each time the canvas iframe reports ready
   usesTailwind: boolean;    // active project styles with Tailwind utilities
 
   device: Device;
@@ -132,6 +133,7 @@ export const useEditor = create<EditorState>((set, get) => ({
   hoveredId: null,
   htmlDoc: null,
   reloadKey: 0,
+  canvasReadyTick: 0,
   usesTailwind: false,
   device: "desktop",
   previewMode: false,

@@ -23,7 +23,9 @@ export const APP_BRIDGE = `
     try{ var c=getComputedStyle(t); return {
       display:c.display, color:c.color, background:c.backgroundColor,
       fontSize:c.fontSize, fontWeight:c.fontWeight, textAlign:c.textAlign,
-      padding:c.padding, margin:c.margin, radius:c.borderRadius
+      padding:c.padding, margin:c.margin, radius:c.borderRadius,
+      paddingTop:c.paddingTop, paddingRight:c.paddingRight, paddingBottom:c.paddingBottom, paddingLeft:c.paddingLeft,
+      marginTop:c.marginTop, marginRight:c.marginRight, marginBottom:c.marginBottom, marginLeft:c.marginLeft
     }; }catch(_){ return null; }
   }
   // ── layer tree: serialize the live DOM so the /run Layers panel can mirror it

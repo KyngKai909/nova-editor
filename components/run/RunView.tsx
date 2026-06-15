@@ -30,7 +30,18 @@ import {
 } from "@/lib/runStyle";
 import { usePanels } from "@/store/panelStore";
 import ResizeHandle from "@/components/editor/ResizeHandle";
-import { Section, Field, Segmented, Select, ColorField } from "@/components/editor/controls";
+import { Section, Field, Segmented, Select, ColorField, SpacingBox } from "@/components/editor/controls";
+
+// margin/padding side → Tailwind prefix, for the Run spacing box (class-based).
+const SPACING_TW: Record<string, string> = {
+  marginTop: "mt", marginRight: "mr", marginBottom: "mb", marginLeft: "ml",
+  paddingTop: "pt", paddingRight: "pr", paddingBottom: "pb", paddingLeft: "pl",
+};
+// "20px" → "20", "0px" → "0", anything else → "".
+function pxNum(v?: string): string {
+  const m = (v || "").match(/^(-?[\d.]+)px$/);
+  return m ? String(+(+m[1]).toFixed(2)) : "";
+}
 
 interface Selection {
   file?: string;
@@ -240,6 +251,17 @@ export default function RunView() {
     if (!selected) return;
     const next = setArbitraryColor(toTokens(selected.className), kind, hex);
     applyClass(toClassName(next), { [kind === "text" ? "color" : "backgroundColor"]: hex });
+  };
+  // spacing box → an arbitrary per-side class (mt-[20px]) replacing any existing
+  // class of that side, plus an inline-style preview until HMR rebuilds the class.
+  const applySpacing = (prop: string, v: string) => {
+    if (!selected) return;
+    const tw = SPACING_TW[prop];
+    if (!tw) return;
+    const re = new RegExp(`^${tw}-`);
+    const tokens = toTokens(selected.className).filter((t) => !re.test(t));
+    if (v !== "") tokens.push(`${tw}-[${v}px]`);
+    applyClass(toClassName(tokens), { [prop]: v === "" ? "" : `${v}px` });
   };
 
   // Publish from Run: gather the running project's current files (the
@@ -498,10 +520,10 @@ export default function RunView() {
             <Sparkles size={14} /> <span className="hidden lg:inline">AI</span>
           </button>
           <div className="mx-0.5 hidden h-5 w-px bg-line lg:block" />
-          <button onClick={undo} disabled={!past.length} title="Undo (⌘Z)" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-raise hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3">
+          <button onMouseDown={(e) => e.preventDefault()} onClick={undo} disabled={!past.length} title="Undo (⌘Z)" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-raise hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3">
             <Undo2 size={15} />
           </button>
-          <button onClick={redo} disabled={!future.length} title="Redo (⌘⇧Z)" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-raise hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3">
+          <button onMouseDown={(e) => e.preventDefault()} onClick={redo} disabled={!future.length} title="Redo (⌘⇧Z)" className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-raise hover:text-ink disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3">
             <Redo2 size={15} />
           </button>
           <Play size={14} className="shrink-0 text-accent" />
@@ -669,6 +691,7 @@ export default function RunView() {
                 onClass={applyClass}
                 onText={applyText}
                 onColor={applyColor}
+                onSpacing={applySpacing}
                 commentsKey={commentsKey}
                 comments={comments}
                 pending={pendingComment}
@@ -719,7 +742,7 @@ export default function RunView() {
 const opts = (arr: readonly string[], prefix: string) => arr.map((o) => ({ value: o, label: o.replace(prefix, "") || o }));
 
 function RunInspector({
-  url, selected, tab, setTab, onTokens, onClass, onText, onColor, commentsKey, comments, pending, onPickComment,
+  url, selected, tab, setTab, onTokens, onClass, onText, onColor, onSpacing, commentsKey, comments, pending, onPickComment,
 }: {
   url: string | null;
   selected: Selection | null;
@@ -729,6 +752,7 @@ function RunInspector({
   onClass: (c: string) => void;
   onText: (t: string) => void;
   onColor: (kind: "text" | "bg", hex: string) => void;
+  onSpacing: (prop: string, v: string) => void;
   commentsKey: string;
   comments: Comment[];
   pending: import("@/store/commentsStore").PendingAnchor | null;
@@ -784,7 +808,7 @@ function RunInspector({
       ) : !selected ? (
         <Empty msg="Click an element to edit it; right-click to leave a comment. Edits write to source and hot-reload." />
       ) : tab === "style" ? (
-        <RunStyle selected={selected} onTokens={onTokens} onClass={onClass} onColor={onColor} />
+        <RunStyle selected={selected} onTokens={onTokens} onClass={onClass} onColor={onColor} onSpacing={onSpacing} />
       ) : (
         <RunElement selected={selected} onText={onText} onClass={onClass} />
       )}
@@ -932,12 +956,13 @@ function Layer({ node, depth, selectedId, onPick, onHover }: {
 }
 
 function RunStyle({
-  selected, onTokens, onClass, onColor,
+  selected, onTokens, onClass, onColor, onSpacing,
 }: {
   selected: Selection;
   onTokens: (t: string[]) => void;
   onClass: (c: string) => void;
   onColor: (kind: "text" | "bg", hex: string) => void;
+  onSpacing: (prop: string, v: string) => void;
 }) {
   const tokens = toTokens(selected.className);
   const set = (group: readonly string[], v: string) => onTokens(setGroup(tokens, group, v || null));
@@ -962,8 +987,11 @@ function RunStyle({
       </Section>
 
       <Section title="Spacing">
-        <Field label="Padding"><Select value={gv(PADDING)} options={opts(PADDING, "p-")} onChange={(v) => set(PADDING, v)} /></Field>
-        <Field label="Margin"><Select value={gv(MARGIN)} options={opts(MARGIN, "m-")} onChange={(v) => set(MARGIN, v)} /></Field>
+        <SpacingBox get={(p) => pxNum(st[p])} commit={(p, v) => onSpacing(p, v)} />
+        <div className="grid grid-cols-2 gap-x-2.5 pt-1">
+          <Field label="All pad"><Select value={gv(PADDING)} options={opts(PADDING, "p-")} onChange={(v) => set(PADDING, v)} /></Field>
+          <Field label="All marg"><Select value={gv(MARGIN)} options={opts(MARGIN, "m-")} onChange={(v) => set(MARGIN, v)} /></Field>
+        </div>
         <Field label="Radius"><Select value={gv(ROUNDED)} options={ROUNDED.map((o) => ({ value: o, label: o.replace("rounded-", "") === "rounded" ? "base" : o.replace("rounded-", "") || "base" }))} onChange={(v) => set(ROUNDED, v)} /></Field>
       </Section>
 

@@ -147,7 +147,14 @@ export default function Canvas() {
     if (!file) { setDoc(""); return; }
 
     if (file.kind === "html") {
-      setDoc(htmlDoc ? instrument(htmlDoc, assets, BRIDGE_SCRIPT, baseHref || undefined, usesTailwind) : "");
+      const html = htmlDoc ? instrument(htmlDoc, assets, BRIDGE_SCRIPT, baseHref || undefined, usesTailwind) : "";
+      // Tag the doc with reloadKey so a revert that produces byte-identical HTML
+      // still changes srcDoc and forces a real iframe reload. Live edits mutate
+      // the iframe DOM via postMessage without re-serializing srcDoc, so an undo
+      // that rolls those back yields the same string — without this marker React
+      // skips the srcDoc update, the iframe never reloads, and the optimistic
+      // mutation lingers (undo appears to do nothing / needs a second click).
+      setDoc(html ? `${html}\n<!--rk:${reloadKey}-->` : "");
       return;
     }
 
@@ -208,6 +215,9 @@ export default function Canvas() {
       } else if (d.type === "wfc-ready") {
         // the iframe's bridge is up — flush queued commands and re-apply state
         markCanvasReady();
+        // signal the inspector to re-read computed styles now that the freshly
+        // reloaded canvas is laid out (e.g. after undo/redo), so it isn't stale.
+        useEditor.setState((s) => ({ canvasReadyTick: s.canvasReadyTick + 1 }));
         const st = useEditor.getState();
         highlight(st.selectedId);
         setPreview(st.previewMode);

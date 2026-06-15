@@ -122,10 +122,13 @@ export default function TopBar({
         {canEdit && (
           <>
             <Divider />
-            <button onClick={undo} disabled={!canUndo} title="Undo (⌘Z)" className={`${iconBtn} text-ink-3 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3`}>
+            {/* preventDefault on mousedown so the button doesn't steal focus from
+                a focused inspector input — otherwise the input blur-commits a
+                phantom edit and the first undo just reverts that, not your change. */}
+            <button onMouseDown={(e) => e.preventDefault()} onClick={undo} disabled={!canUndo} title="Undo (⌘Z)" className={`${iconBtn} text-ink-3 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3`}>
               <Undo2 size={15} />
             </button>
-            <button onClick={redo} disabled={!canRedo} title="Redo (⌘⇧Z)" className={`${iconBtn} text-ink-3 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3`}>
+            <button onMouseDown={(e) => e.preventDefault()} onClick={redo} disabled={!canRedo} title="Redo (⌘⇧Z)" className={`${iconBtn} text-ink-3 disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-ink-3`}>
               <Redo2 size={15} />
             </button>
           </>
