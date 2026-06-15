@@ -34,13 +34,21 @@ function toolLabel(b: AiBlock): { icon: React.ReactNode; label: string; accent?:
   }
 }
 
-export default function AiPanel() {
+// Optional props let the Run tab reuse this panel against the running app's
+// files (a WebContainer-backed FileBackend + its own conversation id) instead
+// of the editor store. Omitted → unchanged editor behavior.
+export default function AiPanel({ projectId: projectIdProp, backend, activePath }: {
+  projectId?: string | null;
+  backend?: import("@/lib/aiBackend").FileBackend;
+  activePath?: string;
+} = {}) {
   const open = useAi((s) => s.open);
   const setOpen = useAi((s) => s.setOpen);
   const selected = useAi((s) => s.selected);
   const keys = useAi((s) => s.keys);
   const clearConversation = useAi((s) => s.clearConversation);
-  const projectId = useEditor((s) => s.projectId);
+  const editorProjectId = useEditor((s) => s.projectId);
+  const projectId = projectIdProp ?? editorProjectId;
   const messages = useAi((s) => (projectId ? s.conversations[projectId] : undefined)) || [];
 
   const [input, setInput] = useState("");
@@ -95,10 +103,10 @@ export default function AiPanel() {
     abortRef.current = ctrl;
     try {
       if (isLocal) {
-        await runLocalAgent({ projectId, userText: text, signal: ctrl.signal, onProgress: setLoad });
+        await runLocalAgent({ projectId: projectId!, userText: text, signal: ctrl.signal, onProgress: setLoad, backend, activePath });
         setLocalReady(true);
       } else {
-        await runAgent({ projectId, userText: text, signal: ctrl.signal });
+        await runAgent({ projectId: projectId!, userText: text, signal: ctrl.signal, backend });
       }
     } catch (e: any) {
       if (e?.name !== "AbortError") setError(e?.message || String(e));

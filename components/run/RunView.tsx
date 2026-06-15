@@ -1,13 +1,16 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
   Pencil, MousePointer2, Code2, ChevronDown, ChevronUp, Paintbrush2, SlidersHorizontal, Trash2,
   Monitor, Tablet, Smartphone, PanelRight, PanelLeft, AlignLeft, AlignCenter, AlignRight, Square,
-  Layers as LayersIcon, ChevronRight,
+  Layers as LayersIcon, ChevronRight, Sparkles,
 } from "lucide-react";
+import { useAi } from "@/store/aiStore";
+import AiPanel from "@/components/editor/AiPanel";
+import { makeWcBackend } from "@/lib/aiBackend";
 import { useProjects } from "@/store/projectsStore";
 import { getHandle } from "@/lib/handleStore";
 import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
@@ -106,11 +109,18 @@ export default function RunView() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const rightW = usePanels((s) => s.right);
   const leftW = usePanels((s) => s.left);
+  const aiW = usePanels((s) => s.ai);
+  const aiOpen = useAi((s) => s.open);
+  const setAiOpen = useAi((s) => s.setOpen);
   const logRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wcRef = useRef<any>(null);
   const handleRef = useRef<any>(null); // the on-disk folder, for write-through
   const append = (s: string) => setLog((l) => [...l, s]);
+
+  // AI edits the running app's files (WebContainer + disk write-through), ready
+  // once the dev server is up. (Refs are declared above, so this is safe.)
+  const backend = useMemo(() => (url && wcRef.current ? makeWcBackend(wcRef.current, handleRef.current) : undefined), [url]);
 
   // Run opens in a new tab from the editor, so "back" should close this tab and
   // return to the editor tab already open. Fall back to navigating if this tab
@@ -316,6 +326,9 @@ export default function RunView() {
           <button onClick={() => setLeftOpen((o) => !o)} title="Toggle layers" className={`grid h-7 w-7 shrink-0 place-items-center rounded-md transition-colors hover:bg-raise hover:text-ink ${leftOpen ? "text-ink" : "text-ink-3"}`}>
             <PanelLeft size={15} />
           </button>
+          <button onClick={() => setAiOpen(!aiOpen)} title="Nova AI assistant" className={`flex h-7 shrink-0 items-center gap-1.5 rounded-md px-2 text-[12px] font-medium transition-colors ${aiOpen ? "bg-accent text-accent-ink" : "text-ink-2 hover:bg-raise hover:text-ink"}`}>
+            <Sparkles size={14} /> <span className="hidden lg:inline">AI</span>
+          </button>
           <Play size={14} className="shrink-0 text-accent" />
           <span className="truncate text-[13px] font-medium">{project?.name || "Run"}</span>
           <span className={`flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] ${phase === "ready" ? "bg-accent/15 text-accent" : phase === "error" ? "bg-red-500/15 text-red-300" : "bg-raise text-ink-2"}`}>
@@ -391,6 +404,21 @@ export default function RunView() {
               </div>
             </div>
             {leftOpen && <ResizeHandle panel="left" edge="right" onActiveChange={setDragging} />}
+          </aside>
+
+          {/* AI assistant — its own column, editing the running app's files */}
+          <aside
+            style={{ width: aiOpen ? aiW : 0 }}
+            className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${dragging ? "" : "transition-[width] duration-200"}`}
+          >
+            <div className="h-full" style={{ width: aiW }}>
+              {backend ? (
+                <AiPanel projectId={projectId ? `run:${projectId}` : "run"} backend={backend} activePath={selected?.file} />
+              ) : (
+                <div className="grid h-full place-items-center px-6 text-center text-[12px] leading-relaxed text-ink-3">Start the app to use AI on the running project.</div>
+              )}
+            </div>
+            {aiOpen && <ResizeHandle panel="ai" edge="right" onActiveChange={setDragging} />}
           </aside>
 
           {/* live app — framed to the selected device width */}

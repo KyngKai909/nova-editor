@@ -2,6 +2,7 @@ import { useAi, type AiMessage, type AiBlock } from "@/store/aiStore";
 import { providerById } from "@/lib/aiProviders";
 import { useEditor } from "@/store/editorStore";
 import { fileKind } from "@/lib/importUtils";
+import type { FileBackend } from "@/lib/aiBackend";
 
 const MAX_STEPS = 16;
 const MAX_TOKENS = 8192;
@@ -61,8 +62,11 @@ const TOOLS: ToolDef[] = [
   },
 ];
 
-// ── tool execution (against the live editor store; canvas auto-syncs) ─────────
-function runTool(name: string, input: any): { content: string; is_error?: boolean } {
+// ── tool execution ───────────────────────────────────────────────────────────
+// With a backend (Run tab → WebContainer + disk), route through it; otherwise
+// operate on the live editor store as before (canvas auto-syncs).
+async function runTool(name: string, input: any, backend?: FileBackend): Promise<{ content: string; is_error?: boolean }> {
+  if (backend) return runToolBackend(name, input, backend);
   const ed = useEditor.getState();
   switch (name) {
     case "list_files":
@@ -91,6 +95,48 @@ function runTool(name: string, input: any): { content: string; is_error?: boolea
       const hits: string[] = [];
       for (const f of ed.files) {
         const lines = f.content.split("\n");
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].toLowerCase().includes(q)) hits.push(`${f.path}:${i + 1}: ${lines[i].trim().slice(0, 160)}`);
+          if (hits.length >= 80) break;
+        }
+        if (hits.length >= 80) break;
+      }
+      return { content: hits.length ? hits.join("\n") : `No matches for "${input.query}".` };
+    }
+    default:
+      return { content: `Unknown tool: ${name}`, is_error: true };
+  }
+}
+
+// Same tools, against a pluggable backend (the running app's files in Run).
+async function runToolBackend(name: string, input: any, b: FileBackend): Promise<{ content: string; is_error?: boolean }> {
+  switch (name) {
+    case "list_files": {
+      const files = await b.list();
+      return { content: files.length ? files.map((f) => `${f.path} (${f.category})`).join("\n") : "No editable files in this project." };
+    }
+    case "read_file": {
+      const c = await b.read(input?.path);
+      if (c == null) return { content: `Not found: ${input?.path}. Call list_files for exact paths.`, is_error: true };
+      return { content: c };
+    }
+    case "write_file": {
+      if (typeof input?.path !== "string" || typeof input?.content !== "string")
+        return { content: "write_file requires string `path` and `content`.", is_error: true };
+      if (!fileKind(input.path)) return { content: `Cannot create ${input.path}: only .html/.jsx/.tsx files are editable here.`, is_error: true };
+      const r = await b.write(input.path, input.content);
+      return r.ok
+        ? { content: `Wrote ${input.path} (${input.content.length} chars).` }
+        : { content: `Failed to write ${input.path}: ${r.error || "unknown error"}`, is_error: true };
+    }
+    case "search": {
+      const q = String(input?.query || "").toLowerCase();
+      if (!q) return { content: "Empty query.", is_error: true };
+      const hits: string[] = [];
+      for (const f of await b.list()) {
+        const content = await b.read(f.path);
+        if (!content) continue;
+        const lines = content.split("\n");
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].toLowerCase().includes(q)) hits.push(`${f.path}:${i + 1}: ${lines[i].trim().slice(0, 160)}`);
           if (hits.length >= 80) break;
@@ -211,8 +257,9 @@ export async function runAgent(opts: {
   userText: string;
   onUpdate?: (messages: AiMessage[]) => void;
   signal?: AbortSignal;
+  backend?: FileBackend; // Run tab → WebContainer + disk; omitted → editor store
 }): Promise<void> {
-  const { projectId, userText, onUpdate, signal } = opts;
+  const { projectId, userText, onUpdate, signal, backend } = opts;
   const st = useAi.getState();
   const prov = providerById(st.selected.provider);
   if (!prov) throw new Error("Unknown model provider. Pick a model in the AI panel.");
@@ -240,10 +287,12 @@ export async function runAgent(opts: {
     const toolUses = blocks.filter((b) => b.type === "tool_use");
     if (!toolUses.length) return; // model is done
 
-    const results: AiBlock[] = toolUses.map((tu) => {
-      const r = runTool(tu.name!, tu.input);
-      return { type: "tool_result" as const, tool_use_id: tu.id, content: r.content, ...(r.is_error ? { is_error: true } : {}) };
-    });
+    const results: AiBlock[] = await Promise.all(
+      toolUses.map(async (tu) => {
+        const r = await runTool(tu.name!, tu.input, backend);
+        return { type: "tool_result" as const, tool_use_id: tu.id, content: r.content, ...(r.is_error ? { is_error: true } : {}) };
+      })
+    );
     messages = [...messages, { role: "user", content: results }];
     commit();
   }

@@ -8,8 +8,8 @@
 // file — so a small change writes a few lines, not thousands. Streaming also
 // makes Stop instant: interrupting ends the token loop mid-flight.
 
-import { fileKind } from "@/lib/importUtils";
 import type { AiBlock, AiMessage } from "@/store/aiStore";
+import type { FileBackend } from "@/lib/aiBackend";
 
 // 3B is the sweet spot; the 1.5B is an automatic fallback for low-VRAM GPUs.
 const PRIMARY = "Qwen2.5-Coder-3B-Instruct-q4f16_1-MLC";
@@ -180,17 +180,19 @@ function liveBlocks(text: string): AiBlock[] {
   return blocks;
 }
 
-// Run one Nova Lite turn against the live editor (canvas auto-syncs on write).
+// Run one Nova Lite turn. Without a backend it edits the editor store (canvas
+// auto-syncs); with one (the Run tab) it edits the WebContainer + disk.
 export async function runLocalAgent(opts: {
   projectId: string;
   userText: string;
   signal?: AbortSignal;
   onProgress?: (p: LoadProgress) => void;
+  backend?: FileBackend;
+  activePath?: string; // the file to focus on (Run passes the selected element's)
 }): Promise<void> {
-  const { projectId, userText, signal, onProgress } = opts;
-  const [{ useAi }, { useEditor }] = await Promise.all([import("@/store/aiStore"), import("@/store/editorStore")]);
+  const { projectId, userText, signal, onProgress, backend } = opts;
+  const { useAi } = await import("@/store/aiStore");
   const ai = useAi.getState();
-  const ed = useEditor.getState();
 
   // record the user's message right away so it shows in the transcript
   const base: AiMessage[] = [...ai.getMessages(projectId), { role: "user", content: [{ type: "text", text: userText }] }];
@@ -199,8 +201,33 @@ export async function runLocalAgent(opts: {
   const engine = await getLocalEngine(onProgress);
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 
-  const active = ed.files.find((f) => f.path === ed.activePath) || ed.files[0];
-  const fileList = ed.files.map((f) => f.path).join("\n") || "(none)";
+  // resolve the file backend (Run → WebContainer; otherwise the editor store)
+  let paths: string[];
+  let active: { path: string; content: string } | null;
+  let readFile: (p: string) => Promise<string | null>;
+  let writeFile: (p: string, c: string) => Promise<void>;
+  let has: (p: string) => boolean;
+  if (backend) {
+    const list = await backend.list();
+    paths = list.map((f) => f.path);
+    const ap = opts.activePath && paths.includes(opts.activePath) ? opts.activePath : paths[0];
+    const ac = ap ? await backend.read(ap) : null;
+    active = ap && ac != null ? { path: ap, content: ac } : null;
+    readFile = (p) => backend.read(p);
+    writeFile = async (p, c) => { await backend.write(p, c); };
+    has = (p) => paths.includes(p);
+  } else {
+    const { useEditor } = await import("@/store/editorStore");
+    const ed = useEditor.getState();
+    paths = ed.files.map((f) => f.path);
+    const af = ed.files.find((f) => f.path === ed.activePath) || ed.files[0];
+    active = af ? { path: af.path, content: af.content } : null;
+    readFile = async (p) => ed.files.find((f) => f.path === p)?.content ?? null;
+    writeFile = async (p, c) => ed.upsertFile(p, c);
+    has = (p) => paths.includes(p);
+  }
+
+  const fileList = paths.join("\n") || "(none)";
   const context = active
     ? `Editable files:\n${fileList}\n\nActive file — ${active.path}:\n\`\`\`\n${clip(active.content, 8000)}\n\`\`\``
     : `Editable files:\n${fileList}\n\n(No file is currently open.)`;
@@ -257,19 +284,20 @@ export async function runLocalAgent(opts: {
   const edited: string[] = [];
   const failed: string[] = [];
   for (const p of patches) {
-    const file = ed.files.find((f) => f.path === p.path) || active;
-    if (!file || (!ed.files.find((f) => f.path === p.path) && !fileKind(p.path))) {
+    const target = has(p.path) ? p.path : active?.path ?? null;
+    if (!target) {
       failed.push(p.path);
       continue;
     }
-    const next = applyPatch(file.content, p.search, p.replace);
+    const content = (target === active?.path ? active.content : await readFile(target)) ?? "";
+    const next = applyPatch(content, p.search, p.replace);
     if (next == null) {
-      failed.push(file.path);
+      failed.push(target);
       continue;
     }
-    ed.upsertFile(file.path, next);
-    if (!edited.includes(file.path)) edited.push(file.path);
-    blocks.push({ type: "tool_use", name: "write_file", input: { path: file.path } });
+    await writeFile(target, next);
+    if (!edited.includes(target)) edited.push(target);
+    blocks.push({ type: "tool_use", name: "write_file", input: { path: target } });
   }
 
   // A patch was attempted but nothing applied. If the model also wrote prose
