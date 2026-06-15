@@ -2,7 +2,6 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
 import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
   Pencil, MousePointer2, Code2,
@@ -75,6 +74,18 @@ export default function RunView() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wcRef = useRef<any>(null);
   const append = (s: string) => setLog((l) => [...l, s]);
+
+  // Run opens in a new tab from the editor, so "back" should close this tab and
+  // return to the editor tab already open. Fall back to navigating if this tab
+  // wasn't script-opened (e.g. the URL was pasted directly).
+  const backToEditor = () => {
+    if (typeof window !== "undefined" && window.opener && !window.opener.closed) {
+      window.close();
+      setTimeout(() => { if (!window.closed) window.location.href = "/editor"; }, 120);
+    } else {
+      window.location.href = "/editor";
+    }
+  };
 
   // Edit the source file backing the selected element, then let HMR re-render.
   const editFile = async (line: number | undefined, file: string | undefined, fn: (content: string, node: any) => string | null) => {
@@ -226,9 +237,9 @@ export default function RunView() {
     <div className="flex h-[100dvh] flex-col bg-bg-2">
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-line bg-surface px-3">
         <div className="flex items-center gap-2">
-          <Link href="/editor" className="grid h-7 w-7 place-items-center rounded-md text-ink-3 hover:bg-raise hover:text-ink" title="Back to editor">
+          <button onClick={backToEditor} className="grid h-7 w-7 place-items-center rounded-md text-ink-3 hover:bg-raise hover:text-ink" title="Back to editor">
             <ArrowLeft size={15} />
-          </Link>
+          </button>
           <Play size={14} className="text-accent" />
           <span className="text-[13px] font-medium">{project?.name || "Run"}</span>
           <span className={`flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] ${phase === "ready" ? "bg-accent/15 text-accent" : phase === "error" ? "bg-red-500/15 text-red-300" : "bg-raise text-ink-2"}`}>
@@ -268,7 +279,7 @@ export default function RunView() {
                 <div className="max-w-md px-6 text-center">
                   <AlertTriangle size={28} className="mx-auto text-red-400" />
                   <p className="mt-3 text-[13px] leading-relaxed text-ink-2">{error}</p>
-                  <Link href="/editor" className="mt-4 inline-block rounded-lg border border-line px-3 py-2 text-[12px] text-ink-2 hover:bg-raise">Back to editor</Link>
+                  <button onClick={backToEditor} className="mt-4 inline-block rounded-lg border border-line px-3 py-2 text-[12px] text-ink-2 hover:bg-raise">Back to editor</button>
                 </div>
               ) : (
                 <div className="flex flex-col items-center gap-3 text-ink-3">
