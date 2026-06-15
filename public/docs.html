@@ -1,0 +1,499 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nova Docs — the last-mile visual editor</title>
+  <meta name="description" content="How to import, visually edit, run, and ship your project with Nova." />
+  <meta name="theme-color" content="#08080a" />
+  <link rel="canonical" href="https://nova-editor-six.vercel.app/docs" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: "var(--bg)", "bg-2": "var(--bg-2)", surface: "var(--surface)", "surface-2": "var(--surface-2)", raise: "var(--raise)",
+            line: "var(--line)", "line-2": "var(--line-2)",
+            ink: "var(--ink)", "ink-2": "var(--ink-2)", "ink-3": "var(--ink-3)",
+            accent: "var(--accent)", "accent-ink": "var(--accent-ink)"
+          },
+          fontFamily: {
+            sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+            display: ["var(--font-display)", "system-ui", "sans-serif"],
+            serif: ["var(--font-serif)", "Georgia", "serif"]
+          },
+          letterSpacing: { tightest: "-0.045em" },
+          transitionTimingFunction: { out: "cubic-bezier(0.22, 1, 0.36, 1)" }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --bg: #08080a; --bg-2: #0e0e11; --surface: #131318; --surface-2: #1a1a21; --raise: #22222b;
+      --line: rgba(255, 255, 255, 0.08); --line-2: rgba(255, 255, 255, 0.14);
+      --ink: #f2f2f4; --ink-2: rgba(242, 242, 244, 0.62); --ink-3: rgba(242, 242, 244, 0.38);
+      --accent: #ccff02; --accent-ink: #0a0a0a; --accent-dim: rgba(204, 255, 2, 0.14);
+      --font-sans: 'Inter'; --font-display: 'Space Grotesk'; --font-serif: 'Instrument Serif';
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    ::selection { background: var(--accent); color: var(--accent-ink); }
+    .grain {
+      position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+  </style>
+</head>
+
+<body>
+  <div class="min-h-[100dvh] bg-bg">
+    <div class="grain"></div>
+
+    <!-- header -->
+    <header class="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur">
+      <div class="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
+        <a href="/" class="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
+          <span class="grid h-7 w-7 place-items-center rounded-lg bg-accent text-accent-ink">✦</span>
+          <span class="flex items-baseline gap-1 leading-none">
+            <span>Nova</span>
+            <span class="font-normal text-ink-3">Docs</span>
+            <span class="inline-flex translate-y-[1px] items-center self-center rounded-full border border-accent/40 bg-accent/10 pl-[7px] pr-[5px] py-[1px] text-[9px] font-semibold uppercase leading-none tracking-[0.15em] text-accent">Alpha</span>
+          </span>
+        </a>
+        <a href="/dashboard" class="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
+          Open the app <i data-lucide="arrow-right" class="h-3.5 w-3.5"></i>
+        </a>
+      </div>
+    </header>
+
+    <div class="mx-auto flex max-w-6xl gap-10 px-5 py-10 sm:px-8">
+      <!-- sidebar -->
+      <aside class="sticky top-24 hidden h-max w-56 shrink-0 lg:block">
+        <nav class="flex flex-col gap-0.5">
+          <a href="#overview" data-nav="overview" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="rocket" class="h-3.5 w-3.5"></i></span> Overview</a>
+          <a href="#getting-started" data-nav="getting-started" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="rocket" class="h-3.5 w-3.5"></i></span> Getting started</a>
+          <a href="#importing" data-nav="importing" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="folder-input" class="h-3.5 w-3.5"></i></span> Importing</a>
+          <a href="#structure" data-nav="structure" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="folder-tree" class="h-3.5 w-3.5"></i></span> Project structure</a>
+          <a href="#editing" data-nav="editing" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="mouse-pointer-click" class="h-3.5 w-3.5"></i></span> Visual &amp; code editing</a>
+          <a href="#collaboration" data-nav="collaboration" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="users" class="h-3.5 w-3.5"></i></span> Comments &amp; sharing</a>
+          <a href="#ai" data-nav="ai" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i></span> AI assistant</a>
+          <a href="#running" data-nav="running" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="play" class="h-3.5 w-3.5"></i></span> Running live</a>
+          <a href="#publishing" data-nav="publishing" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="git-pull-request" class="h-3.5 w-3.5"></i></span> Publishing &amp; GitHub</a>
+          <a href="#privacy" data-nav="privacy" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="shield-check" class="h-3.5 w-3.5"></i></span> Storage &amp; privacy</a>
+          <a href="#faq" data-nav="faq" class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-[13px] transition-colors text-ink-3 hover:bg-surface/60 hover:text-ink"><span class="nav-ico"><i data-lucide="help-circle" class="h-3.5 w-3.5"></i></span> FAQ &amp; troubleshooting</a>
+        </nav>
+      </aside>
+
+      <!-- content -->
+      <main class="min-w-0 max-w-2xl flex-1 space-y-16 pb-24">
+        <!-- overview -->
+        <section class="space-y-5">
+          <div id="overview" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Documentation</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">The last-mile visual editor</h2>
+          </div>
+          <p class="text-[15px] leading-relaxed text-ink-2">
+            AI tools generate 90% of an app from a prompt. Nova is where you do the final 10% by hand —
+            click an element, tweak its layout, color, and copy, and push clean code back to your repo.
+            No tokens spent on micro-tweaks, no lock-in, nothing to install. Everything runs in your browser.
+          </p>
+          <div class="rounded-2xl border border-line bg-surface/30 p-5">
+            <svg viewBox="0 0 680 130" class="w-full" role="img" aria-label="Import, edit, ship loop">
+              <g>
+                <rect x="20" y="28" width="200" height="74" rx="14" fill="var(--surface)" stroke="var(--line-2)" />
+                <text x="40" y="62" fill="var(--ink)" font-size="19" font-weight="600" font-family="var(--font-display, sans-serif)">Import</text>
+                <text x="40" y="84" fill="var(--ink-3)" font-size="12">Repo · folder · paste</text>
+                <circle cx="198" cy="46" r="10" fill="var(--accent)" opacity="0.18" />
+                <text x="198" y="50" fill="var(--accent)" font-size="11" font-weight="700" text-anchor="middle">1</text>
+                <path d="M220 65 L250 65" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow)" />
+              </g>
+              <g>
+                <rect x="250" y="28" width="200" height="74" rx="14" fill="var(--surface)" stroke="var(--line-2)" />
+                <text x="270" y="62" fill="var(--ink)" font-size="19" font-weight="600" font-family="var(--font-display, sans-serif)">Edit</text>
+                <text x="270" y="84" fill="var(--ink-3)" font-size="12">Visual · code · AI</text>
+                <circle cx="428" cy="46" r="10" fill="var(--accent)" opacity="0.18" />
+                <text x="428" y="50" fill="var(--accent)" font-size="11" font-weight="700" text-anchor="middle">2</text>
+                <path d="M450 65 L480 65" stroke="var(--accent)" stroke-width="2" marker-end="url(#arrow)" />
+              </g>
+              <g>
+                <rect x="480" y="28" width="200" height="74" rx="14" fill="var(--surface)" stroke="var(--line-2)" />
+                <text x="500" y="62" fill="var(--ink)" font-size="19" font-weight="600" font-family="var(--font-display, sans-serif)">Ship</text>
+                <text x="500" y="84" fill="var(--ink-3)" font-size="12">Commit · push · PR</text>
+                <circle cx="658" cy="46" r="10" fill="var(--accent)" opacity="0.18" />
+                <text x="658" y="50" fill="var(--accent)" font-size="11" font-weight="700" text-anchor="middle">3</text>
+              </g>
+              <defs>
+                <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0 0 L6 3 L0 6 Z" fill="var(--accent)" />
+                </marker>
+              </defs>
+            </svg>
+          </div>
+          <p class="text-[13px] text-ink-3">Nova is in <span class="text-accent">alpha</span> — expect rough edges, and please send feedback.</p>
+        </section>
+
+        <!-- getting started -->
+        <section class="space-y-5">
+          <div id="getting-started" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">5-minute first run</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Getting started</h2>
+          </div>
+          <ol class="space-y-3 text-[14px] leading-relaxed text-ink-2">
+            <li><b class="text-ink">1. Sign in.</b> Nova is invite-only during the alpha — enter your invite code, then sign in with the magic link we email you (works on any browser).</li>
+            <li><b class="text-ink">2. Open a project.</b> Import from GitHub, a folder, pasted code — or try the sample.</li>
+            <li><b class="text-ink">3. Edit visually.</b> Click any element, change it in the inspector, double-click text to rewrite it.</li>
+            <li><b class="text-ink">4. (Optional) Ask the AI.</b> Add your own key and let it make larger changes.</li>
+            <li><b class="text-ink">5. Ship it.</b> <i>Publish</i> → review the diff → commit, push, or open a PR.</li>
+          </ol>
+        </section>
+
+        <!-- importing -->
+        <section class="space-y-5">
+          <div id="importing" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Bring in a project</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Importing</h2>
+          </div>
+          <p class="text-[14px] leading-relaxed text-ink-2">Nova opens an existing project. Paste any GitHub URL form and it figures out the rest:</p>
+          <pre class="overflow-x-auto rounded-xl border border-line bg-bg-2 p-4 font-mono text-[12px] text-ink-2">https://github.com/owner/repo
+https://github.com/owner/repo/tree/branch
+git@github.com:owner/repo.git
+owner/repo</pre>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="folder-input" class="h-3.5 w-3.5"></i></span> Connect GitHub</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">Paste a token in Settings → GitHub to import private/org repos, switch branches, and full-clone to disk.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="sparkles" class="h-3.5 w-3.5"></i></span> AI-generated repos</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">Push your Bolt / Lovable / v0 / Claude app to GitHub, then import it here. Connecting GitHub avoids rate limits on bigger repos.</div>
+            </div>
+          </div>
+          <p class="text-[13px] leading-relaxed text-ink-3">The visual editor opens <b class="text-ink-2">.html, .jsx, and .tsx</b> files. A full clone brings every file to disk; CSS/config files aren't editable on the canvas yet.</p>
+        </section>
+
+        <!-- structure -->
+        <section class="space-y-5">
+          <div id="structure" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Set up for the smoothest editing</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Recommended project structure</h2>
+          </div>
+          <p class="text-[14px] leading-relaxed text-ink-2">
+            Nova works with whatever layout you have — but a couple of conventions make the canvas, Assets panel, and AI noticeably better. The rule of thumb: <b class="text-ink">keep visual pieces self-contained</b> (so they render on the canvas), and <b class="text-ink">keep assets together</b> (so Nova can find them).
+          </p>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2 text-[13px] font-semibold text-ink"><i data-lucide="globe" class="h-3.5 w-3.5 text-accent"></i> Websites — static HTML / CSS / JS</div>
+            <pre class="overflow-x-auto rounded-xl border border-line bg-bg-2 p-4 font-mono text-[12px] leading-relaxed text-ink-2">my-site/
+├─ index.html          # pages — each opens on the canvas
+├─ about.html
+├─ assets/             # images, svgs & fonts live together
+│  ├─ logo.svg
+│  └─ images/hero.jpg
+└─ styles/
+   └─ main.css         # one stylesheet, linked from each page</pre>
+            <p class="text-[13px] leading-relaxed text-ink-3">Put media in <b class="text-ink-2">assets/</b> (or <span class="font-mono text-[12px]">images/</span>, <span class="font-mono text-[12px]">fonts/</span>) so the Assets panel collects them. Reference them with relative paths and they resolve on the canvas.</p>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2 text-[13px] font-semibold text-ink"><i data-lucide="boxes" class="h-3.5 w-3.5 text-accent"></i> Web apps — Next.js or Vite + React</div>
+            <pre class="overflow-x-auto rounded-xl border border-line bg-bg-2 p-4 font-mono text-[12px] leading-relaxed text-ink-2">my-app/
+├─ app/                # Next.js routes (pages) — preview in Run
+│  ├─ layout.tsx
+│  └─ page.tsx
+├─ components/         # reusable, presentational pieces — edit on the canvas
+│  ├─ Hero.tsx
+│  └─ Button.tsx
+├─ lib/  (or utils/)   # non-visual helpers, stores, types
+├─ public/             # static assets served at /
+└─ package.json        # needed for Run (npm run dev/start)
+
+# Vite: index.html at the root, code under src/ (src/components/…)</pre>
+            <p class="text-[13px] leading-relaxed text-ink-3">
+              Pages that use routing, data fetching, or context providers are best previewed with <b class="text-ink-2">Run</b> (the real dev server). The design canvas shines on <b class="text-ink-2">components/</b> — see below.
+            </p>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-center gap-2 text-[13px] font-semibold text-ink"><i data-lucide="layers" class="h-3.5 w-3.5 text-accent"></i> Components — a reusable library</div>
+            <pre class="overflow-x-auto rounded-xl border border-line bg-bg-2 p-4 font-mono text-[12px] leading-relaxed text-ink-2">components/
+├─ Button.tsx          # one default-exported component per file
+├─ Card.tsx
+└─ Badge.tsx</pre>
+            <ul class="space-y-1.5 text-[13.5px] leading-relaxed text-ink-2">
+              <li>• <b class="text-ink">One component per file</b>, with a <b class="text-ink">default export</b>.</li>
+              <li>• <b class="text-ink">Self-contained</b>: take props with sensible defaults, no data fetching or router/context hooks — that's what lets it render live on the canvas.</li>
+              <li>• Style with <b class="text-ink">Tailwind classes</b> (or co-located CSS) for the best visual-editing experience.</li>
+            </ul>
+          </div>
+          <div class="rounded-xl border border-line bg-surface/40 p-4">
+            <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="folder-tree" class="h-3.5 w-3.5"></i></span> Why it matters</div>
+            <div class="text-[13px] leading-relaxed text-ink-2">The canvas bundles one file at a time, so a component that imports only npm packages and other loaded components renders perfectly; one that pulls in stores, server-only APIs, or Next runtime is routed to <b class="text-ink-2">Run</b> instead. Structuring presentational components apart from app wiring gives you the most that's directly editable on the canvas.</div>
+          </div>
+        </section>
+
+        <!-- editing -->
+        <section class="space-y-5">
+          <div id="editing" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Visual ⇄ code, always in sync</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Visual &amp; code editing</h2>
+          </div>
+          <div class="rounded-2xl border border-line bg-surface/30 p-5">
+            <svg viewBox="0 0 680 280" class="w-full" role="img" aria-label="Editor anatomy">
+              <rect x="10" y="10" width="660" height="30" rx="8" fill="var(--surface)" stroke="var(--line)" />
+              <circle cx="28" cy="25" r="5" fill="var(--accent)" />
+              <text x="44" y="29" fill="var(--ink-2)" font-size="11">Top bar — breakpoints · view modes · Run · Publish · AI</text>
+              <rect x="10" y="48" width="150" height="222" rx="10" fill="var(--surface)" stroke="var(--line)" />
+              <text x="26" y="70" fill="var(--ink)" font-size="12" font-weight="600">Layers</text>
+              <text x="26" y="92" fill="var(--ink-3)" font-size="11" font-family="monospace" style="white-space:pre">section</text>
+              <text x="26" y="110" fill="var(--ink-3)" font-size="11" font-family="monospace" style="white-space:pre">  nav</text>
+              <text x="26" y="128" fill="var(--ink-3)" font-size="11" font-family="monospace" style="white-space:pre">  hero</text>
+              <text x="26" y="146" fill="var(--ink-3)" font-size="11" font-family="monospace" style="white-space:pre">    h1</text>
+              <text x="26" y="164" fill="var(--ink-3)" font-size="11" font-family="monospace" style="white-space:pre">  footer</text>
+              <rect x="170" y="48" width="330" height="222" rx="10" fill="var(--bg-2)" stroke="var(--line)" />
+              <text x="186" y="70" fill="var(--ink-3)" font-size="11">Canvas — your live page, click to select</text>
+              <rect x="210" y="92" width="250" height="150" rx="10" fill="var(--surface)" stroke="var(--line-2)" />
+              <rect x="300" y="120" width="70" height="70" rx="35" fill="var(--accent)" opacity="0.85" />
+              <rect x="250" y="200" width="170" height="10" rx="5" fill="var(--ink-3)" />
+              <rect x="510" y="48" width="160" height="222" rx="10" fill="var(--surface)" stroke="var(--line)" />
+              <text x="526" y="70" fill="var(--ink)" font-size="12" font-weight="600">Inspector</text>
+              <text x="526" y="96" fill="var(--ink-3)" font-size="10">Layout</text>
+              <rect x="526" y="104" width="128" height="22" rx="6" fill="var(--bg)" stroke="var(--line)" />
+              <text x="526" y="136" fill="var(--ink-3)" font-size="10">Spacing</text>
+              <rect x="526" y="144" width="128" height="22" rx="6" fill="var(--bg)" stroke="var(--line)" />
+              <text x="526" y="176" fill="var(--ink-3)" font-size="10">Typography</text>
+              <rect x="526" y="184" width="128" height="22" rx="6" fill="var(--bg)" stroke="var(--line)" />
+              <text x="526" y="216" fill="var(--ink-3)" font-size="10">Color</text>
+              <rect x="526" y="224" width="128" height="22" rx="6" fill="var(--bg)" stroke="var(--line)" />
+            </svg>
+          </div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="sliders-horizontal" class="h-3.5 w-3.5"></i></span> Style &amp; Settings</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">The right panel has a Style tab (layout, flexbox &amp; grid, spacing, size, typography, backgrounds, borders, effects) and a Settings tab (element ID, link URL, image alt, visibility, custom attributes). Tailwind projects get responsive utility classes.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="code-2" class="h-3.5 w-3.5"></i></span> The code editor</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">A built-in Monaco editor with autocomplete, two-way synced to the canvas. Right-click a layer → View in code to jump to the line.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="image" class="h-3.5 w-3.5"></i></span> Assets</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">The left panel's Assets tab gathers the images, SVGs &amp; fonts from your project — upload more, then click one to set it as an image source or a background.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="boxes" class="h-3.5 w-3.5"></i></span> Elements</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">Drag in sections, containers, grids, headings, buttons, links and more from the Components tab — real HTML/JSX, inserted where you drop it.</div>
+            </div>
+          </div>
+          <ul class="space-y-1.5 text-[13.5px] leading-relaxed text-ink-2">
+            <li>• <b class="text-ink">Double-click</b> text to edit it in place.</li>
+            <li>• Switch <b class="text-ink">desktop / tablet / mobile</b> breakpoints; hit <b class="text-ink">Preview</b> to use the page as a visitor.</li>
+            <li>• <b class="text-ink">Delete</b> removes the selection, <b class="text-ink">Cmd/Ctrl+D</b> duplicates; drag layers to reorder.</li>
+          </ul>
+        </section>
+
+        <!-- collaboration -->
+        <section class="space-y-5">
+          <div id="collaboration" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Comment, share &amp; co-build</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Comments &amp; collaboration</h2>
+          </div>
+          <p class="text-[14px] leading-relaxed text-ink-2">
+            Open the <b class="text-ink">Comments</b> tab in the right panel to leave feedback pinned to the canvas.
+            Right-click any element — on the canvas or in the layer tree — to drop a comment exactly where you clicked,
+            and click a comment to jump straight to it.
+          </p>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="message-square" class="h-3.5 w-3.5"></i></span> Pinned comments</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">Numbered pins appear on the canvas while the Comments tab is open. Resolve, reopen, or delete from the panel; everything syncs live for collaborators.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="users" class="h-3.5 w-3.5"></i></span> Roles</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">Invite people by email from <b class="text-ink-2">Share</b>. Viewers can look, commenters can comment, and editors get full editing — each in their own account.</div>
+            </div>
+          </div>
+          <ul class="space-y-1.5 text-[13.5px] leading-relaxed text-ink-2">
+            <li>• Shared projects appear in each collaborator's dashboard with a role tag, and live in the cloud so everyone stays in sync.</li>
+            <li>• <b class="text-ink">Viewers &amp; commenters are free</b> on every plan; inviting <b class="text-ink">editors</b> is a Studio-plan feature.</li>
+          </ul>
+        </section>
+
+        <!-- ai -->
+        <section class="space-y-5">
+          <div id="ai" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Free on-device, or your own key</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">AI assistant</h2>
+          </div>
+          <p class="text-[14px] leading-relaxed text-ink-2">
+            Open it with the <b class="text-ink">AI</b> button. It reads and edits your real files — the canvas updates as it works — and your conversation is saved per project.
+          </p>
+          <div class="rounded-xl border border-line bg-surface/40 p-4">
+            <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="cpu" class="h-3.5 w-3.5"></i></span> Nova Lite — free, runs on your device</div>
+            <div class="text-[13px] leading-relaxed text-ink-2">The default model runs entirely in your browser on your GPU (WebGPU). Your first message downloads it once (~2 GB) into the browser cache; after that it's instant, works offline, and <b class="text-ink-2">nothing ever leaves your device</b>. No key, no cost. Needs a recent Chrome, Edge, Arc, or Safari 18+, and edits one file at a time — ideal for quick tweaks and questions.</div>
+          </div>
+          <div class="rounded-xl border border-line bg-surface/40 p-4">
+            <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="key-round" class="h-3.5 w-3.5"></i></span> Bring your own key for more power</div>
+            <div class="text-[13px] leading-relaxed text-ink-2">For bigger, multi-file changes, add a provider key (Settings → AI). An API key is separate from a ChatGPT Plus / Claude Pro subscription — get a developer key from the provider's console. Keys stay in your browser and go straight to the provider, never through a Nova server.</div>
+          </div>
+          <p class="text-[13.5px] leading-relaxed text-ink-2">
+            Supported keys: <b class="text-ink">Anthropic, OpenAI, Google, xAI, DeepSeek, Mistral, Groq, and OpenRouter</b> (one key for nearly any model), plus a <b class="text-ink">Custom model ID</b> field. Managed <b class="text-ink">Nova Pro / Studio</b> models — capable, with no key to manage — are coming for paid plans. The assistant edits .html/.jsx/.tsx files, and inspector tweaks always stay free.
+          </p>
+        </section>
+
+        <!-- running -->
+        <section class="space-y-5">
+          <div id="running" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Boot the real app in the browser</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Running live</h2>
+          </div>
+          <p class="text-[14px] leading-relaxed text-ink-2">
+            For full apps (Vite/React), <b class="text-ink">Run app</b> boots the real project in your browser via WebContainers — nothing is uploaded. Then click an element in the running app and Nova maps it back to source so you can edit its class or text, with hot reload.
+          </p>
+          <div class="rounded-xl border border-line bg-surface/40 p-4">
+            <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="play" class="h-3.5 w-3.5"></i></span> Requirements</div>
+            <div class="text-[13px] leading-relaxed text-ink-2">A folder-backed full clone (Settings → Storage) on a Chromium browser (Chrome / Edge / Arc). First boot installs dependencies; reloads after that are fast.</div>
+          </div>
+        </section>
+
+        <!-- publishing -->
+        <section class="space-y-5">
+          <div id="publishing" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Your Git is the source of truth</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Publishing &amp; GitHub</h2>
+          </div>
+          <p class="text-[14px] leading-relaxed text-ink-2">
+            Click <b class="text-ink">Publish</b> to review a clean diff of exactly what changed. Then download, save to your folder, or — for connected projects — <b class="text-ink">commit &amp; push</b> or <b class="text-ink">open a pull request</b>. Pushing triggers your existing Vercel/Netlify deploy; Nova stays out of your pipeline.
+          </p>
+          <div class="rounded-xl border border-line bg-surface/40 p-4">
+            <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="git-pull-request" class="h-3.5 w-3.5"></i></span> Imported vs. connected</div>
+            <div class="text-[13px] leading-relaxed text-ink-2">Importing a public URL gives you the files; connecting GitHub (a token, in Settings) is what lets you push back or create a new repo.</div>
+          </div>
+        </section>
+
+        <!-- privacy -->
+        <section class="space-y-5">
+          <div id="privacy" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Local-first by design</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Storage &amp; privacy</h2>
+          </div>
+          <p class="text-[14px] leading-relaxed text-ink-2">
+            Projects live in your browser and, optionally, a folder on your disk. Your GitHub token and AI keys are <b class="text-ink">encrypted at rest</b> in your browser and sent <b class="text-ink">directly</b> to GitHub / the AI provider — never through a Nova server. The Nova devs never receive your keys, and the source is open so you can verify it.
+          </p>
+          <div class="rounded-xl border border-line bg-surface/40 p-4">
+            <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="key-round" class="h-3.5 w-3.5"></i></span> Key safety — and its honest limits</div>
+            <div class="text-[13px] leading-relaxed text-ink-2">Encryption stops casual snooping and scrapers, but <b class="text-ink-2">no client-side app can fully protect a key</b> from a malicious browser extension or someone at your unlocked device. Best practice: use <b class="text-ink-2">scoped, revocable</b> keys — a fine-grained GitHub token limited to the repos you edit, and provider API keys with a spending limit you can rotate.</div>
+          </div>
+        </section>
+
+        <!-- faq -->
+        <section class="space-y-5">
+          <div id="faq" class="scroll-mt-24">
+            <p class="mb-2 text-[11px] uppercase tracking-[0.25em] text-ink-3">Answers &amp; fixes</p>
+            <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">FAQ &amp; troubleshooting</h2>
+          </div>
+          <div class="divide-y divide-line rounded-2xl border border-line">
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">Is Nova free?</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Yes — the editor is free and runs in your browser, and it includes Nova Lite, a free AI that runs on your own device (no key, no cost). Bringing your own API key or upgrading is optional, for more power.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">Do I need an account?</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">During the alpha, yes — Nova is invite-only. Enter an invite code and sign in with an email magic link. Each member gets 10 invites to share (Settings → Account &amp; invites).</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">What's cloud sync?</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">An optional Pro feature: your projects back up to the cloud and sync in real-time across devices and browsers, with offline edits flushed when you reconnect. Everything still works locally without it.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">How much does Nova cost?</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Free forever for the editor (visual + code editing, run live, GitHub) plus Nova Lite, our free on-device AI. Add your own API key any time for more capable models. Pro is $8/month and adds cloud backup + cross-device sync; Studio adds editor collaborators and the most capable managed AI (no key to manage) — coming soon.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">“Rate limit reached (no token).”</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Anonymous GitHub requests are limited. Connect GitHub in Settings and re-import.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">“No editable .html/.jsx/.tsx files.”</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Nova's canvas opens HTML/JSX/TSX. Check the branch, or full-clone to work with the whole project.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">The AI errors immediately.</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">On a bring-your-own-key model: 401 = bad key (re-check in Settings → AI); 429 = rate-limited / out of credit. Make sure the selected provider has a key (green dot in the picker).</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">Nova Lite won't load.</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">It needs a WebGPU browser (recent Chrome, Edge, Arc, or Safari 18+) and downloads ~2 GB on first use, cached for next time. On a low-memory GPU it auto-falls back to a smaller model. No WebGPU? Add your own API key and pick another model instead.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">“Run app” won't start.</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Run mode needs a folder-backed full clone on a Chromium browser. Set a projects folder in Settings → Storage and re-import.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">Which browsers work?</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Editing works anywhere modern; folder storage and Run app need a Chromium browser (Chrome / Edge / Arc).</div></div>
+          </div>
+          <p class="text-[13px] text-ink-3">Still stuck? Nova is in alpha — please send feedback so we can fix it.</p>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <!-- route-transition loader -->
+  <div id="rt" class="fixed inset-0 z-[200]" style="display:none">
+    <div class="rt-overlay absolute inset-0 flex items-center justify-center overflow-hidden bg-bg">
+      <div class="grain"></div>
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(204,255,2,0.08),transparent_62%)]"></div>
+      <div class="relative flex flex-col items-center gap-5">
+        <div class="rt-fade flex items-center gap-3">
+          <span class="rt-mark grid h-11 w-11 place-items-center rounded-xl bg-accent text-[20px] text-accent-ink">✦</span>
+          <span class="overflow-hidden pb-1"><span class="rt-word block font-display text-[clamp(1.8rem,6vw,2.6rem)] font-semibold tracking-tight">Nova</span></span>
+        </div>
+        <div class="rt-fade h-[3px] w-40 overflow-hidden rounded-full bg-line"><div class="rt-bar h-full w-full origin-left rounded-full bg-accent"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    if (window.lucide) lucide.createIcons();
+
+    // sidebar scroll-spy — highlight the section in view (mirrors the React IntersectionObserver)
+    (function () {
+      var links = {};
+      document.querySelectorAll("[data-nav]").forEach(function (a) { links[a.getAttribute("data-nav")] = a; });
+      function setActive(id) {
+        Object.keys(links).forEach(function (k) {
+          var a = links[k], ico = a.querySelector(".nav-ico"), on = k === id;
+          a.classList.toggle("bg-surface", on);
+          a.classList.toggle("text-ink", on);
+          a.classList.toggle("text-ink-3", !on);
+          if (ico) ico.classList.toggle("text-accent", on);
+        });
+      }
+      var obs = new IntersectionObserver(function (entries) {
+        var vis = entries.filter(function (e) { return e.isIntersecting; }).sort(function (a, b) { return a.boundingClientRect.top - b.boundingClientRect.top; });
+        if (vis[0]) setActive(vis[0].target.id);
+      }, { rootMargin: "-20% 0px -70% 0px" });
+      Object.keys(links).forEach(function (id) { var el = document.getElementById(id); if (el) obs.observe(el); });
+      setActive("overview");
+    })();
+
+    // route-transition loader on internal navigation (the "✦ Nova" curtain)
+    (function () {
+      var rt = document.getElementById("rt");
+      var running = false;
+      function go(href) {
+        if (running) return;
+        if (!window.gsap || !rt) { window.location.href = href; return; }
+        running = true;
+        rt.style.display = "block";
+        gsap.timeline({ defaults: { ease: "power4.inOut" } })
+          .set(".rt-overlay", { yPercent: 100 })
+          .set(".rt-mark", { scale: 0.6, opacity: 0, rotate: -45 })
+          .set(".rt-word", { yPercent: 120 })
+          .set(".rt-bar", { scaleX: 0 })
+          .to(".rt-overlay", { yPercent: 0, duration: 0.5 })
+          .to(".rt-mark", { scale: 1, opacity: 1, rotate: 0, duration: 0.5, ease: "back.out(1.8)" }, "-=0.18")
+          .to(".rt-word", { yPercent: 0, duration: 0.45, ease: "power3.out" }, "<0.04")
+          .to(".rt-bar", { scaleX: 1, duration: 0.6, ease: "power2.inOut" }, "<")
+          .add(function () { window.location.href = href; });
+      }
+      document.addEventListener("click", function (e) {
+        var a = e.target.closest ? e.target.closest("a") : null;
+        if (!a) return;
+        var href = a.getAttribute("href");
+        if (!href || href.charAt(0) === "#") return;
+        if (a.target === "_blank" || a.hasAttribute("download")) return;
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+        if (href.charAt(0) === "/" || href.indexOf(location.origin) === 0) {
+          e.preventDefault();
+          go(href);
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

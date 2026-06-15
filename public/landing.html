@@ -547,6 +547,21 @@
     </footer>
   </div>
 
+  <!-- route-transition loader (the "✦ Nova" curtain played on internal navigation) -->
+  <div id="rt" class="fixed inset-0 z-[200]" style="display:none">
+    <div class="rt-overlay absolute inset-0 flex items-center justify-center overflow-hidden bg-bg">
+      <div class="grain"></div>
+      <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_44%,rgba(204,255,2,0.08),transparent_62%)]"></div>
+      <div class="relative flex flex-col items-center gap-5">
+        <div class="rt-fade flex items-center gap-3">
+          <span class="rt-mark grid h-11 w-11 place-items-center rounded-xl bg-accent text-[20px] text-accent-ink">✦</span>
+          <span class="overflow-hidden pb-1"><span class="rt-word block font-display text-[clamp(1.8rem,6vw,2.6rem)] font-semibold tracking-tight">Nova</span></span>
+        </div>
+        <div class="rt-fade h-[3px] w-40 overflow-hidden rounded-full bg-line"><div class="rt-bar h-full w-full origin-left rounded-full bg-accent"></div></div>
+      </div>
+    </div>
+  </div>
+
   <!-- marquee content (duplicated for a seamless loop) -->
   <script>
     (function () {
@@ -631,6 +646,41 @@
       });
       ScrollTrigger.batch(".tile", { start: "top 88%", onEnter: function (els) { gsap.from(els, { opacity: 0, y: 50, duration: 0.9, ease: "power3.out", stagger: 0.1, overwrite: true }); } });
     }
+
+    // Route-transition loader on internal navigation (mirrors the app's
+    // RouteTransition: curtain up → ✦ Nova reveal → progress sweep → navigate).
+    (function () {
+      var rt = document.getElementById("rt");
+      var running = false;
+      function go(href) {
+        if (running) return;
+        if (!window.gsap || !rt) { window.location.href = href; return; }
+        running = true;
+        rt.style.display = "block";
+        gsap.timeline({ defaults: { ease: "power4.inOut" } })
+          .set(".rt-overlay", { yPercent: 100 })
+          .set(".rt-mark", { scale: 0.6, opacity: 0, rotate: -45 })
+          .set(".rt-word", { yPercent: 120 })
+          .set(".rt-bar", { scaleX: 0 })
+          .to(".rt-overlay", { yPercent: 0, duration: 0.5 })
+          .to(".rt-mark", { scale: 1, opacity: 1, rotate: 0, duration: 0.5, ease: "back.out(1.8)" }, "-=0.18")
+          .to(".rt-word", { yPercent: 0, duration: 0.45, ease: "power3.out" }, "<0.04")
+          .to(".rt-bar", { scaleX: 1, duration: 0.6, ease: "power2.inOut" }, "<")
+          .add(function () { window.location.href = href; });
+      }
+      document.addEventListener("click", function (e) {
+        var a = e.target.closest ? e.target.closest("a") : null;
+        if (!a) return;
+        var href = a.getAttribute("href");
+        if (!href || href.charAt(0) === "#") return;                      // same-page anchor
+        if (a.target === "_blank" || a.hasAttribute("download")) return;  // new tab / download
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.button === 1) return;
+        if (href.charAt(0) === "/" || href.indexOf(location.origin) === 0) {
+          e.preventDefault();
+          go(href);
+        }
+      });
+    })();
   </script>
 </body>
 </html>

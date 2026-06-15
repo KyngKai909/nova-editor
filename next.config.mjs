@@ -62,10 +62,16 @@ const nextConfig = {
     ];
   },
   async rewrites() {
-    // The homepage is a static, canvas-editable HTML file (public/landing.html)
-    // served at "/" — so it can be edited visually in Nova itself. Runs before
-    // the filesystem so it owns "/".
-    return { beforeFiles: [{ source: "/", destination: "/landing.html" }] };
+    // The homepage and docs are static, canvas-editable HTML files
+    // (public/landing.html, public/docs.html) — so they can be edited visually
+    // in Nova itself. beforeFiles runs before the filesystem, so these own their
+    // paths instead of any app route.
+    return {
+      beforeFiles: [
+        { source: "/", destination: "/landing.html" },
+        { source: "/docs", destination: "/docs.html" },
+      ],
+    };
   },
 };
 
