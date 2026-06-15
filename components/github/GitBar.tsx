@@ -1,21 +1,19 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { GitBranch, ChevronDown, Plus, Loader2, ArrowDownToLine } from "lucide-react";
+import { GitBranch, ChevronDown, Plus, Loader2 } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
 import { useGitHub } from "@/store/githubStore";
 import { useProjects } from "@/store/projectsStore";
-import { listBranches, createBranch, importRepoFilesAuth, getBranchHeadSha } from "@/lib/githubApi";
-import { mergeThreeWay, summarizeMerge } from "@/lib/merge";
+import { listBranches, createBranch, importRepoFilesAuth } from "@/lib/githubApi";
 
-// Branch picker + GitHub "Pull & merge" for connected projects. Committing,
+// Branch picker for connected GitHub projects (switch / create). Committing,
 // pushing and PRs live in the Publish panel.
 export default function GitBar() {
   const token = useGitHub((s) => s.token);
   const projectId = useEditor((s) => s.projectId);
   const changed = useEditor((s) => s.files.filter((f) => f.content !== f.original).length);
   const loadFiles = useEditor((s) => s.loadFiles);
-  const setNotice = useEditor((s) => s.setNotice);
   const project = useProjects((s) => s.projects.find((p) => p.id === projectId));
   const updateProject = useProjects((s) => s.updateProject);
 
@@ -24,29 +22,15 @@ export default function GitBar() {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [busy, setBusy] = useState(false);
-  const [behind, setBehind] = useState(false); // remote HEAD moved since our baseline
   const ref = useRef<HTMLDivElement>(null);
 
   const gh = project?.github;
-  // Nova-managed pull is for in-browser github projects; device-backed clones
-  // sync through the real folder on disk (the user's own git), so skip them.
-  const canPull = !!gh && !!token && project?.storage !== "device";
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setMenu(false); };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
-
-  // Cheap upstream-update probe: compare the branch HEAD to our stored baseline.
-  useEffect(() => {
-    let alive = true;
-    if (!canPull || !gh?.commitSha) { setBehind(false); return; }
-    getBranchHeadSha(token!, gh.owner, gh.repo, gh.branch)
-      .then((head) => { if (alive) setBehind(head !== gh.commitSha); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [canPull, token, gh?.owner, gh?.repo, gh?.branch, gh?.commitSha]);
 
   if (!gh || !token) return null; // only for connected, repo-linked projects
 
@@ -62,43 +46,15 @@ export default function GitBar() {
       ? `https://cdn.jsdelivr.net/gh/${gh.owner}/${gh.repo}@${branch}/`
       : project?.baseHref ?? null;
 
-  // Pull the branch HEAD and 3-way merge it with the current working copy:
-  // remote-only changes fast-forward, your edits stay, overlaps are flagged.
-  const pull = async () => {
-    if (!canPull || !project) return;
-    setBusy(true);
-    setMenu(false);
-    try {
-      const { files: remote, assets, commitSha } = await importRepoFilesAuth(token, gh.owner, gh.repo, gh.branch);
-      const local = useEditor.getState().files;
-      const result = mergeThreeWay(local, remote);
-      const base = baseHrefFor(gh.branch);
-      loadFiles(result.files, assets, base, project.id);
-      updateProject(project.id, { github: { ...gh, commitSha }, baseHref: base, files: result.files });
-      setBehind(false);
-      if (result.conflicts.length) {
-        useEditor.getState().selectFile(result.conflicts[0]);
-        setNotice(`Pulled with ${result.conflicts.length} conflict${result.conflicts.length === 1 ? "" : "s"} — review ${result.conflicts.join(", ")} (your edits kept; diff is vs upstream).`);
-      } else {
-        setNotice(`Pulled ${gh.branch} · ${summarizeMerge(result)}`);
-      }
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const switchBranch = async (branch: string) => {
     if (branch === gh.branch) return setMenu(false);
     if (changed && !confirm("Switching branches discards unsaved edits. Continue?")) return;
     setBusy(true);
     try {
-      const { files: f, assets, commitSha } = await importRepoFilesAuth(token, gh.owner, gh.repo, branch);
+      const { files: f, assets } = await importRepoFilesAuth(token, gh.owner, gh.repo, branch);
       const base = baseHrefFor(branch);
-      updateProject(project!.id, { github: { ...gh, branch, commitSha }, baseHref: base, files: undefined });
+      updateProject(project!.id, { github: { ...gh, branch }, baseHref: base, files: undefined });
       loadFiles(f, assets, base, project!.id);
-      setBehind(false);
     } catch (e: any) {
       alert(e.message);
     } finally { setBusy(false); setMenu(false); }
@@ -122,31 +78,16 @@ export default function GitBar() {
     <div ref={ref} className="relative">
       <button
         onClick={openMenu}
-        title={`${gh.owner}/${gh.repo}${behind ? " · updates available" : ""}`}
-        className="relative flex h-7 items-center gap-1.5 rounded-md border border-line px-2 text-[12px] text-ink-2 transition-colors hover:bg-raise hover:text-ink"
+        title={`${gh.owner}/${gh.repo}`}
+        className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2 text-[12px] text-ink-2 transition-colors hover:bg-raise hover:text-ink"
       >
         {busy ? <Loader2 size={13} className="animate-spin" /> : <GitBranch size={13} />}
         <span className="max-w-[90px] truncate">{gh.branch}</span>
-        {behind && !busy && <span className="h-1.5 w-1.5 rounded-full bg-accent" title="Updates available" />}
         <ChevronDown size={12} className="text-ink-3" />
       </button>
 
       {menu && (
-        <div className="absolute left-0 top-9 z-40 w-60 overflow-hidden rounded-lg border border-line-2 bg-surface py-1 shadow-2xl">
-          {canPull && (
-            <>
-              <button
-                onClick={pull}
-                disabled={busy}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] text-ink-2 transition-colors hover:bg-raise disabled:opacity-50"
-              >
-                <ArrowDownToLine size={13} className={behind ? "text-accent" : "text-ink-3"} />
-                <span className="flex-1">Pull &amp; merge {gh.branch}</span>
-                {behind && <span className="rounded bg-accent/15 px-1.5 py-0.5 text-[10px] font-medium text-accent">new</span>}
-              </button>
-              <div className="my-1 h-px bg-line" />
-            </>
-          )}
+        <div className="absolute left-0 top-9 z-40 w-56 overflow-hidden rounded-lg border border-line-2 bg-surface py-1 shadow-2xl">
           <div className="px-3 py-1.5 text-[10px] uppercase tracking-wide text-ink-3">Branches</div>
           <div className="scroll-thin max-h-48 overflow-y-auto">
             {!branches && <div className="px-3 py-2 text-[12px] text-ink-3">Loading…</div>}

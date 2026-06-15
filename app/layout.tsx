@@ -89,7 +89,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <RouteTransition>
           <AuthGate>{children}</AuthGate>
         </RouteTransition>
-      </body>
+      <script src="/nova-bridge.js"></script></body>
     </html>
   );
 }

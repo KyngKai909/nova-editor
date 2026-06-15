@@ -47,19 +47,17 @@ export default function RepoBrowser({ onDone }: { onDone: () => void }) {
         : `https://cdn.jsdelivr.net/gh/${selected.owner}/${selected.name}@${branch}/`;
       // full clone to disk when a projects folder is set; else editable-only
       const fullClone = fsSupported() && (await hasWorkspace());
-      let files; let allFiles; let assets: AssetMap = {}; let commitSha: string;
+      let files; let allFiles; let assets: AssetMap = {};
       if (fullClone) {
         const res = await cloneRepoFiles(token, selected.owner, selected.name, branch, setBusy);
         files = res.editable;
         allFiles = res.all;
-        commitSha = res.commitSha;
         // the full clone already has the binary bytes — turn assets into blobs
         for (const f of res.all) if (isAsset(f.path)) assets[f.path] = URL.createObjectURL(new Blob([f.content as unknown as BlobPart]));
       } else {
         const r = await importRepoFilesAuth(token, selected.owner, selected.name, branch, setBusy);
         files = r.files;
         assets = r.assets;
-        commitSha = r.commitSha;
       }
       await createProject({
         name: selected.name,
@@ -68,7 +66,7 @@ export default function RepoBrowser({ onDone }: { onDone: () => void }) {
         assets,
         baseHref,
         repoUrl: `https://github.com/${selected.fullName}`,
-        github: { owner: selected.owner, repo: selected.name, branch, commitSha },
+        github: { owner: selected.owner, repo: selected.name, branch },
         allFiles,
       });
     } catch (e: any) {

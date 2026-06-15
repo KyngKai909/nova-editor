@@ -25,7 +25,7 @@ type RightTab = (typeof RIGHT_TABS)[number]["id"];
 const EMPTY_COMMENTS: Comment[] = [];
 import { componentNameFromPath } from "@/lib/jsxEdit";
 import { extractComponentProps } from "@/lib/componentProps";
-import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox } from "./controls";
+import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField } from "./controls";
 
 function find(nodes: EditorNode[], id: string | null): EditorNode | null {
   if (!id) return null;
@@ -54,7 +54,6 @@ export default function Inspector() {
   const files = useEditor((s) => s.files);
   const activePath = useEditor((s) => s.activePath);
   const device = useEditor((s) => s.device);
-  const canvasReadyTick = useEditor((s) => s.canvasReadyTick);
   const updateClassList = useEditor((s) => s.updateClassList);
   const updateText = useEditor((s) => s.updateText);
   const updateStyle = useEditor((s) => s.updateStyle);
@@ -92,27 +91,16 @@ export default function Inspector() {
     if (pendingAnchor) setTab("comments");
   }, [pendingAnchor]);
 
-  // Sequence guard: only the most recently issued readStyles result is applied,
-  // so a slow read against the old (pre-reload) iframe can't clobber a fresh one.
-  const readSeq = useRef(0);
   const refresh = useCallback(() => {
-    if (!selectedId) return;
-    const seq = ++readSeq.current;
-    readStyles(selectedId).then((st) => {
-      // ignore empty reads (a timed-out round-trip) so they can't blank the panel
-      if (seq === readSeq.current && Object.keys(st).length) setS(st);
-    });
+    if (selectedId) readStyles(selectedId).then(setS);
   }, [selectedId]);
 
   // computed styles need the iframe laid out — read on select + after reflow.
-  // canvasReadyTick is bumped when the canvas reports ready after a reload
-  // (undo/redo, asset + structural edits), so the panel re-reads the correct
-  // post-reload values instead of keeping the stale optimistic ones.
   useEffect(() => {
     refresh();
     const t = setTimeout(refresh, 140);
     return () => clearTimeout(t);
-  }, [refresh, device, canvasReadyTick]);
+  }, [refresh, device]);
 
   const unresolved = comments.filter((c) => !c.resolved).length;
 
@@ -207,8 +195,6 @@ export default function Inspector() {
           files={files}
           s={s}
           setStyle={set}
-          imageAssets={imageAssets}
-          onApplyAsset={(path) => applyAsset(path, "src")}
           onAttr={(name, v) => updateAttr(node.id, name, v)}
           onRemoveAttr={(name) => removeAttr(node.id, name)}
           onProp={(name, v) => updateProp(node.id, name, v)}
@@ -325,7 +311,7 @@ export default function Inspector() {
           </Section>
 
           <Section title="Spacing">
-            <SpacingBox get={(p) => px(s[p])} commit={(p, v) => set(p, v === "" ? "" : v + "px")} />
+            <BoxModel s={s} set={set} />
           </Section>
 
           <Section title="Size">
@@ -344,7 +330,7 @@ export default function Inspector() {
 
           <Section title="Typography">
             <Field label="Font">
-              <FontField value={s.fontFamily} onChange={(v) => set("fontFamily", v)} />
+              <TextInput value={cleanFont(s.fontFamily)} onCommit={(v) => set("fontFamily", v)} placeholder="inherit" />
             </Field>
             <div className="grid grid-cols-2 gap-x-2.5 gap-y-2.5">
               <Mini label="Size"><NumberUnit value={s.fontSize} onCommit={(v) => set("fontSize", v)} /></Mini>
@@ -511,7 +497,7 @@ export default function Inspector() {
 const RESERVED_ATTRS = new Set(["id", "class", "className", "style", "href", "target", "rel", "alt", "src", "hidden"]);
 
 function SettingsPanel({
-  node, isHtml, isComponentInstance, files, s, setStyle, imageAssets, onApplyAsset, onAttr, onRemoveAttr, onProp, onRemoveProp,
+  node, isHtml, isComponentInstance, files, s, setStyle, onAttr, onRemoveAttr, onProp, onRemoveProp,
 }: {
   node: EditorNode;
   isHtml: boolean;
@@ -519,8 +505,6 @@ function SettingsPanel({
   files: { path: string; content: string }[];
   s: Record<string, string>;
   setStyle: (prop: string, v: string) => void;
-  imageAssets: [string, string][];
-  onApplyAsset: (path: string) => void;
   onAttr: (name: string, value: string) => void;
   onRemoveAttr: (name: string) => void;
   onProp: (name: string, value: string) => void;
@@ -600,26 +584,6 @@ function SettingsPanel({
           <Field label="Source">
             <TextInput value={attrVal("src")} onCommit={(v) => onAttr("src", v)} placeholder="image url" mono />
           </Field>
-          {imageAssets.length > 0 && (
-            <div>
-              <div className="mb-1.5 text-[10px] text-ink-3">Pick from assets</div>
-              <div className="grid grid-cols-4 gap-1.5">
-                {imageAssets.map(([path, url]) => (
-                  <button
-                    key={path}
-                    onClick={() => onApplyAsset(path)}
-                    title={`${path}\nUse as image source`}
-                    className={`aspect-square overflow-hidden rounded border transition-colors hover:border-accent/60 ${
-                      attrVal("src") === path ? "border-accent" : "border-line"
-                    }`}
-                  >
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={url} alt="" className="h-full w-full object-cover" />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
           <Field label="Alt text">
             <TextInput value={attrVal("alt")} onCommit={(v) => onAttr("alt", v)} placeholder="describe the image" />
           </Field>
@@ -822,6 +786,50 @@ function CommentRow({
   );
 }
 
+/* ── Visual margin/padding box-model editor ──────────────────────────────── */
+function BoxModel({
+  s,
+  set,
+}: {
+  s: Record<string, string>;
+  set: (prop: string, v: string) => void;
+}) {
+  const Cell = ({ prop, pos }: { prop: string; pos: string }) => {
+    const cur = px(s[prop]);
+    const [v, setV] = useState(cur);
+    useEffect(() => setV(px(s[prop])), [s[prop]]);
+    return (
+      <input
+        value={v}
+        title={prop}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => v !== cur && set(prop, v === "" ? "" : v + "px")}
+        onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+        className={`absolute ${pos} h-5 w-8 -translate-x-1/2 rounded bg-transparent text-center text-[10px] tabular-nums text-ink-2 outline-none hover:bg-raise focus:bg-raise focus:text-ink`}
+      />
+    );
+  };
+  return (
+    <div className="relative mx-auto h-[120px] w-full max-w-[240px] rounded-lg border border-dashed border-line-2 bg-bg/40">
+      <span className="absolute left-2 top-1 text-[9px] uppercase tracking-wide text-ink-3">margin</span>
+      <Cell prop="marginTop" pos="left-1/2 top-0.5" />
+      <Cell prop="marginBottom" pos="left-1/2 bottom-0.5" />
+      <Cell prop="marginLeft" pos="left-[14px] top-1/2 -translate-y-1/2" />
+      <Cell prop="marginRight" pos="right-[-2px] top-1/2 -translate-y-1/2" />
+      <div className="absolute inset-7 rounded-md border border-dashed border-accent/30 bg-accent/[0.04]">
+        <span className="absolute left-1.5 top-0.5 text-[9px] uppercase tracking-wide text-ink-3">padding</span>
+        <Cell prop="paddingTop" pos="left-1/2 top-0" />
+        <Cell prop="paddingBottom" pos="left-1/2 bottom-0" />
+        <Cell prop="paddingLeft" pos="left-[10px] top-1/2 -translate-y-1/2" />
+        <Cell prop="paddingRight" pos="right-[-6px] top-1/2 -translate-y-1/2" />
+        <div className="absolute inset-5 grid place-items-center rounded bg-raise/60 text-[9px] text-ink-3">
+          content
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── Component-instance props editor ─────────────────────────────────────── */
 function suggestedProps(files: { path: string; content: string }[], tag: string): string[] {
   const f = files.find((x) => componentNameFromPath(x.path) === tag);
@@ -908,6 +916,10 @@ function px(v?: string): string {
   if (!v || v === "0px") return v === "0px" ? "0" : "";
   const m = v.match(/^(-?[\d.]+)px$/);
   return m ? m[1] : "";
+}
+function cleanFont(v?: string): string {
+  if (!v) return "";
+  return v.split(",")[0].replace(/["']/g, "").trim();
 }
 // getComputedStyle returns "all 0s ease 0s" (or "all") when no transition is set.
 function isDefaultTransition(v?: string): boolean {
