@@ -12,7 +12,7 @@ import { lineDiff } from "@/lib/diff";
 import { fsSupported } from "@/lib/fileSystem";
 import { downloadZip } from "@/lib/zip";
 import { saveProjectToDevice } from "@/lib/deviceProject";
-import { commitFiles, commitToNewBranchAndPR } from "@/lib/githubApi";
+import { commitFiles, commitToNewBranchAndPR, getBranchHeadSha } from "@/lib/githubApi";
 import ConnectModal from "@/components/github/ConnectModal";
 import PublishModal from "@/components/github/PublishModal";
 
@@ -71,8 +71,25 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
     setBusy("Pushing…");
     setError(null);
     try {
+      // non-fast-forward guard: if the branch moved upstream since our baseline,
+      // a push would silently overwrite remote changes to files we also edited.
+      if (gh.commitSha) {
+        const head = await getBranchHeadSha(token, gh.owner, gh.repo, gh.branch);
+        if (
+          head !== gh.commitSha &&
+          !confirm(
+            `${gh.branch} has new commits on GitHub since you imported.\n\nPushing now will overwrite upstream changes to any files you also edited. We recommend closing this and using Pull & merge first.\n\nPush anyway?`
+          )
+        ) {
+          setBusy(null);
+          return;
+        }
+      }
       const sha = await commitFiles(token, gh.owner, gh.repo, gh.branch, changes, message);
       markCommitted();
+      // advance our baseline to the commit we just made, so the next push/pull
+      // compares against it (and the "updates available" dot clears).
+      if (projectId) updateProject(projectId, { github: { ...gh, commitSha: sha } });
       setNotice(`Pushed to ${gh.owner}/${gh.repo}@${gh.branch} · ${sha.slice(0, 7)}`);
       onClose();
     } catch (e: any) {

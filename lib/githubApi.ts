@@ -81,6 +81,14 @@ export async function listBranches(token: string, owner: string, repo: string): 
   return data.map((b: any) => b.name);
 }
 
+// Cheap "did the branch move?" probe — one call, returns the current HEAD commit
+// SHA. Compare against a project's stored base SHA to know if there are upstream
+// updates to pull (without downloading the whole tree).
+export async function getBranchHeadSha(token: string, owner: string, repo: string, branch: string): Promise<string> {
+  const ref = await gh(token, `/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(branch)}`);
+  return ref.object.sha as string;
+}
+
 // ── import (works for private repos via the authenticated API) ────────────────
 export async function importRepoFilesAuth(
   token: string,
@@ -88,7 +96,7 @@ export async function importRepoFilesAuth(
   repo: string,
   branch: string,
   onProgress?: (msg: string) => void
-): Promise<{ files: SourceFile[]; assets: AssetMap }> {
+): Promise<{ files: SourceFile[]; assets: AssetMap; commitSha: string }> {
   onProgress?.("Reading file tree…");
   const br = await gh(token, `/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`);
   const treeSha = br.commit.commit.tree.sha;
@@ -132,7 +140,7 @@ export async function importRepoFilesAuth(
   });
 
   if (tree.truncated) onProgress?.("Note: repo is large; GitHub truncated the file list — some files may be missing.");
-  return { files, assets };
+  return { files, assets, commitSha: br.commit.sha };
 }
 
 // Full clone: download EVERY file (incl. binaries) so the device folder is a
@@ -145,7 +153,7 @@ export async function cloneRepoFiles(
   repo: string,
   branch: string,
   onProgress?: (msg: string) => void
-): Promise<{ editable: SourceFile[]; all: { path: string; content: Uint8Array }[] }> {
+): Promise<{ editable: SourceFile[]; all: { path: string; content: Uint8Array }[]; commitSha: string }> {
   onProgress?.("Reading file tree…");
   const br = await gh(token, `/repos/${owner}/${repo}/branches/${encodeURIComponent(branch)}`);
   const tree = await gh(token, `/repos/${owner}/${repo}/git/trees/${br.commit.commit.tree.sha}?recursive=1`);
@@ -175,7 +183,7 @@ export async function cloneRepoFiles(
   });
   if (!editable.length) throw new Error("Cloned the repo but found no editable .html/.jsx/.tsx files to open in the editor.");
   if (tree.truncated) onProgress?.("Note: repo is very large; GitHub truncated the file list — some files may be missing from the clone.");
-  return { editable, all };
+  return { editable, all, commitSha: br.commit.sha };
 }
 
 // ── branches ─────────────────────────────────────────────────────────────────

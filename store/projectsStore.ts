@@ -15,7 +15,10 @@ export interface ProjectRecord {
   files?: SourceFile[];
   baseHref?: string | null;
   repoUrl?: string;
-  github?: { owner: string; repo: string; branch: string };
+  // commitSha = the branch HEAD this project's baseline (file `original`s) was
+  // imported/last-synced from; used to detect upstream updates and to guard
+  // publishes against overwriting commits made since import.
+  github?: { owner: string; repo: string; branch: string; commitSha?: string };
   storage?: "device"; // backed by a real folder on disk (handle in IndexedDB)
   status: { published: boolean; github: boolean };
 }

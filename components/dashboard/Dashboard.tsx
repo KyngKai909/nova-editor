@@ -64,8 +64,10 @@ export default function Dashboard() {
         const { files, assets } = await reopenFolder(p.id);
         loadFiles(files, assets, null, p.id);
       } else if (p.github && token) {
-        const { files, assets } = await importRepoFilesAuth(token, p.github.owner, p.github.repo, p.github.branch);
+        const { files, assets, commitSha } = await importRepoFilesAuth(token, p.github.owner, p.github.repo, p.github.branch);
         loadFiles(files, assets, p.baseHref ?? null, p.id);
+        // a fresh re-fetch is at HEAD — record it as the new baseline
+        if (commitSha !== p.github.commitSha) updateProject(p.id, { github: { ...p.github, commitSha } });
       } else if (p.repoUrl) {
         const res = await importGithub(p.repoUrl);
         loadFiles(res.files, res.assets, res.baseHref, p.id);

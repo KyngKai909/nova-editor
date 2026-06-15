@@ -17,7 +17,7 @@ interface CreateArgs {
   assets?: AssetMap;
   baseHref?: string | null;
   repoUrl?: string;
-  github?: { owner: string; repo: string; branch: string };
+  github?: { owner: string; repo: string; branch: string; commitSha?: string };
   deviceHandle?: any; // when the user opened an existing folder, use it directly
   allFiles?: { path: string; content: string | Uint8Array }[]; // full clone for disk
 }
