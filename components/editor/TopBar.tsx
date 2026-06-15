@@ -59,12 +59,16 @@ export default function TopBar({
   right,
   onToggleLeft,
   onToggleRight,
+  webapp,
+  onToggleWebapp,
 }: {
   onExport: () => void;
   left: boolean;
   right: boolean;
   onToggleLeft: () => void;
   onToggleRight: () => void;
+  webapp: boolean;
+  onToggleWebapp: () => void;
 }) {
   const { navigate } = useRouteTransition();
   const files = useEditor((s) => s.files);
@@ -190,7 +194,7 @@ export default function TopBar({
         <Divider />
 
         {isDevice && (
-          <button onClick={() => window.open(`/run?project=${projectId}`, "_blank")} title="Run the full app in a sandbox (new tab)" className={`${iconBtn} border border-line text-ink-2`}>
+          <button onClick={onToggleWebapp} title={webapp ? "Back to the design canvas" : "Run the live app in this page"} className={`${iconBtn} ${webapp ? "bg-accent text-accent-ink" : "border border-line text-ink-2"}`}>
             <Play size={13} />
           </button>
         )}
