@@ -7,6 +7,7 @@ import {
   Pencil, MousePointer2, Code2, ChevronDown, ChevronUp, Paintbrush2, SlidersHorizontal, Trash2,
   Monitor, Tablet, Smartphone, PanelRight, PanelLeft, AlignLeft, AlignCenter, AlignRight, Square,
   Layers as LayersIcon, ChevronRight, Sparkles, Upload, Undo2, Redo2, FileText, MessageSquare, Check, Send, X,
+  Component as ComponentIcon,
 } from "lucide-react";
 import { useAi } from "@/store/aiStore";
 import { useEditor } from "@/store/editorStore";
@@ -31,6 +32,7 @@ import {
 import { usePanels } from "@/store/panelStore";
 import ResizeHandle from "@/components/editor/ResizeHandle";
 import { Section, Field, Segmented, Select, ColorField, SpacingBox } from "@/components/editor/controls";
+import { ELEMENTS, htmlToJsx } from "@/lib/elements";
 
 // margin/padding side → Tailwind prefix, for the Run spacing box (class-based).
 const SPACING_TW: Record<string, string> = {
@@ -143,7 +145,7 @@ export default function RunView() {
   const [selected, setSelected] = useState<Selection | null>(null);
   const [editMode, setEditMode] = useState(true);
   const [tab, setTab] = useState<"style" | "element" | "comments">("style");
-  const [leftTab, setLeftTab] = useState<"pages" | "layers">("layers");
+  const [leftTab, setLeftTab] = useState<"pages" | "layers" | "components">("layers");
   const [pages, setPages] = useState<PageRoute[]>([]);
   const [route, setRoute] = useState("/");
   const [past, setPast] = useState<{ path: string; before: string; after: string }[]>([]);
@@ -257,6 +259,20 @@ export default function RunView() {
     iframeRef.current?.contentWindow?.postMessage({ type: "nova-remove" }, "*");
     editFile(selected.line, selected.file, (content, node) => removeJsxNode(content, node));
     setSelected(null);
+  };
+  // Insert a palette element after the selected element (HMR renders it in).
+  // Needs a source-mapped selection so we know where in the file to splice.
+  const insertElement = (html: string) => {
+    if (!selected) { append("\n[nova] Select an element first — new blocks insert after it."); return; }
+    if (!selected.file || !selected.line) { append("\n[nova] Can't insert: the selected element has no source map."); return; }
+    editFile(selected.line, selected.file, (content, node) => {
+      if (!node.sourceLocation) return null;
+      const end = node.sourceLocation.end;
+      const lineStart = content.lastIndexOf("\n", node.sourceLocation.start - 1) + 1;
+      const indent = (content.slice(lineStart, node.sourceLocation.start).match(/^[ \t]*/) || [""])[0];
+      const snippet = /\.html?$/i.test(selected.file!) ? html : htmlToJsx(html);
+      return content.slice(0, end) + "\n" + indent + snippet + content.slice(end);
+    });
   };
   // visual style controls edit the class token list, then apply as a className
   const applyTokens = (tokens: string[]) => applyClass(toClassName(tokens));
@@ -483,6 +499,15 @@ export default function RunView() {
         ]) {
           if (await tryInject(p)) break;
         }
+        // Static pages served from /public bypass the framework entry, so inject
+        // the bridge into each directly — that makes plain HTML pages (e.g. a
+        // landing page) selectable + show their layers in Run, like React routes.
+        try {
+          const pub = await wc.fs.readdir("public");
+          for (const name of pub) {
+            if (/\.html?$/i.test(name)) await tryInject("public/" + name);
+          }
+        } catch { /* no public dir */ }
 
         // figure out the dev script
         let script = "dev";
@@ -606,25 +631,31 @@ export default function RunView() {
             className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${leftOpen ? "border-r border-line" : ""} ${dragging ? "" : "transition-[width] duration-200"}`}
           >
             <div className="flex h-full flex-col" style={{ width: leftW }}>
-              {/* Pages / Layers tabs (match the editor's left panel) */}
-              <div className="flex h-9 shrink-0 items-center gap-0.5 border-b border-line px-1.5">
-                {([["pages", <FileText key="p" size={13} />, "Pages"], ["layers", <LayersIcon key="l" size={13} />, "Layers"]] as const).map(([id, icon, label]) => (
+              {/* icon tab rail — matches the right inspector rail (and the editor's left panel) */}
+              <div className="flex shrink-0 items-center gap-0.5 border-b border-line p-1.5">
+                {([["pages", <FileText key="p" size={15} />, "Pages"], ["layers", <LayersIcon key="l" size={15} />, "Layers"], ["components", <ComponentIcon key="c" size={15} />, "Components"]] as const).map(([id, icon, label]) => (
                   <button
                     key={id}
                     onClick={() => setLeftTab(id)}
-                    className={`flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-[12px] font-medium transition-colors ${leftTab === id ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
+                    title={label}
+                    className={`grid h-8 flex-1 place-items-center rounded-md transition-colors ${leftTab === id ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
                   >
-                    {icon} {label}
+                    {icon}
                   </button>
                 ))}
                 {leftTab === "layers" && url && (
-                  <button onClick={refreshTree} title="Refresh layers" className="grid h-7 w-7 shrink-0 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
-                    <RefreshCw size={11} />
+                  <button onClick={refreshTree} title="Refresh layers" className="grid h-8 w-8 shrink-0 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
+                    <RefreshCw size={12} />
                   </button>
                 )}
               </div>
+              <div className="flex h-7 shrink-0 items-center px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
+                {leftTab === "pages" ? "Pages" : leftTab === "components" ? "Components" : "Layers"}
+              </div>
               <div className="scroll-thin min-h-0 flex-1 overflow-auto py-1">
-                {leftTab === "pages" ? (
+                {leftTab === "components" ? (
+                  <RunElements onInsert={insertElement} hasSelection={!!selected?.file} />
+                ) : leftTab === "pages" ? (
                   !url ? (
                     <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">Start the app to list its pages.</p>
                   ) : pages.length === 0 ? (
@@ -752,6 +783,38 @@ export default function RunView() {
 
       {/* the editor's own Publish panel, reused here against the running files */}
       {showExport && <ExportPanel onClose={() => setShowExport(false)} />}
+    </div>
+  );
+}
+
+// ── components tab: the canvas elements palette, inserting into the running source
+function RunElements({ onInsert, hasSelection }: { onInsert: (html: string) => void; hasSelection: boolean }) {
+  return (
+    <div className="p-2">
+      {!hasSelection && (
+        <p className="mb-2 rounded-md border border-line bg-bg px-2 py-1.5 text-[10.5px] leading-relaxed text-ink-3">
+          Click an element in the app first — new blocks insert right after it.
+        </p>
+      )}
+      {ELEMENTS.map((g) => (
+        <div key={g.group} className="mb-2">
+          <div className="px-1 pb-1 text-[9px] font-semibold uppercase tracking-wide text-ink-3">{g.group}</div>
+          <div className="grid grid-cols-2 gap-1">
+            {g.items.map((it) => (
+              <button
+                key={it.label}
+                onClick={() => onInsert(it.html)}
+                title={`Insert ${it.label} after the selected element`}
+                className="flex items-center gap-1.5 rounded-md border border-line bg-bg px-2 py-1.5 text-left text-[11.5px] text-ink-2 transition-colors hover:border-accent/50 hover:text-ink"
+              >
+                <span className="shrink-0 text-ink-3">{it.icon}</span>
+                <span className="truncate">{it.label}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+      <p className="px-1 pt-0.5 text-[10px] leading-relaxed text-ink-3">Inserts into the page source and hot-reloads.</p>
     </div>
   );
 }
