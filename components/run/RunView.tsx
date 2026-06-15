@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
-  Pencil, MousePointer2, Code2,
+  Pencil, MousePointer2, Code2, ChevronDown, ChevronUp, Paintbrush2, SlidersHorizontal, Trash2,
 } from "lucide-react";
 import { useProjects } from "@/store/projectsStore";
 import { getHandle } from "@/lib/handleStore";
@@ -12,6 +12,10 @@ import { verifyPermission, readDirTree } from "@/lib/fileSystem";
 import { APP_BRIDGE, findNodeByLine, resolveWcPath } from "@/lib/runtime";
 import { parseJsx } from "@/lib/jsxParser";
 import { spliceJsx, setJsxProp } from "@/lib/jsxEdit";
+import {
+  toTokens, toClassName, groupValue, setGroup,
+  DISPLAY, FLEX_DIR, JUSTIFY, ALIGN, TEXT_ALIGN, FONT_SIZE, FONT_WEIGHT, PADDING, MARGIN, ROUNDED,
+} from "@/lib/runStyle";
 
 interface Selection {
   file?: string;
@@ -70,6 +74,8 @@ export default function RunView() {
   const [runId, setRunId] = useState(0);
   const [selected, setSelected] = useState<Selection | null>(null);
   const [editMode, setEditMode] = useState(true);
+  const [tab, setTab] = useState<"style" | "element">("style");
+  const [consoleOpen, setConsoleOpen] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wcRef = useRef<any>(null);
@@ -112,6 +118,8 @@ export default function RunView() {
     iframeRef.current?.contentWindow?.postMessage({ type: "nova-apply", className }, "*");
     editFile(selected.line, selected.file, (content, node) => setJsxProp(content, node, "className", className));
   };
+  // visual style controls edit the class token list, then apply as a className
+  const applyTokens = (tokens: string[]) => applyClass(toClassName(tokens));
 
   // receive selection / inline-edit messages from the running app's bridge
   useEffect(() => {
@@ -268,94 +276,204 @@ export default function RunView() {
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
-        {/* live app */}
-        <main className="relative min-w-0 flex-1 bg-white">
-          {url ? (
-            <iframe ref={iframeRef} title="app" src={url} className={`h-full w-full border-0 ${editMode ? "" : "pointer-events-auto"}`} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals" />
-          ) : (
-            <div className="grid h-full place-items-center bg-bg">
-              {phase === "error" ? (
-                <div className="max-w-md px-6 text-center">
-                  <AlertTriangle size={28} className="mx-auto text-red-400" />
-                  <p className="mt-3 text-[13px] leading-relaxed text-ink-2">{error}</p>
-                  <button onClick={backToEditor} className="mt-4 inline-block rounded-lg border border-line px-3 py-2 text-[12px] text-ink-2 hover:bg-raise">Back to editor</button>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center gap-3 text-ink-3">
-                  <Loader2 size={24} className="animate-spin text-accent" />
-                  <p className="text-[13px]">{PHASE_LABEL[phase]}</p>
-                  <p className="max-w-xs text-center text-[11px] text-ink-3/70">First run installs dependencies in-browser — it can take a minute.</p>
-                </div>
-              )}
-            </div>
-          )}
-        </main>
-
-        {/* right rail: live selection inspector + console */}
-        <aside className="flex w-[340px] shrink-0 flex-col border-l border-line bg-bg-2">
-          {/* selection inspector */}
-          <div className="border-b border-line">
-            <div className="flex h-8 items-center gap-2 px-3 text-[11px] uppercase tracking-wide text-ink-3">
-              <MousePointer2 size={12} /> Selection
-            </div>
-            {selected ? (
-              <div className="space-y-2.5 px-3 pb-3">
-                <div className="flex items-center justify-between">
-                  <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] text-accent">{selected.tag}</span>
-                  {selected.file && (
-                    <span className="flex items-center gap-1 truncate font-mono text-[10px] text-ink-3" title={selected.file}>
-                      <Code2 size={10} /> {selected.file.split("/").pop()}:{selected.line}
-                    </span>
-                  )}
-                </div>
-                <div>
-                  <label className="text-[10px] text-ink-3">className</label>
-                  <input
-                    value={selected.className}
-                    onChange={(e) => setSelected({ ...selected, className: e.target.value })}
-                    onBlur={(e) => applyClass(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
-                    className="mt-1 h-7 w-full rounded-md border border-line bg-bg px-2 font-mono text-[11px] text-ink outline-none focus:border-accent/60"
-                  />
-                </div>
-                {selected.text !== null && (
-                  <div>
-                    <label className="text-[10px] text-ink-3">text</label>
-                    <textarea
-                      value={selected.text}
-                      onChange={(e) => setSelected({ ...selected, text: e.target.value })}
-                      onBlur={(e) => applyText(e.target.value)}
-                      rows={2}
-                      className="mt-1 w-full resize-none rounded-md border border-line bg-bg p-2 text-[12px] text-ink outline-none focus:border-accent/60"
-                    />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* app + inspector */}
+        <div className="flex min-h-0 flex-1">
+          {/* live app */}
+          <main className="relative min-w-0 flex-1 bg-white">
+            {url ? (
+              <iframe ref={iframeRef} title="app" src={url} className={`h-full w-full border-0 ${editMode ? "" : "pointer-events-auto"}`} sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals" />
+            ) : (
+              <div className="grid h-full place-items-center bg-bg">
+                {phase === "error" ? (
+                  <div className="max-w-md px-6 text-center">
+                    <AlertTriangle size={28} className="mx-auto text-red-400" />
+                    <p className="mt-3 text-[13px] leading-relaxed text-ink-2">{error}</p>
+                    <button onClick={backToEditor} className="mt-4 inline-block rounded-lg border border-line px-3 py-2 text-[12px] text-ink-2 hover:bg-raise">Back to editor</button>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-3 text-ink-3">
+                    <Loader2 size={24} className="animate-spin text-accent" />
+                    <p className="text-[13px]">{PHASE_LABEL[phase]}</p>
+                    <p className="max-w-xs text-center text-[11px] text-ink-3/70">First run installs dependencies in-browser — it can take a minute.</p>
                   </div>
                 )}
-                {!selected.file && (
-                  <p className="text-[10.5px] leading-relaxed text-amber-300/70">
-                    No source mapping for this element (needs a React dev build with source info).
-                  </p>
-                )}
               </div>
-            ) : (
-              <p className="px-3 pb-3 text-[11.5px] leading-relaxed text-ink-3">
-                {url ? "Click an element in the app to select it; double-click text to edit it. Edits write to source and hot-reload." : "Start the app to begin editing."}
-              </p>
             )}
-          </div>
+          </main>
 
-          {/* terminal log */}
-          <div className="flex h-8 shrink-0 items-center gap-2 border-b border-line px-3 text-[11px] uppercase tracking-wide text-ink-3">
-            <Terminal size={12} /> Console
+          {/* right rail: tabbed inspector (Style / Element) */}
+          <aside className="flex w-[320px] shrink-0 flex-col border-l border-line bg-bg-2">
+            <div className="flex h-10 shrink-0 items-center gap-1 border-b border-line px-2">
+              <TabButton active={tab === "style"} onClick={() => setTab("style")} icon={<Paintbrush2 size={14} />} label="Style" />
+              <TabButton active={tab === "element"} onClick={() => setTab("element")} icon={<SlidersHorizontal size={14} />} label="Element" />
+            </div>
+            <div className="scroll-thin min-h-0 flex-1 overflow-auto">
+              {!url ? (
+                <p className="p-3 text-[11.5px] leading-relaxed text-ink-3">Start the app to begin editing.</p>
+              ) : !selected ? (
+                <p className="p-3 text-[11.5px] leading-relaxed text-ink-3">Click an element in the app to select it; double-click text to edit it. Edits write to source and hot-reload.</p>
+              ) : tab === "style" ? (
+                <StyleTab selected={selected} onTokens={applyTokens} onClass={applyClass} />
+              ) : (
+                <ElementTab selected={selected} onText={applyText} onClass={applyClass} />
+              )}
+            </div>
+          </aside>
+        </div>
+
+        {/* collapsible console footer (VS Code-style bottom panel) */}
+        <div className="shrink-0 border-t border-line bg-bg-2">
+          <div className="flex h-8 items-center gap-1 px-2 text-[11px] uppercase tracking-wide text-ink-3">
+            <button onClick={() => setConsoleOpen((o) => !o)} className="flex flex-1 items-center gap-2 px-1 hover:text-ink">
+              <Terminal size={12} /> Console
+              <span className="rounded bg-raise px-1.5 py-0.5 text-[9.5px] font-normal normal-case tracking-normal text-ink-2">{log.length}</span>
+            </button>
+            {log.length > 0 && (
+              <button onClick={() => setLog([])} title="Clear console" className="grid h-6 w-6 place-items-center rounded hover:bg-raise hover:text-ink">
+                <Trash2 size={12} />
+              </button>
+            )}
+            <button onClick={() => setConsoleOpen((o) => !o)} title={consoleOpen ? "Collapse" : "Expand"} className="grid h-6 w-6 place-items-center rounded hover:bg-raise hover:text-ink">
+              {consoleOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </button>
           </div>
-          <div ref={logRef} className="scroll-thin flex-1 overflow-auto p-3 font-mono text-[11px] leading-[1.6] text-ink-2">
-            {log.length === 0 && <span className="text-ink-3">Waiting for output…</span>}
-            {log.map((l, i) => (
-              <pre key={i} className="whitespace-pre-wrap break-words">{l}</pre>
-            ))}
-          </div>
-        </aside>
+          {consoleOpen && (
+            <div ref={logRef} className="scroll-thin h-[184px] overflow-auto border-t border-line px-3 py-2 font-mono text-[11px] leading-[1.6] text-ink-2">
+              {log.length === 0 && <span className="text-ink-3">Waiting for output…</span>}
+              {log.map((l, i) => (
+                <pre key={i} className="whitespace-pre-wrap break-words">{l}</pre>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+    </div>
+  );
+}
+
+// ── inspector pieces ──────────────────────────────────────────────────────────
+
+function TabButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md text-[12px] font-medium transition-colors ${active ? "bg-raise text-ink" : "text-ink-3 hover:text-ink"}`}
+    >
+      {icon} {label}
+    </button>
+  );
+}
+
+function ElementHeader({ selected }: { selected: Selection }) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] text-accent">{selected.tag}</span>
+      {selected.file ? (
+        <span className="flex items-center gap-1 truncate font-mono text-[10px] text-ink-3" title={selected.file}>
+          <Code2 size={10} /> {selected.file.split("/").pop()}:{selected.line}
+        </span>
+      ) : (
+        <span className="text-[10px] text-amber-300/70">no source map</span>
+      )}
+    </div>
+  );
+}
+
+// A segmented control bound to a Tailwind class group. Clicking the active
+// option again clears it.
+function Seg({ label, options, value, onChange }: { label: string; options: readonly string[]; value: string | null; onChange: (v: string | null) => void }) {
+  const fmt = (o: string) => o.replace(/^[a-z]+-/, "") || o;
+  return (
+    <div>
+      <div className="mb-1 text-[10px] uppercase tracking-wide text-ink-3">{label}</div>
+      <div className="flex flex-wrap gap-1">
+        {options.map((o) => (
+          <button
+            key={o}
+            onClick={() => onChange(value === o ? null : o)}
+            title={o}
+            className={`h-7 min-w-[30px] rounded-md border px-2 text-[11px] capitalize transition-colors ${
+              value === o ? "border-accent/60 bg-accent/15 text-accent" : "border-line text-ink-2 hover:bg-raise hover:text-ink"
+            }`}
+          >
+            {fmt(o)}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RawClass({ selected, onClass }: { selected: Selection; onClass: (c: string) => void }) {
+  const [v, setV] = useState(selected.className);
+  useEffect(() => setV(selected.className), [selected.className]);
+  return (
+    <div>
+      <label className="text-[10px] uppercase tracking-wide text-ink-3">Classes</label>
+      <textarea
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => onClass(v)}
+        rows={2}
+        spellCheck={false}
+        className="mt-1 w-full resize-none rounded-md border border-line bg-bg p-2 font-mono text-[11px] leading-relaxed text-ink outline-none focus:border-accent/60"
+      />
+    </div>
+  );
+}
+
+function StyleTab({ selected, onTokens, onClass }: { selected: Selection; onTokens: (t: string[]) => void; onClass: (c: string) => void }) {
+  const tokens = toTokens(selected.className);
+  const set = (group: readonly string[], v: string | null) => onTokens(setGroup(tokens, group, v));
+  const display = groupValue(tokens, DISPLAY);
+  return (
+    <div className="space-y-3.5 p-3">
+      <ElementHeader selected={selected} />
+      <Seg label="Display" options={DISPLAY} value={display} onChange={(v) => set(DISPLAY, v)} />
+      {display === "flex" && (
+        <>
+          <Seg label="Direction" options={FLEX_DIR} value={groupValue(tokens, FLEX_DIR)} onChange={(v) => set(FLEX_DIR, v)} />
+          <Seg label="Justify" options={JUSTIFY} value={groupValue(tokens, JUSTIFY)} onChange={(v) => set(JUSTIFY, v)} />
+          <Seg label="Align" options={ALIGN} value={groupValue(tokens, ALIGN)} onChange={(v) => set(ALIGN, v)} />
+        </>
+      )}
+      <Seg label="Padding" options={PADDING} value={groupValue(tokens, PADDING)} onChange={(v) => set(PADDING, v)} />
+      <Seg label="Margin" options={MARGIN} value={groupValue(tokens, MARGIN)} onChange={(v) => set(MARGIN, v)} />
+      <Seg label="Radius" options={ROUNDED} value={groupValue(tokens, ROUNDED)} onChange={(v) => set(ROUNDED, v)} />
+      <div className="h-px bg-line" />
+      <Seg label="Font size" options={FONT_SIZE} value={groupValue(tokens, FONT_SIZE)} onChange={(v) => set(FONT_SIZE, v)} />
+      <Seg label="Weight" options={FONT_WEIGHT} value={groupValue(tokens, FONT_WEIGHT)} onChange={(v) => set(FONT_WEIGHT, v)} />
+      <Seg label="Text align" options={TEXT_ALIGN} value={groupValue(tokens, TEXT_ALIGN)} onChange={(v) => set(TEXT_ALIGN, v)} />
+      <div className="h-px bg-line" />
+      <RawClass selected={selected} onClass={onClass} />
+      <p className="text-[10.5px] leading-relaxed text-ink-3">Controls add Tailwind classes and write back to source. For non-Tailwind styling, edit classes directly above.</p>
+    </div>
+  );
+}
+
+function ElementTab({ selected, onText, onClass }: { selected: Selection; onText: (t: string) => void; onClass: (c: string) => void }) {
+  const [t, setT] = useState(selected.text ?? "");
+  useEffect(() => setT(selected.text ?? ""), [selected.text]);
+  return (
+    <div className="space-y-3.5 p-3">
+      <ElementHeader selected={selected} />
+      {selected.text !== null && (
+        <div>
+          <label className="text-[10px] uppercase tracking-wide text-ink-3">Text</label>
+          <textarea
+            value={t}
+            onChange={(e) => setT(e.target.value)}
+            onBlur={() => onText(t)}
+            rows={3}
+            className="mt-1 w-full resize-none rounded-md border border-line bg-bg p-2 text-[12px] text-ink outline-none focus:border-accent/60"
+          />
+        </div>
+      )}
+      <RawClass selected={selected} onClass={onClass} />
+      {!selected.file && (
+        <p className="text-[10.5px] leading-relaxed text-amber-300/70">No source mapping for this element (needs a React dev build with source info).</p>
+      )}
     </div>
   );
 }
