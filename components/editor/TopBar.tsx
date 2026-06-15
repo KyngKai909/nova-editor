@@ -164,15 +164,15 @@ export default function TopBar({
         ))}
         <div className="mx-0.5 h-5 w-px bg-line" />
         <WidthField />
+        {/* zoom lives in the same canvas-size container, divided like the px input */}
+        <div className="mx-0.5 h-5 w-px bg-line" />
+        <button onClick={() => setZoom(zoom - 0.1)} title="Zoom out" className={`${iconBtn} text-ink-3`}><Minus size={13} /></button>
+        <button onClick={() => setZoom(1)} title="Reset zoom" className="w-10 text-center text-[11px] tabular-nums text-ink-2 hover:text-ink">{Math.round(zoom * 100)}%</button>
+        <button onClick={() => setZoom(zoom + 0.1)} title="Zoom in" className={`${iconBtn} text-ink-3`}><Plus size={13} /></button>
       </div>
 
       {/* RIGHT — view · result · ship */}
       <div className="flex items-center justify-end gap-1">
-        <div className="hidden items-center gap-0.5 rounded-lg border border-line bg-bg p-0.5 md:flex">
-          <button onClick={() => setZoom(zoom - 0.1)} title="Zoom out" className={`${iconBtn} text-ink-3`}><Minus size={13} /></button>
-          <button onClick={() => setZoom(1)} title="Reset zoom" className="w-10 text-center text-[11px] tabular-nums text-ink-2 hover:text-ink">{Math.round(zoom * 100)}%</button>
-          <button onClick={() => setZoom(zoom + 0.1)} title="Zoom in" className={`${iconBtn} text-ink-3`}><Plus size={13} /></button>
-        </div>
         <div className="hidden items-center gap-0.5 rounded-lg border border-line bg-bg p-0.5 sm:flex">
           {VIEWS.map((v) => (
             <button
