@@ -119,6 +119,17 @@ else el.innerHTML = "<p style='color:#888;font-family:system-ui'>No component ex
         return { contents: text, loader: loaderFor(a.path) };
       });
 
+      // TS path aliases "@/x" and "~/x" → project root (or /src) in the vfs.
+      build.onResolve({ filter: /^(@\/|~\/)/ }, (a) => {
+        if (a.namespace === "http") return undefined;
+        const rest = a.path.slice(2);
+        for (const prefix of ["/", "/src/"]) {
+          const p = resolveVfs(prefix + rest, "<root>");
+          if (p) return { path: p, namespace: "vfs" };
+        }
+        return undefined; // not in the loaded set — let it error out clearly
+      });
+
       // local (relative/absolute) files from the virtual FS
       build.onResolve({ filter: /^[./]/ }, (a) => {
         if (a.namespace === "http") return undefined;

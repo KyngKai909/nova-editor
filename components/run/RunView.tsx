@@ -154,16 +154,33 @@ export default function RunView() {
         await wc.mount(tree);
         if (cancelled) return;
 
-        // inject the click-to-source bridge into the app (Vite serves public/ at /)
+        // inject the click-to-source bridge into the app. Frameworks serve a
+        // /public dir at the root, so the bridge lives there; we then add a
+        // <script> tag to whichever entry HTML/layout the app actually uses —
+        // Vite's index.html, Next App Router's layout, or Pages Router's
+        // _document. First match wins.
         try {
           await wc.fs.mkdir("public", { recursive: true }).catch(() => {});
           await wc.fs.writeFile("public/nova-bridge.js", APP_BRIDGE);
-          const html = await wc.fs.readFile("index.html", "utf-8");
-          if (!html.includes("nova-bridge")) {
-            await wc.fs.writeFile("index.html", html.replace("</body>", '<script src="/nova-bridge.js"></script></body>'));
-          }
-        } catch {
-          /* non-Vite layouts: bridge injection is best-effort for now */
+        } catch { /* no public dir — bridge is best-effort */ }
+        const TAG = '<script src="/nova-bridge.js"></script>';
+        const tryInject = async (path: string): Promise<boolean> => {
+          try {
+            const src = await wc.fs.readFile(path, "utf-8");
+            if (src.includes("nova-bridge")) return true; // already injected
+            if (src.includes("</body>")) {
+              await wc.fs.writeFile(path, src.replace("</body>", TAG + "</body>"));
+              return true;
+            }
+          } catch { /* file not present in this layout */ }
+          return false;
+        };
+        for (const p of [
+          "index.html", "public/index.html",
+          "app/layout.tsx", "app/layout.jsx", "src/app/layout.tsx", "src/app/layout.jsx",
+          "pages/_document.tsx", "pages/_document.jsx", "src/pages/_document.tsx", "src/pages/_document.jsx",
+        ]) {
+          if (await tryInject(p)) break;
         }
 
         // figure out the dev script

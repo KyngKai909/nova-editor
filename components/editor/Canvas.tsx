@@ -153,7 +153,7 @@ export default function Canvas() {
 
     // Server-only / metadata / route files can't render standalone — show a
     // calm notice (Code view / Run) instead of attempting to bundle them.
-    const reason = notPreviewableReason(file.path, file.content);
+    const reason = notPreviewableReason(file.path, file.content, files);
     if (reason) { setDoc(buildNoticeDoc(reason, isolate)); return; }
 
     // JSX/TSX: bundle if it has real imports, else use the fast Babel renderer.
