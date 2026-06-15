@@ -5,11 +5,12 @@ import { useSearchParams } from "next/navigation";
 import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
   Pencil, MousePointer2, Code2, ChevronDown, ChevronUp, Paintbrush2, SlidersHorizontal, Trash2,
-  Monitor, Tablet, Smartphone, PanelRight, AlignLeft, AlignCenter, AlignRight, Square,
+  Monitor, Tablet, Smartphone, PanelRight, PanelLeft, AlignLeft, AlignCenter, AlignRight, Square,
+  Layers as LayersIcon, ChevronRight,
 } from "lucide-react";
 import { useProjects } from "@/store/projectsStore";
 import { getHandle } from "@/lib/handleStore";
-import { verifyPermission, readDirTree } from "@/lib/fileSystem";
+import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
 import { APP_BRIDGE, findNodeByLine, resolveWcPath } from "@/lib/runtime";
 import { parseJsx } from "@/lib/jsxParser";
 import { spliceJsx, setJsxProp } from "@/lib/jsxEdit";
@@ -28,6 +29,14 @@ interface Selection {
   className: string;
   text: string | null;
   styles?: Record<string, string>; // computed styles reported by the bridge
+}
+
+interface LayerNode {
+  id: string;
+  tag: string;
+  cls?: string;
+  text?: string;
+  children: LayerNode[];
 }
 
 type Phase = "idle" | "booting" | "mounting" | "installing" | "starting" | "ready" | "error";
@@ -91,11 +100,16 @@ export default function RunView() {
   const [consoleOpen, setConsoleOpen] = useState(true);
   const [device, setDevice] = useState<Device>("desktop");
   const [rightOpen, setRightOpen] = useState(true);
+  const [leftOpen, setLeftOpen] = useState(true);
   const [dragging, setDragging] = useState(false);
+  const [tree, setTree] = useState<LayerNode[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const rightW = usePanels((s) => s.right);
+  const leftW = usePanels((s) => s.left);
   const logRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wcRef = useRef<any>(null);
+  const handleRef = useRef<any>(null); // the on-disk folder, for write-through
   const append = (s: string) => setLog((l) => [...l, s]);
 
   // Run opens in a new tab from the editor, so "back" should close this tab and
@@ -120,7 +134,14 @@ export default function RunView() {
     const node = findNodeByLine(parseJsx(content), content, line);
     if (!node) return;
     const next = fn(content, node);
-    if (next && next !== content) await wc.fs.writeFile(path, next);
+    if (next && next !== content) {
+      await wc.fs.writeFile(path, next);
+      // write through to the on-disk folder too, so edits land in your real
+      // files and show up in `git diff` (the inception-loop punchline).
+      if (handleRef.current) {
+        try { await writeFiles(handleRef.current, [{ path, content: next }]); } catch { /* disk write best-effort */ }
+      }
+    }
   };
 
   const applyText = (text: string) => {
@@ -145,17 +166,35 @@ export default function RunView() {
     applyClass(toClassName(next), { [kind === "text" ? "color" : "backgroundColor"]: hex });
   };
 
-  // receive selection / inline-edit messages from the running app's bridge
+  const post = (msg: any) => iframeRef.current?.contentWindow?.postMessage(msg, "*");
+  const pickLayer = (id: string) => post({ type: "nova-pick", id });
+  const hoverLayer = (id: string | null) => id && post({ type: "nova-hl", id });
+
+  // receive selection / inline-edit / layer-tree messages from the running app
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
       const d = e.data;
       if (!d?.type) return;
-      if (d.type === "nova-select") setSelected({ file: d.file, line: d.line, tag: d.tag, className: d.className || "", text: d.text, styles: d.styles || undefined });
-      else if (d.type === "nova-text") editFile(d.line, d.file, (content, node) => spliceJsx(content, node, "text", d.text));
+      if (d.type === "nova-select") {
+        setSelected({ file: d.file, line: d.line, tag: d.tag, className: d.className || "", text: d.text, styles: d.styles || undefined });
+        setSelectedId(d.id || null);
+      } else if (d.type === "nova-text") {
+        editFile(d.line, d.file, (content, node) => spliceJsx(content, node, "text", d.text));
+      } else if (d.type === "nova-tree") {
+        setTree(Array.isArray(d.tree) ? d.tree : []);
+      }
     };
     window.addEventListener("message", onMsg);
     return () => window.removeEventListener("message", onMsg);
   }, []);
+
+  // ask the running app for its layer tree once it's up (and on demand)
+  const refreshTree = () => post({ type: "nova-tree-request" });
+  useEffect(() => {
+    if (!url) { setTree([]); return; }
+    const t = setTimeout(refreshTree, 800);
+    return () => clearTimeout(t);
+  }, [url]);
 
   useEffect(() => {
     logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
@@ -185,6 +224,7 @@ export default function RunView() {
             );
           }
           if (!(await verifyPermission(handle, false))) throw new Error("Folder permission denied.");
+          handleRef.current = handle; // enable write-through to disk for edits
         }
 
         setPhase("booting");
@@ -273,6 +313,9 @@ export default function RunView() {
           <button onClick={backToEditor} className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-ink-3 hover:bg-raise hover:text-ink" title="Back to editor">
             <ArrowLeft size={15} />
           </button>
+          <button onClick={() => setLeftOpen((o) => !o)} title="Toggle layers" className={`grid h-7 w-7 shrink-0 place-items-center rounded-md transition-colors hover:bg-raise hover:text-ink ${leftOpen ? "text-ink" : "text-ink-3"}`}>
+            <PanelLeft size={15} />
+          </button>
           <Play size={14} className="shrink-0 text-accent" />
           <span className="truncate text-[13px] font-medium">{project?.name || "Run"}</span>
           <span className={`flex shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] ${phase === "ready" ? "bg-accent/15 text-accent" : phase === "error" ? "bg-red-500/15 text-red-300" : "bg-raise text-ink-2"}`}>
@@ -321,8 +364,35 @@ export default function RunView() {
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col">
-        {/* app + inspector */}
+        {/* layers + app + inspector */}
         <div className="relative flex min-h-0 flex-1">
+          {/* left rail — Layers (mirrors the running app's DOM) */}
+          <aside
+            style={{ width: leftOpen ? leftW : 0 }}
+            className={`relative z-30 h-full shrink-0 overflow-hidden border-r border-line bg-surface ${dragging ? "" : "transition-[width] duration-200"}`}
+          >
+            <div className="flex h-full flex-col" style={{ width: leftW }}>
+              <div className="flex h-9 shrink-0 items-center justify-between border-b border-line px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
+                <span className="flex items-center gap-1.5"><LayersIcon size={12} /> Layers</span>
+                {url && (
+                  <button onClick={refreshTree} title="Refresh layers" className="grid h-6 w-6 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
+                    <RefreshCw size={11} />
+                  </button>
+                )}
+              </div>
+              <div className="scroll-thin min-h-0 flex-1 overflow-auto py-1">
+                {!url ? (
+                  <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">Start the app to see its layers.</p>
+                ) : tree.length === 0 ? (
+                  <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">No layers yet — once the app renders, its structure shows here. (Needs the dev bridge; click Refresh if empty.)</p>
+                ) : (
+                  tree.map((n) => <Layer key={n.id} node={n} depth={0} selectedId={selectedId} onPick={pickLayer} onHover={hoverLayer} />)
+                )}
+              </div>
+            </div>
+            {leftOpen && <ResizeHandle panel="left" edge="right" onActiveChange={setDragging} />}
+          </aside>
+
           {/* live app — framed to the selected device width */}
           <main className="scroll-thin relative min-w-0 flex-1 overflow-auto bg-bg">
             {url ? (
@@ -477,6 +547,40 @@ function Empty({ msg }: { msg: string }) {
         <Square size={16} className="text-ink-3" />
       </div>
       <p className="max-w-[200px] text-[12px] leading-relaxed text-ink-3">{msg}</p>
+    </div>
+  );
+}
+
+// One row of the Layers tree — clicking selects/highlights the element in the
+// running app; hovering peeks at it.
+function Layer({ node, depth, selectedId, onPick, onHover }: {
+  node: LayerNode; depth: number; selectedId: string | null; onPick: (id: string) => void; onHover: (id: string | null) => void;
+}) {
+  const [open, setOpen] = useState(depth < 2);
+  const hasKids = node.children.length > 0;
+  const sel = node.id === selectedId;
+  return (
+    <div>
+      <div
+        onClick={() => onPick(node.id)}
+        onMouseEnter={() => onHover(node.id)}
+        onMouseLeave={() => onHover(null)}
+        className={`flex h-7 cursor-pointer items-center gap-1 rounded-md pr-2 text-[12px] transition-colors ${sel ? "bg-accent/15 text-accent" : "text-ink-2 hover:bg-raise hover:text-ink"}`}
+        style={{ paddingLeft: 6 + depth * 12 }}
+      >
+        {hasKids ? (
+          <button onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }} className="grid h-4 w-4 shrink-0 place-items-center text-ink-3 hover:text-ink">
+            <ChevronRight size={11} className={`transition-transform ${open ? "rotate-90" : ""}`} />
+          </button>
+        ) : (
+          <span className="w-4 shrink-0" />
+        )}
+        <span className="shrink-0 font-mono text-[10.5px] text-ink-3">{node.tag}</span>
+        <span className="truncate">{node.text ? node.text : node.cls ? `.${node.cls}` : ""}</span>
+      </div>
+      {hasKids && open && node.children.map((c) => (
+        <Layer key={c.id} node={c} depth={depth + 1} selectedId={selectedId} onPick={onPick} onHover={onHover} />
+      ))}
     </div>
   );
 }

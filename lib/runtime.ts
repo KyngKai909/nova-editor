@@ -26,13 +26,33 @@ export const APP_BRIDGE = `
       padding:c.padding, margin:c.margin, radius:c.borderRadius
     }; }catch(_){ return null; }
   }
-  document.addEventListener('click',function(e){
-    e.preventDefault(); e.stopPropagation();
-    var t=e.target, s=srcOf(t);
-    restore(sel); restore(hov); hov=null; sel=t; t.__nvOutline=t.style.outline||''; t.style.outline='2px solid #ccff02';
+  // ── layer tree: serialize the live DOM so the /run Layers panel can mirror it
+  var __nid=0, __count=0;
+  function idOf(el){ var id=el.getAttribute('data-nova-id'); if(!id){ id='n'+(++__nid); el.setAttribute('data-nova-id',id); } return id; }
+  function serialize(el,depth){
+    if(depth>8||__count>600) return null;
+    var tag=el.tagName.toLowerCase();
+    if(tag==='script'||tag==='style'||tag==='link'||tag==='br'||tag==='noscript') return null;
+    __count++;
+    var node={ id:idOf(el), tag:tag, cls:(typeof el.className==='string'&&el.className?el.className.split(/\\s+/)[0]:''), children:[] };
+    var kids=el.children;
+    if(!kids.length){ var tx=(el.textContent||'').trim(); if(tx) node.text=tx.slice(0,40); }
+    for(var i=0;i<kids.length;i++){ var c=serialize(kids[i],depth+1); if(c) node.children.push(c); }
+    return node;
+  }
+  function sendTree(){ __count=0; try{ var top=[]; var b=document.body; for(var i=0;i<b.children.length;i++){ var c=serialize(b.children[i],0); if(c) top.push(c); } parent.postMessage({type:'nova-tree', tree:top},'*'); }catch(_){} }
+  function emitSelect(t){
+    var s=srcOf(t);
     parent.postMessage({type:'nova-select', file:s&&s.fileName, line:s&&s.lineNumber, col:s&&s.columnNumber,
       tag:t.tagName.toLowerCase(), className:(typeof t.className==='string'?t.className:''),
-      text:(t.children.length?null:(t.textContent||'')), styles:stylesOf(t)},'*');
+      text:(t.children.length?null:(t.textContent||'')), styles:stylesOf(t), id:idOf(t)},'*');
+  }
+  if(document.readyState==='complete') setTimeout(sendTree,300); else window.addEventListener('load',function(){ setTimeout(sendTree,300); });
+  document.addEventListener('click',function(e){
+    e.preventDefault(); e.stopPropagation();
+    var t=e.target;
+    restore(sel); restore(hov); hov=null; sel=t; t.__nvOutline=t.style.outline||''; t.style.outline='2px solid #ccff02';
+    emitSelect(t);
   },true);
   document.addEventListener('dblclick',function(e){
     var t=e.target; if(t.children.length)return;
@@ -45,13 +65,16 @@ export const APP_BRIDGE = `
   },true);
   // optimistic apply from the inspector (so edits feel instant before HMR)
   window.addEventListener('message',function(e){
-    if(e.data&&e.data.type==='nova-apply'&&sel){
-      if(e.data.className!=null) sel.className=e.data.className;
-      if(e.data.text!=null) sel.textContent=e.data.text;
+    var d=e.data; if(!d||!d.type) return;
+    if(d.type==='nova-apply'&&sel){
+      if(d.className!=null) sel.className=d.className;
+      if(d.text!=null) sel.textContent=d.text;
       // inline style gives an instant preview for values Tailwind hasn't built
       // yet (e.g. an arbitrary color) until HMR recompiles from source.
-      if(e.data.style){ for(var k in e.data.style){ try{ sel.style[k]=e.data.style[k]; }catch(_){} } }
-    }
+      if(d.style){ for(var k in d.style){ try{ sel.style[k]=d.style[k]; }catch(_){} } }
+    } else if(d.type==='nova-tree-request'){ sendTree(); }
+    else if(d.type==='nova-hl'){ var h=document.querySelector('[data-nova-id="'+d.id+'"]'); if(h){ restore(hov); hov=h; h.__nvOutline=h.style.outline; h.style.outline='1px dashed #ccff02'; } }
+    else if(d.type==='nova-pick'){ var el=document.querySelector('[data-nova-id="'+d.id+'"]'); if(el){ el.scrollIntoView({block:'center'}); restore(sel); restore(hov); hov=null; sel=el; el.__nvOutline=el.style.outline||''; el.style.outline='2px solid #ccff02'; emitSelect(el); } }
   });
 })();
 `;
