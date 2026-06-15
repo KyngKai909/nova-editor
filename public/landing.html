@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nova — The visual editor for real code</title>
+  <meta name="description" content="Nova is a browser-based, Git-native visual editor for real codebases. Import any site or GitHub repo, edit it on a live canvas with Webflow-grade controls, ask AI on your own key, and ship the code. Open source, local-first, no lock-in." />
+  <meta name="theme-color" content="#08080a" />
+  <link rel="canonical" href="https://nova-editor-six.vercel.app/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://nova-editor-six.vercel.app/" />
+  <meta property="og:title" content="Nova — The visual editor for real code" />
+  <meta property="og:description" content="A browser-based, Git-native visual editor for real codebases. Edit any repo on a live canvas, ask AI on your own key, run the real app, and ship the code." />
+  <meta property="og:image" content="https://nova-editor-six.vercel.app/opengraph-image" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Nova — The visual editor for real code" />
+  <meta name="twitter:description" content="A browser-based, Git-native visual editor for real codebases. Edit any repo on a live canvas, ask AI on your own key, run the real app, and ship the code." />
+  <meta name="twitter:image" content="https://nova-editor-six.vercel.app/twitter-image" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet" />
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            bg: "var(--bg)", "bg-2": "var(--bg-2)", surface: "var(--surface)", "surface-2": "var(--surface-2)", raise: "var(--raise)",
+            line: "var(--line)", "line-2": "var(--line-2)",
+            ink: "var(--ink)", "ink-2": "var(--ink-2)", "ink-3": "var(--ink-3)",
+            accent: "var(--accent)", "accent-ink": "var(--accent-ink)"
+          },
+          fontFamily: {
+            sans: ["var(--font-sans)", "system-ui", "sans-serif"],
+            display: ["var(--font-display)", "system-ui", "sans-serif"],
+            serif: ["var(--font-serif)", "Georgia", "serif"]
+          },
+          letterSpacing: { tightest: "-0.045em" },
+          transitionTimingFunction: { out: "cubic-bezier(0.22, 1, 0.36, 1)" }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --bg: #08080a; --bg-2: #0e0e11; --surface: #131318; --surface-2: #1a1a21; --raise: #22222b;
+      --line: rgba(255, 255, 255, 0.08); --line-2: rgba(255, 255, 255, 0.14);
+      --ink: #f2f2f4; --ink-2: rgba(242, 242, 244, 0.62); --ink-3: rgba(242, 242, 244, 0.38);
+      --accent: #ccff02; --accent-ink: #0a0a0a; --accent-dim: rgba(204, 255, 2, 0.14);
+      --font-sans: 'Inter'; --font-display: 'Space Grotesk'; --font-serif: 'Instrument Serif';
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+    }
+    ::selection { background: var(--accent); color: var(--accent-ink); }
+    @keyframes wfc-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+    .animate-marquee { animation: wfc-marquee 28s linear infinite; }
+    @keyframes wfc-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .4; } }
+    .animate-pulse { animation: wfc-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+    .grain {
+      position: fixed; inset: 0; pointer-events: none; z-index: 60; opacity: 0.04;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    }
+  </style>
+</head>
+
+<body>
+  <div class="relative overflow-x-clip bg-bg">
+    <script type="application/ld+json">
+    {"@context":"https://schema.org","@type":"SoftwareApplication","name":"Nova","applicationCategory":"DeveloperApplication","operatingSystem":"Web","url":"https://nova-editor-six.vercel.app","description":"A browser-based, Git-native visual editor for real codebases. Import any site or GitHub repo, edit it on a live canvas with Webflow-grade controls, use free on-device AI or your own key, and ship the code.","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"isAccessibleForFree":true,"license":"https://www.gnu.org/licenses/agpl-3.0.html"}
+    </script>
+    <div class="grain"></div>
+
+    <!-- nav -->
+    <nav class="fixed inset-x-0 top-0 z-50">
+      <div class="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 sm:px-8">
+        <a href="/" class="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
+          <span class="grid h-7 w-7 place-items-center rounded-lg bg-accent text-accent-ink">✦</span>
+          Nova
+          <span class="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 pl-[7px] pr-[5px] py-[1px] text-[9px] font-semibold uppercase leading-none tracking-[0.15em] text-accent">Alpha</span>
+        </a>
+        <div class="hidden items-center gap-8 md:flex">
+          <a href="#why" class="text-[13px] text-ink-2 transition-colors hover:text-ink">Why Nova</a>
+          <a href="#features" class="text-[13px] text-ink-2 transition-colors hover:text-ink">Features</a>
+          <a href="#pricing" class="text-[13px] text-ink-2 transition-colors hover:text-ink">Pricing</a>
+          <a href="/docs" class="text-[13px] text-ink-2 transition-colors hover:text-ink">Docs</a>
+          <a href="/dashboard" class="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
+            Start building <i data-lucide="arrow-up-right" class="h-3.5 w-3.5"></i>
+          </a>
+        </div>
+        <button id="menu-btn" class="grid h-9 w-9 place-items-center rounded-lg border border-line text-ink md:hidden">
+          <i data-lucide="menu" class="h-[18px] w-[18px]"></i>
+        </button>
+      </div>
+      <div id="mobile-menu" class="mx-5 hidden rounded-2xl border border-line bg-surface/95 p-4 backdrop-blur md:hidden">
+        <a href="#why" class="block py-2.5 text-[15px] text-ink-2">Why Nova</a>
+        <a href="#features" class="block py-2.5 text-[15px] text-ink-2">Features</a>
+        <a href="#pricing" class="block py-2.5 text-[15px] text-ink-2">Pricing</a>
+        <a href="/docs" class="block py-2.5 text-[15px] text-ink-2">Docs</a>
+        <a href="/dashboard" class="mt-2 block rounded-full bg-accent py-3 text-center text-[14px] font-semibold text-accent-ink">Start building</a>
+      </div>
+    </nav>
+
+    <!-- hero -->
+    <section class="relative flex min-h-[100dvh] flex-col justify-center overflow-hidden px-5 sm:px-8">
+      <div class="absolute inset-0 z-0">
+        <div id="three-hero" class="absolute inset-0 h-full w-full"></div>
+        <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_60%,transparent,var(--bg)_78%)]"></div>
+      </div>
+
+      <div class="relative z-10 mx-auto w-full max-w-7xl">
+        <p class="hero-fade mb-6 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3">
+          <span class="h-px w-8 bg-accent"></span> The visual editor for real code
+        </p>
+        <h1 class="font-display text-[clamp(2.6rem,9vw,7.5rem)] font-semibold leading-[0.92] tracking-tightest">
+          <span class="block overflow-hidden"><span class="hero-line block">Design in</span></span>
+          <span class="block overflow-hidden"><span class="hero-line block">the <span class="font-serif italic text-accent">browser</span>,</span></span>
+          <span class="block overflow-hidden"><span class="hero-line block">ship the code.</span></span>
+        </h1>
+        <p class="hero-fade mt-7 max-w-xl text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+          Nova turns any repo or site into an editable canvas. Restyle visually, ask AI on your own
+          key, run the real app live — all on code that stays yours. Open source, local-first, no lock-in.
+        </p>
+        <div class="hero-fade mt-9 flex flex-wrap items-center gap-3">
+          <a href="/dashboard" class="group flex items-center gap-2 rounded-full bg-accent px-6 py-3.5 text-[15px] font-semibold text-accent-ink transition-transform hover:scale-[1.02]">
+            Start building free
+            <i data-lucide="arrow-up-right" class="h-[17px] w-[17px] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"></i>
+          </a>
+          <a href="#how" class="rounded-full border border-line-2 px-6 py-3.5 text-[15px] font-medium text-ink transition-colors hover:bg-surface">
+            See how it works
+          </a>
+        </div>
+      </div>
+
+      <div class="hero-fade absolute bottom-7 left-1/2 z-10 -translate-x-1/2 text-[11px] uppercase tracking-[0.3em] text-ink-3">Scroll</div>
+    </section>
+
+    <!-- marquee -->
+    <div class="relative border-y border-line bg-surface/40 py-5">
+      <div class="flex w-max animate-marquee gap-10 whitespace-nowrap will-change-transform" id="marquee"></div>
+    </div>
+
+    <!-- why nova -->
+    <section id="why" class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+      <div class="reveal mb-14 max-w-2xl">
+        <p class="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><i data-lucide="sparkles" class="h-3.5 w-3.5 text-accent"></i> Why Nova</p>
+        <h2 class="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+          AI builders lock you in. IDEs make you type.<br /><span class="font-serif italic text-accent">Nova does neither.</span>
+        </h2>
+        <p class="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+          Most tools force a trade: a prompt box that hides your code, or an editor with no canvas.
+          Nova gives you the canvas, the code, the live app, and AI — over files that never stop being yours.
+        </p>
+      </div>
+      <div class="grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+        <div class="tile bg-bg p-7">
+          <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="boxes" class="h-[18px] w-[18px]"></i></div>
+          <h3 class="mt-5 font-display text-[18px] font-semibold tracking-tight">Edit anything, not just React</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">HTML, JSX, TSX and Tailwind — any framework, any repo, even a single pasted component. Not locked to one stack.</p>
+        </div>
+        <div class="tile bg-bg p-7">
+          <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="play" class="h-[18px] w-[18px]"></i></div>
+          <h3 class="mt-5 font-display text-[18px] font-semibold tracking-tight">Run the real app, live</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">Boot the entire project in the browser and edit it as it actually runs — not a faked preview of a static mock.</p>
+        </div>
+        <div class="tile bg-bg p-7">
+          <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="shield-check" class="h-[18px] w-[18px]"></i></div>
+          <h3 class="mt-5 font-display text-[18px] font-semibold tracking-tight">Your code, your Git, your keys</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">Local-first and fully open source. Files live on your disk, changes go through your Git, AI runs on your device or your own key. No backend, no lock-in.</p>
+        </div>
+        <div class="tile bg-bg p-7">
+          <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="bot" class="h-[18px] w-[18px]"></i></div>
+          <h3 class="mt-5 font-display text-[18px] font-semibold tracking-tight">Free AI, on your device</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">Nova Lite runs a coding model right in your browser — free, private, no key. Want more power? Bring your own key, or upgrade to a managed Nova model. Either way it edits your real files and the canvas updates instantly.</p>
+        </div>
+        <div class="tile bg-bg p-7">
+          <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="zap" class="h-[18px] w-[18px]"></i></div>
+          <h3 class="mt-5 font-display text-[18px] font-semibold tracking-tight">Visual edits stay free</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">Direct manipulation never burns a token. Use AI when you want leverage, your mouse when you don't — you choose the cost.</p>
+        </div>
+        <div class="tile bg-bg p-7">
+          <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="git-branch" class="h-[18px] w-[18px]"></i></div>
+          <h3 class="mt-5 font-display text-[18px] font-semibold tracking-tight">One tab, the whole loop</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">Design, code, run, and commit in a single place. No export step, no handoff, no context-switch between tools.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- how it works -->
+    <section id="how" class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+      <div class="reveal mb-14 max-w-2xl">
+        <p class="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><i data-lucide="sparkles" class="h-3.5 w-3.5 text-accent"></i> How it works</p>
+        <h2 class="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+          From import to <span class="font-serif italic text-accent">pull request</span>, in your browser.
+        </h2>
+      </div>
+      <div class="grid gap-px overflow-hidden rounded-2xl border border-line bg-line md:grid-cols-3">
+        <div class="tile bg-bg p-7">
+          <div class="flex items-center justify-between">
+            <span class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="folder-up" class="h-[18px] w-[18px]"></i></span>
+            <span class="font-serif text-[26px] italic text-ink-3">01</span>
+          </div>
+          <h3 class="mt-5 font-display text-[20px] font-semibold tracking-tight">Import</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">Clone a full GitHub repo, open a folder from disk, or paste a component. Nova works in your browser — no upload, no account.</p>
+        </div>
+        <div class="tile bg-bg p-7">
+          <div class="flex items-center justify-between">
+            <span class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="mouse-pointer-click" class="h-[18px] w-[18px]"></i></span>
+            <span class="font-serif text-[26px] italic text-ink-3">02</span>
+          </div>
+          <h3 class="mt-5 font-display text-[20px] font-semibold tracking-tight">Edit visually — or with AI</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">Click any element and shape real CSS with a full inspector, or ask the built-in AI to make the change. Edits round-trip to source.</p>
+        </div>
+        <div class="tile bg-bg p-7">
+          <div class="flex items-center justify-between">
+            <span class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="git-pull-request" class="h-[18px] w-[18px]"></i></span>
+            <span class="font-serif text-[26px] italic text-ink-3">03</span>
+          </div>
+          <h3 class="mt-5 font-display text-[20px] font-semibold tracking-tight">Run it, then ship</h3>
+          <p class="mt-2 text-[14px] leading-relaxed text-ink-2">Boot the whole app live in the browser, review a clean diff, then commit, push, or open a pull request — without leaving the tab.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- product mock + features -->
+    <section id="features" class="relative border-y border-line bg-surface/30">
+      <div class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+        <div class="reveal max-w-2xl">
+          <h2 class="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+            A real editor, <span class="font-serif italic text-accent">not a toy</span>.
+          </h2>
+          <p class="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+            Webflow-grade controls over live code. Layout, spacing, typography, color, effects —
+            with a layer tree, breakpoints, preview, and a built-in code editor.
+          </p>
+        </div>
+
+        <div class="reveal mt-14 overflow-hidden rounded-2xl border border-line-2 bg-bg shadow-2xl">
+          <div class="flex items-center gap-2 border-b border-line bg-surface px-4 py-3">
+            <span class="h-3 w-3 rounded-full bg-[#ff5f57]"></span><span class="h-3 w-3 rounded-full bg-[#febc2e]"></span><span class="h-3 w-3 rounded-full bg-[#28c840]"></span>
+            <span class="ml-3 font-mono text-[12px] text-ink-3">nova · editor</span>
+          </div>
+          <div class="grid grid-cols-[1fr] sm:grid-cols-[180px_1fr_200px]">
+            <div class="hidden flex-col gap-2 border-r border-line p-4 sm:flex">
+              <div class="whitespace-pre font-mono text-[11px] text-ink-3">section</div>
+              <div class="whitespace-pre font-mono text-[11px] text-ink-3">  nav</div>
+              <div class="whitespace-pre font-mono text-[11px] text-ink-3">  hero</div>
+              <div class="whitespace-pre font-mono text-[11px] text-ink-3">    h1</div>
+              <div class="whitespace-pre font-mono text-[11px] text-ink-3">    p</div>
+              <div class="whitespace-pre font-mono text-[11px] text-ink-3">  footer</div>
+            </div>
+            <div class="grid place-items-center bg-[radial-gradient(circle_at_50%_0%,rgba(204,255,2,0.06),transparent_60%)] p-8 sm:p-14">
+              <div class="w-full max-w-sm rounded-xl border border-line bg-surface p-8 text-center">
+                <div class="mx-auto mb-4 h-10 w-10 rounded-full bg-accent"></div>
+                <div class="mx-auto h-3 w-3/4 rounded bg-ink/80"></div><div class="mx-auto mt-2 h-3 w-1/2 rounded bg-ink-3"></div>
+                <div class="mx-auto mt-5 h-8 w-28 rounded-full bg-accent"></div>
+              </div>
+            </div>
+            <div class="hidden flex-col gap-3 border-l border-line p-4 sm:flex">
+              <div><div class="mb-1.5 text-[9px] uppercase tracking-wide text-ink-3">Layout</div><div class="h-6 rounded-md border border-line bg-bg"></div></div>
+              <div><div class="mb-1.5 text-[9px] uppercase tracking-wide text-ink-3">Spacing</div><div class="h-6 rounded-md border border-line bg-bg"></div></div>
+              <div><div class="mb-1.5 text-[9px] uppercase tracking-wide text-ink-3">Typography</div><div class="h-6 rounded-md border border-line bg-bg"></div></div>
+              <div><div class="mb-1.5 text-[9px] uppercase tracking-wide text-ink-3">Color</div><div class="h-6 rounded-md border border-line bg-bg"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="mt-16 grid gap-px overflow-hidden rounded-2xl border border-line bg-line sm:grid-cols-2 lg:grid-cols-3">
+          <div class="tile bg-bg p-6">
+            <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="mouse-pointer-click" class="h-[18px] w-[18px]"></i></div>
+            <h3 class="mt-4 font-display text-[17px] font-semibold tracking-tight">Direct manipulation</h3>
+            <p class="mt-2 text-[13.5px] leading-relaxed text-ink-2">Select, restyle, and rewrite text right on the rendered page — what you see is the real DOM.</p>
+          </div>
+          <div class="tile bg-bg p-6">
+            <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="layers" class="h-[18px] w-[18px]"></i></div>
+            <h3 class="mt-4 font-display text-[17px] font-semibold tracking-tight">Layer tree + code</h3>
+            <p class="mt-2 text-[13.5px] leading-relaxed text-ink-2">Navigate nested structure, collapse branches, and jump straight to the source line in the built-in editor.</p>
+          </div>
+          <div class="tile bg-bg p-6">
+            <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="smartphone" class="h-[18px] w-[18px]"></i></div>
+            <h3 class="mt-4 font-display text-[17px] font-semibold tracking-tight">Responsive by design</h3>
+            <p class="mt-2 text-[13.5px] leading-relaxed text-ink-2">Design across desktop, tablet, and mobile breakpoints, then flip into a true preview mode.</p>
+          </div>
+          <div class="tile bg-bg p-6">
+            <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="sliders-horizontal" class="h-[18px] w-[18px]"></i></div>
+            <h3 class="mt-4 font-display text-[17px] font-semibold tracking-tight">A full design panel</h3>
+            <p class="mt-2 text-[13.5px] leading-relaxed text-ink-2">Style + Settings tabs, flexbox &amp; grid, an assets manager, and a drag-in palette of sections, buttons, and more.</p>
+          </div>
+          <div class="tile bg-bg p-6">
+            <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="message-square" class="h-[18px] w-[18px]"></i></div>
+            <h3 class="mt-4 font-display text-[17px] font-semibold tracking-tight">Comment &amp; collaborate</h3>
+            <p class="mt-2 text-[13.5px] leading-relaxed text-ink-2">Pin comments anywhere on the canvas, and invite teammates as editors, commenters, or viewers — synced in the cloud.</p>
+          </div>
+          <div class="tile bg-bg p-6">
+            <div class="grid h-10 w-10 place-items-center rounded-lg border border-line bg-surface text-accent"><i data-lucide="code-2" class="h-[18px] w-[18px]"></i></div>
+            <h3 class="mt-4 font-display text-[17px] font-semibold tracking-tight">Code, not lock-in</h3>
+            <p class="mt-2 text-[13.5px] leading-relaxed text-ink-2">Nova edits your files, not a proprietary format. Leave any time with code that reads like you wrote it.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- works with — bento -->
+    <section id="works" class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+      <div class="reveal mb-12 max-w-2xl">
+        <p class="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><i data-lucide="boxes" class="h-3.5 w-3.5 text-accent"></i> Works with</p>
+        <h2 class="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+          Built for <span class="font-serif italic text-accent">real</span> codebases.
+        </h2>
+        <p class="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+          A marketing page, a component library, your docs, or a whole repo — Nova opens the code you already have. HTML · JSX · TSX · Tailwind.
+        </p>
+      </div>
+
+      <div class="grid gap-4 sm:auto-rows-[200px] sm:grid-cols-2 lg:grid-cols-4">
+        <div class="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-gradient-to-br from-accent/[0.06] to-bg p-6 sm:row-span-2 lg:col-span-2">
+          <div class="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_12%,rgba(204,255,2,0.1),transparent_55%)]"></div>
+          <div class="relative overflow-hidden rounded-xl border border-line-2 bg-bg/80 shadow-2xl transition-transform duration-500 group-hover:-translate-y-1">
+            <div class="flex items-center gap-1.5 border-b border-line px-3 py-2">
+              <span class="h-2 w-2 rounded-full bg-[#ff5f57]"></span><span class="h-2 w-2 rounded-full bg-[#febc2e]"></span><span class="h-2 w-2 rounded-full bg-[#28c840]"></span>
+              <span class="ml-2 h-2.5 w-32 rounded bg-line"></span>
+            </div>
+            <div class="space-y-2.5 p-5">
+              <div class="h-2 w-14 rounded-full bg-accent/70"></div>
+              <div class="h-4 w-3/4 rounded bg-ink/70"></div>
+              <div class="h-4 w-1/2 rounded bg-ink/40"></div>
+              <div class="mt-3 h-7 w-24 rounded-full bg-accent"></div>
+            </div>
+          </div>
+          <div class="relative mt-5">
+            <span class="text-[11px] uppercase tracking-[0.2em] text-ink-3">Marketing</span>
+            <div class="font-display text-[22px] font-semibold tracking-tight">Landing pages</div>
+          </div>
+        </div>
+
+        <div class="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6 lg:col-span-2">
+          <div class="flex flex-wrap items-center gap-2.5">
+            <span class="flex h-7 items-center rounded-full bg-accent px-3 text-[11px] font-semibold text-accent-ink">Button</span>
+            <span class="h-7 w-24 rounded-md border border-line-2 bg-bg"></span>
+            <span class="grid h-7 w-7 place-items-center rounded-md border border-line-2 text-ink-3"><i data-lucide="boxes" class="h-[13px] w-[13px]"></i></span>
+            <span class="flex h-6 w-11 items-center rounded-full bg-line px-0.5"><span class="ml-auto h-5 w-5 rounded-full bg-accent"></span></span>
+            <span class="h-7 w-16 rounded-md bg-raise"></span>
+            <span class="h-7 w-20 rounded-lg border border-dashed border-line-2"></span>
+          </div>
+          <div>
+            <span class="text-[11px] uppercase tracking-[0.2em] text-ink-3">JSX / TSX</span>
+            <div class="font-display text-[20px] font-semibold tracking-tight">Component libraries</div>
+          </div>
+        </div>
+
+        <div class="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6">
+          <div class="space-y-2">
+            <div class="h-3 w-1/2 rounded bg-ink/60"></div>
+            <div class="h-2 w-full rounded bg-line"></div>
+            <div class="h-2 w-5/6 rounded bg-line"></div>
+            <div class="h-2 w-2/3 rounded bg-line"></div>
+          </div>
+          <div>
+            <span class="text-[11px] uppercase tracking-[0.2em] text-ink-3">Static HTML</span>
+            <div class="font-display text-[20px] font-semibold tracking-tight">Docs &amp; content</div>
+          </div>
+        </div>
+
+        <div class="tile group relative min-h-[180px] flex flex-col justify-between overflow-hidden rounded-2xl border border-line bg-surface/40 p-6 sm:col-span-2 lg:col-span-1">
+          <div class="space-y-1.5 font-mono text-[11px] text-ink-3">
+            <div class="flex items-center gap-1.5 text-ink-2"><i data-lucide="git-branch" class="h-[11px] w-[11px] text-accent"></i> main</div>
+            <div class="pl-3">src/</div>
+            <div class="pl-6 text-ink-2">App.tsx</div>
+            <div class="pl-6">styles.css</div>
+            <div class="pl-3">package.json</div>
+          </div>
+          <div>
+            <span class="text-[11px] uppercase tracking-[0.2em] text-ink-3">GitHub</span>
+            <div class="font-display text-[20px] font-semibold tracking-tight">Whole repositories</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- pricing -->
+    <section id="pricing" class="border-y border-line bg-surface/30">
+      <div class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+        <div class="reveal mb-14 max-w-2xl">
+          <p class="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><i data-lucide="sparkles" class="h-3.5 w-3.5 text-accent"></i> Pricing</p>
+          <h2 class="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+            Free to build. <span class="font-serif italic text-accent">Pay only to sync.</span>
+          </h2>
+          <p class="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+            The editor is free forever — your code, your keys, your machine. Upgrade when you want your projects backed up and synced across every device.
+          </p>
+        </div>
+
+        <div class="grid gap-5 lg:grid-cols-3">
+          <div class="tile relative flex flex-col rounded-2xl border p-7 border-line bg-bg">
+            <h3 class="font-display text-[20px] font-semibold tracking-tight">Free</h3>
+            <p class="mt-1 max-w-[220px] text-[13px] leading-relaxed text-ink-3">Everything you need to edit and ship.</p>
+            <div class="mt-5 flex items-baseline gap-1">
+              <span class="font-display text-[40px] font-semibold tracking-tightest">$0</span>
+              <span class="text-[14px] text-ink-3">forever</span>
+            </div>
+            <ul class="mt-6 flex-1 space-y-2.5">
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Visual + code editor, unlimited projects</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Run apps live in the browser</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Nova Lite — free AI that runs on your device</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Or bring your own key for Claude, GPT &amp; more</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Commit, push &amp; PRs to your GitHub</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Invite unlimited viewers &amp; commenters</li>
+            </ul>
+            <a href="/dashboard" class="mt-7 block w-full rounded-full bg-ink py-3 text-center text-[14px] font-semibold text-bg transition-transform hover:scale-[1.02] hover:bg-white">Start free</a>
+          </div>
+
+          <div class="tile relative flex flex-col rounded-2xl border p-7 border-accent/50 bg-accent/[0.05]">
+            <span class="absolute right-6 top-7 rounded-full bg-accent px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-accent-ink">Recommended</span>
+            <h3 class="font-display text-[20px] font-semibold tracking-tight">Pro</h3>
+            <p class="mt-1 max-w-[220px] text-[13px] leading-relaxed text-ink-3">Your work, backed up and synced everywhere.</p>
+            <div class="mt-5 flex items-baseline gap-1">
+              <span class="font-display text-[40px] font-semibold tracking-tightest">$8</span>
+              <span class="text-[14px] text-ink-3">/month</span>
+            </div>
+            <ul class="mt-6 flex-1 space-y-2.5">
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-accent"></i> Everything in Free</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-accent"></i> Cloud backup of every project</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-accent"></i> Real-time sync across devices &amp; browsers</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-accent"></i> Offline edits sync when you reconnect</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-accent"></i> Nova Pro — managed AI, no key to set up (soon)</li>
+            </ul>
+            <a href="/dashboard" class="mt-7 block w-full rounded-full bg-accent py-3 text-center text-[14px] font-semibold text-accent-ink transition-transform hover:scale-[1.02]">Get Pro</a>
+          </div>
+
+          <div class="tile relative flex flex-col rounded-2xl border p-7 border-line bg-bg opacity-60">
+            <span class="absolute right-6 top-7 rounded-full border border-line-2 px-2.5 py-1 text-[10px] font-medium uppercase tracking-wide text-ink-3">Coming soon</span>
+            <h3 class="font-display text-[20px] font-semibold tracking-tight">Studio</h3>
+            <p class="mt-1 max-w-[220px] text-[13px] leading-relaxed text-ink-3">Build together, with AI built in.</p>
+            <div class="mt-5 flex items-baseline gap-1">
+              <span class="font-display text-[40px] font-semibold tracking-tightest">Soon</span>
+            </div>
+            <ul class="mt-6 flex-1 space-y-2.5">
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Everything in Pro</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Invite unlimited editor collaborators</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Real-time shared projects in the cloud</li>
+              <li class="flex items-start gap-2.5 text-[13.5px] leading-relaxed text-ink-2"><i data-lucide="check" class="mt-0.5 h-[15px] w-[15px] shrink-0 text-ink-3"></i> Nova Studio — our most capable managed AI</li>
+            </ul>
+            <button disabled class="mt-7 w-full cursor-not-allowed rounded-full border border-line py-3 text-[14px] font-semibold text-ink-3">Coming soon</button>
+          </div>
+        </div>
+        <p class="reveal mt-6 text-[12.5px] text-ink-3">Prices in USD · cancel anytime. Cloud sync is the only paid feature today — the editor itself stays free.</p>
+      </div>
+    </section>
+
+    <!-- open source -->
+    <section id="open-source" class="mx-auto max-w-7xl px-5 py-24 text-center sm:px-8 sm:py-32">
+      <p class="reveal mb-5 flex items-center justify-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" class="text-accent" aria-hidden><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" /></svg> Open source
+      </p>
+      <h2 class="reveal mx-auto max-w-3xl font-display text-[clamp(2rem,6vw,4.5rem)] font-semibold leading-[1.0] tracking-tightest">
+        Fork it, theme it, <span class="font-serif italic text-accent">ship it.</span>
+      </h2>
+      <p class="reveal mx-auto mt-6 max-w-xl text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+        Built to be modified, themed, and forked. It's all yours — go nuts; that's the whole point.
+      </p>
+
+      <div class="reveal mt-14 grid gap-4 text-left lg:grid-cols-5 lg:items-stretch">
+        <div class="overflow-hidden rounded-2xl border border-line-2 bg-bg shadow-2xl lg:col-span-3">
+          <div class="flex items-center gap-2 border-b border-line bg-surface px-4 py-3">
+            <span class="h-3 w-3 rounded-full bg-[#ff5f57]"></span><span class="h-3 w-3 rounded-full bg-[#febc2e]"></span><span class="h-3 w-3 rounded-full bg-[#28c840]"></span>
+            <span class="ml-3 font-mono text-[12px] text-ink-3">~/nova</span>
+          </div>
+          <div class="space-y-2 p-5 font-mono text-[12.5px] leading-relaxed sm:p-6 sm:text-[13px]">
+            <div><span class="text-accent">$</span> <span class="text-ink">gh repo fork useNova/nova-editor --clone</span></div>
+            <div class="text-ink-3"><span class="text-[#28c840]">✓</span> Cloned nova-editor into ./nova-editor</div>
+            <div><span class="text-accent">$</span> <span class="text-ink">cd nova-editor &amp;&amp; npm install</span></div>
+            <div class="text-ink-3"><span class="text-[#28c840]">✓</span> Packages installed in 6.1s</div>
+            <div><span class="text-accent">$</span> <span class="text-ink">npm run dev</span></div>
+            <div class="text-ink-3"><span class="text-accent">▲</span> Nova ready → <span class="text-accent">http://localhost:3000</span></div>
+            <div><span class="text-accent">$</span> <span class="ml-1 inline-block h-[14px] w-[7px] translate-y-[2px] animate-pulse bg-ink-2"></span></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 lg:col-span-2 lg:grid-rows-2">
+          <div class="rounded-2xl border border-line bg-surface/40 p-5">
+            <div class="font-display text-[22px] font-semibold tracking-tight">AGPL 3.0</div>
+            <div class="mt-1.5 text-[10.5px] uppercase tracking-wide leading-relaxed text-ink-3">License · forks stay open</div>
+          </div>
+          <div class="rounded-2xl border border-line bg-surface/40 p-5">
+            <div class="font-display text-[22px] font-semibold tracking-tight">TypeScript</div>
+            <div class="mt-1.5 text-[10.5px] uppercase tracking-wide leading-relaxed text-ink-3">End-to-end, strictly typed</div>
+          </div>
+          <div class="rounded-2xl border border-line bg-surface/40 p-5">
+            <div class="font-display text-[22px] font-semibold tracking-tight">1 Codebase</div>
+            <div class="mt-1.5 text-[10.5px] uppercase tracking-wide leading-relaxed text-ink-3">Code Editor · canvas · AI</div>
+          </div>
+          <div class="rounded-2xl border border-line bg-surface/40 p-5">
+            <div class="font-display text-[22px] font-semibold tracking-tight">No telemetry</div>
+            <div class="mt-1.5 text-[10.5px] uppercase tracking-wide leading-relaxed text-ink-3">Nothing tracked. Ever.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="reveal mt-10 flex flex-wrap items-center justify-center gap-3">
+        <a href="https://github.com/KyngKai909/nova-editor" target="_blank" rel="noreferrer" class="group flex items-center gap-2 rounded-full border border-line-2 px-5 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-surface">
+          <i data-lucide="star" class="h-[15px] w-[15px] text-accent"></i> Star on GitHub <i data-lucide="arrow-up-right" class="h-3.5 w-3.5 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"></i>
+        </a>
+        <a href="https://github.com/KyngKai909/nova-editor/fork" target="_blank" rel="noreferrer" class="group flex items-center gap-2 rounded-full border border-line-2 px-5 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-surface">
+          <i data-lucide="git-fork" class="h-[15px] w-[15px] text-accent"></i> Fork the repo <i data-lucide="arrow-up-right" class="h-3.5 w-3.5 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"></i>
+        </a>
+        <a href="/docs" class="group flex items-center gap-2 rounded-full border border-line-2 px-5 py-3 text-[14px] font-medium text-ink transition-colors hover:bg-surface">
+          <i data-lucide="book-open" class="h-[15px] w-[15px] text-accent"></i> Read the docs <i data-lucide="arrow-up-right" class="h-3.5 w-3.5 text-ink-3 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"></i>
+        </a>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="relative mx-auto max-w-7xl px-5 py-28 text-center sm:px-8 sm:py-40">
+      <p class="reveal mb-6 text-[13px] uppercase tracking-[0.3em] text-ink-3">Free to start · invite-only alpha</p>
+      <h2 class="reveal mx-auto max-w-4xl font-display text-[clamp(2.4rem,8vw,6rem)] font-semibold leading-[0.95] tracking-tightest">
+        Turn any site into a <span class="font-serif italic text-accent">canvas</span>.
+      </h2>
+      <div class="reveal mt-10">
+        <a href="/dashboard" class="group inline-flex items-center gap-2.5 rounded-full bg-accent px-8 py-4 text-[16px] font-semibold text-accent-ink transition-transform hover:scale-[1.03]">
+          Start building free
+          <i data-lucide="arrow-up-right" class="h-[18px] w-[18px] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"></i>
+        </a>
+      </div>
+    </section>
+
+    <!-- footer -->
+    <footer class="border-t border-line">
+      <div class="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-5 py-8 text-[13px] text-ink-3 sm:flex-row sm:px-8">
+        <span class="flex items-center gap-2 font-display font-semibold text-ink">
+          <span class="grid h-6 w-6 place-items-center rounded-md bg-accent text-accent-ink">✦</span> Nova
+          <span class="inline-flex items-center rounded-full border border-accent/40 bg-accent/10 pl-[7px] pr-[5px] py-[1px] text-[9px] font-semibold uppercase leading-none tracking-[0.15em] text-accent">Alpha</span>
+        </span>
+        <div class="flex items-center gap-5">
+          <a href="/docs" class="transition-colors hover:text-ink">Docs</a>
+          <a href="/dashboard" class="transition-colors hover:text-ink">Dashboard</a>
+          <a href="https://github.com/KyngKai909/nova-editor" target="_blank" rel="noreferrer" class="flex items-center gap-1.5 transition-colors hover:text-ink"><svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden><path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222 0 1.606-.014 2.898-.014 3.293 0 .322.216.694.825.576C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" /></svg> GitHub</a>
+          <span>© 2026</span>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- marquee content (duplicated for a seamless loop) -->
+  <script>
+    (function () {
+      var items = ["HTML", "JSX", "TSX", "Tailwind", "Any repo", "Run it live", "Your code", "Your Git", "Your AI keys", "No lock-in", "In-browser"];
+      var row = document.getElementById("marquee");
+      if (row) {
+        row.innerHTML = items.concat(items).map(function (s) {
+          return '<span class="flex items-center gap-10 font-display text-[18px] text-ink-2">' + s + ' <span class="text-accent">✦</span></span>';
+        }).join("");
+      }
+      var btn = document.getElementById("menu-btn");
+      var menu = document.getElementById("mobile-menu");
+      if (btn && menu) btn.addEventListener("click", function () { menu.classList.toggle("hidden"); });
+    })();
+  </script>
+
+  <!-- WebGL hero (Three.js) -->
+  <script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"}}</script>
+  <script type="module">
+    import * as THREE from "three";
+    const mount = document.getElementById("three-hero");
+    if (mount) {
+      try {
+        const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        const isMobile = window.innerWidth < 768;
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(55, mount.clientWidth / mount.clientHeight, 0.1, 100);
+        camera.position.z = 5;
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: "low-power", failIfMajorPerformanceCaveat: false });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(mount.clientWidth, mount.clientHeight);
+        mount.appendChild(renderer.domElement);
+        renderer.domElement.addEventListener("webglcontextlost", (e) => e.preventDefault());
+        const accent = new THREE.Color("#ccff02"), white = new THREE.Color("#ffffff");
+        const icoGeo = new THREE.IcosahedronGeometry(1.5, isMobile ? 1 : 2);
+        const wire = new THREE.LineSegments(new THREE.WireframeGeometry(icoGeo), new THREE.LineBasicMaterial({ color: accent, transparent: true, opacity: 0.5 }));
+        const glow = new THREE.Points(icoGeo, new THREE.PointsMaterial({ color: white, size: 0.05, transparent: true, opacity: 0.9 }));
+        const core = new THREE.Group(); core.add(wire, glow); scene.add(core);
+        const count = isMobile ? 1400 : 3800;
+        const positions = new Float32Array(count * 3);
+        for (let i = 0; i < count; i++) {
+          const r = 4 + Math.random() * 9, theta = Math.random() * Math.PI * 2, phi = Math.acos(2 * Math.random() - 1);
+          positions[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+          positions[i * 3 + 1] = r * Math.sin(phi) * Math.sin(theta);
+          positions[i * 3 + 2] = r * Math.cos(phi);
+        }
+        const fieldGeo = new THREE.BufferGeometry();
+        fieldGeo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+        const field = new THREE.Points(fieldGeo, new THREE.PointsMaterial({ color: white, size: 0.018, transparent: true, opacity: 0.55 }));
+        scene.add(field);
+        const mouse = { x: 0, y: 0, tx: 0, ty: 0 };
+        window.addEventListener("pointermove", (e) => { mouse.tx = (e.clientX / window.innerWidth - 0.5) * 2; mouse.ty = (e.clientY / window.innerHeight - 0.5) * 2; });
+        const start = performance.now();
+        (function animate() {
+          requestAnimationFrame(animate);
+          const t = (performance.now() - start) / 1000, speed = reduced ? 0 : 1;
+          core.rotation.y = t * 0.18 * speed;
+          core.rotation.x = Math.sin(t * 0.25) * 0.25 * speed;
+          core.scale.setScalar(1 + Math.sin(t * 0.8) * 0.04 * speed);
+          field.rotation.y = -t * 0.03 * speed;
+          mouse.x += (mouse.tx - mouse.x) * 0.04; mouse.y += (mouse.ty - mouse.y) * 0.04;
+          camera.position.x = mouse.x * 0.6; camera.position.y = -mouse.y * 0.6; camera.lookAt(0, 0, 0);
+          renderer.render(scene, camera);
+        })();
+        window.addEventListener("resize", () => { camera.aspect = mount.clientWidth / mount.clientHeight; camera.updateProjectionMatrix(); renderer.setSize(mount.clientWidth, mount.clientHeight); });
+      } catch (e) { /* WebGL unavailable — the CSS gradient backdrop remains */ }
+    }
+  </script>
+
+  <!-- scroll/entrance animations (GSAP) + icons (lucide) -->
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/ScrollTrigger.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
+  <script>
+    if (window.lucide) lucide.createIcons();
+    if (window.gsap) {
+      gsap.registerPlugin(ScrollTrigger);
+      gsap.from(".hero-line", { yPercent: 120, opacity: 0, duration: 1.1, ease: "expo.out", stagger: 0.12, delay: 0.15 });
+      gsap.from(".hero-fade", { opacity: 0, y: 16, duration: 0.9, ease: "power3.out", stagger: 0.08, delay: 0.7 });
+      gsap.utils.toArray(".reveal").forEach(function (el) {
+        gsap.from(el, { opacity: 0, y: 40, duration: 0.9, ease: "power3.out", scrollTrigger: { trigger: el, start: "top 85%" } });
+      });
+      ScrollTrigger.batch(".tile", { start: "top 88%", onEnter: function (els) { gsap.from(els, { opacity: 0, y: 50, duration: 0.9, ease: "power3.out", stagger: 0.1, overwrite: true }); } });
+    }
+  </script>
+</body>
+</html>

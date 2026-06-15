@@ -61,6 +61,12 @@ const nextConfig = {
       { source: "/:path*", headers: securityHeaders },
     ];
   },
+  async rewrites() {
+    // The homepage is a static, canvas-editable HTML file (public/landing.html)
+    // served at "/" — so it can be edited visually in Nova itself. Runs before
+    // the filesystem so it owns "/".
+    return { beforeFiles: [{ source: "/", destination: "/landing.html" }] };
+  },
 };
 
 export default nextConfig;
