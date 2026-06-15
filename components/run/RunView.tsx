@@ -94,7 +94,14 @@ async function bootContainer() {
   if (!wcBootPromise) {
     wcBootPromise = (async () => {
       const { WebContainer } = await import("@webcontainer/api");
-      return WebContainer.boot();
+      // credentialless (vs the default require-corp) lets the preview load
+      // cross-origin resources that DON'T send a CORP header — Tailwind's Play
+      // CDN, Google Fonts, jsDelivr (Three.js/GSAP/lucide), etc. Under require-corp
+      // those are all blocked, so e.g. a static HTML page that pulls Tailwind from
+      // the CDN renders unstyled in Run. The /run shell is already COEP
+      // credentialless, so the two stay consistent (and still cross-origin
+      // isolated, which WebContainers' SharedArrayBuffer needs).
+      return WebContainer.boot({ coep: "credentialless" });
     })();
   }
   return wcBootPromise;
