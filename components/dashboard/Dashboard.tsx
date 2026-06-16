@@ -12,10 +12,7 @@ const ROLE_TAG: Record<string, string> = {
 import { useRouteTransition } from "@/components/transition/RouteTransition";
 import { useProjects, type ProjectRecord } from "@/store/projectsStore";
 import { useEditor } from "@/store/editorStore";
-import { importGithub } from "@/lib/importFlow";
-import { useGitHub } from "@/store/githubStore";
-import { importRepoFilesAuth } from "@/lib/githubApi";
-import { reopenFolder } from "@/lib/deviceProject";
+import { useOpenProject } from "@/components/editor/useOpenProject";
 import { toSourceFiles } from "@/lib/importUtils";
 import { deleteProjectAssets } from "@/lib/assetStore";
 import { deleteHistory } from "@/lib/historyStore";
@@ -33,8 +30,8 @@ export default function Dashboard() {
   const addProject = useProjects((s) => s.addProject);
   const updateProject = useProjects((s) => s.updateProject);
   const loadFiles = useEditor((s) => s.loadFiles);
+  const open = useOpenProject();
   const setCollab = useEditor((s) => s.setCollab);
-  const token = useGitHub((s) => s.token);
   const signedIn = useAuth((s) => s.signedIn);
   const [showNew, setShowNew] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
@@ -51,30 +48,14 @@ export default function Dashboard() {
     if (!rec?.files?.length) { alert("This shared project hasn't synced yet — ask the owner to open it once."); return; }
     loadFiles(rec.files, {}, rec.baseHref ?? null, sp.project_id);
     setCollab(sp.owner_id, sp.role);
-    navigate("/editor");
+    navigate(`/editor/${sp.project_id}`);
   };
 
   const openProject = async (p: ProjectRecord) => {
     setOpening(p.id);
     try {
-      // a saved working copy (autosaved edits) takes priority over re-fetching
-      if (p.files?.length) {
-        loadFiles(p.files, {}, p.baseHref ?? null, p.id);
-      } else if (p.storage === "device") {
-        const { files, assets } = await reopenFolder(p.id);
-        loadFiles(files, assets, null, p.id);
-      } else if (p.github && token) {
-        const { files, assets, commitSha } = await importRepoFilesAuth(token, p.github.owner, p.github.repo, p.github.branch);
-        loadFiles(files, assets, p.baseHref ?? null, p.id);
-        // a fresh re-fetch is at HEAD — record it as the new baseline
-        if (commitSha !== p.github.commitSha) updateProject(p.id, { github: { ...p.github, commitSha } });
-      } else if (p.repoUrl) {
-        const res = await importGithub(p.repoUrl);
-        loadFiles(res.files, res.assets, res.baseHref, p.id);
-      } else {
-        throw new Error("Connect GitHub to reopen this repo project.");
-      }
-      navigate("/editor");
+      await open(p);
+      navigate(`/editor/${p.id}`);
     } catch (e) {
       setOpening(null);
       alert((e as Error).message);
@@ -87,7 +68,7 @@ export default function Dashboard() {
       const files = toSourceFiles([{ path: "landing.html", content }]);
       const rec = addProject({ name: "Sample landing", kind: "sample", files, status: { published: false, github: false } });
       loadFiles(files, {}, null, rec.id);
-      navigate("/editor");
+      navigate(`/editor/${rec.id}`);
     } catch (e) {
       alert((e as Error).message);
     }
