@@ -6,7 +6,7 @@ import {
   ArrowLeft, Loader2, Terminal, Play, AlertTriangle, ExternalLink, RefreshCw, CheckCircle2,
   Pencil, MousePointer2, ChevronDown, ChevronUp, Trash2,
   Monitor, Tablet, Smartphone, PanelRight, PanelLeft, Layers as LayersIcon, Sparkles, Upload,
-  Undo2, Redo2, FileText, Component as ComponentIcon, KeyRound,
+  Undo2, Redo2, FileText, Component as ComponentIcon,
 } from "lucide-react";
 import { useAi } from "@/store/aiStore";
 import { useEditor } from "@/store/editorStore";
@@ -22,7 +22,6 @@ import { InspectorView } from "@/components/editor/Inspector";
 import ElementsPalette from "@/components/editor/ElementsPalette";
 import WcLayers from "@/components/editor/WcLayers";
 import WcPages from "@/components/editor/WcPages";
-import EnvModal from "@/components/editor/EnvModal";
 import { useWebContainer, type WcPhase } from "@/lib/useWebContainer";
 import { usePanels } from "@/store/panelStore";
 import ResizeHandle from "@/components/editor/ResizeHandle";
@@ -67,7 +66,6 @@ export default function RunView() {
   const [dragging, setDragging] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [publishing, setPublishing] = useState(false);
-  const [envOpen, setEnvOpen] = useState(false);
 
   const rightW = usePanels((s) => s.right);
   const leftW = usePanels((s) => s.left);
@@ -228,9 +226,6 @@ export default function RunView() {
               Open <ExternalLink size={12} />
             </a>
           )}
-          <button onClick={() => setEnvOpen(true)} title="Environment variables" className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2.5 text-[12px] text-ink-2 hover:bg-raise hover:text-ink">
-            <KeyRound size={12} /> <span className="hidden lg:inline">Env</span>
-          </button>
           <button onClick={wc.restart} title="Restart" className="flex h-7 items-center gap-1.5 rounded-md border border-line px-2.5 text-[12px] text-ink-2 hover:bg-raise hover:text-ink">
             <RefreshCw size={12} /> <span className="hidden lg:inline">Restart</span>
           </button>
@@ -336,7 +331,7 @@ export default function RunView() {
             className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${rightOpen ? "border-l border-line" : ""} ${dragging ? "" : "transition-[width] duration-200"}`}
           >
             <div className="h-full" style={{ width: rightW }}>
-              <InspectorView surface={wc.surface} />
+              <InspectorView surface={wc.surface} env={{ projectId, onRestart: wc.restart }} />
             </div>
             {rightOpen && <ResizeHandle panel="right" edge="left" onActiveChange={setDragging} />}
           </aside>
@@ -373,7 +368,6 @@ export default function RunView() {
 
       {/* the editor's own Publish panel, reused here against the running files */}
       {showExport && <ExportPanel onClose={() => setShowExport(false)} />}
-      {envOpen && <EnvModal projectId={projectId} onClose={() => setEnvOpen(false)} onRestart={wc.restart} />}
     </div>
   );
 }

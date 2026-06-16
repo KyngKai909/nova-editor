@@ -8,8 +8,9 @@ import {
 } from "lucide-react";
 import {
   Copy, Trash2, X, Plus, Component as ComponentIcon,
-  Paintbrush2, Settings2, MessageSquare, Send, Check,
+  Paintbrush2, Settings2, MessageSquare, Send, Check, KeyRound,
 } from "lucide-react";
+import EnvPanel from "./EnvPanel";
 import { useEditor } from "@/store/editorStore";
 import { useComments, type Comment } from "@/store/commentsStore";
 import type { EditorNode } from "@/lib/types";
@@ -21,7 +22,7 @@ const RIGHT_TABS = [
   { id: "settings", icon: <Settings2 size={15} />, label: "Settings" },
   { id: "comments", icon: <MessageSquare size={15} />, label: "Comments" },
 ] as const;
-type RightTab = (typeof RIGHT_TABS)[number]["id"];
+type RightTab = (typeof RIGHT_TABS)[number]["id"] | "env";
 
 const EMPTY_COMMENTS: Comment[] = [];
 import { componentNameFromPath } from "@/lib/jsxEdit";
@@ -45,7 +46,9 @@ export default function Inspector() {
   return <InspectorView surface={useCanvasSurface()} />;
 }
 
-export function InspectorView({ surface }: { surface: EditorSurface }) {
+// `env` is passed in Run/webapp mode to add an Env tab (set the running app's
+// environment variables); omitted on the design canvas.
+export function InspectorView({ surface, env }: { surface: EditorSurface; env?: { projectId: string | null; onRestart: () => void } }) {
   const {
     node, selectedId, canEdit, isHtml, isComponentInstance, device, files, projectId,
     imageAssets, applyAsset,
@@ -72,6 +75,11 @@ export function InspectorView({ surface }: { surface: EditorSurface }) {
   useEffect(() => {
     if (pendingAnchor) setTab("comments");
   }, [pendingAnchor]);
+
+  // In run mode, offer an Env tab (set the running app's env vars).
+  const tabs = env ? [...RIGHT_TABS, { id: "env" as const, icon: <KeyRound size={15} />, label: "Env" }] : RIGHT_TABS;
+  // leaving run mode while on the Env tab → fall back to Style
+  useEffect(() => { if (!env && tab === "env") setTab("style"); }, [env, tab]);
 
   // Sequence guard: only the most recently issued readStyles result is applied,
   // so a slow read against the old (pre-reload) iframe can't clobber a fresh one.
@@ -101,7 +109,7 @@ export function InspectorView({ surface }: { surface: EditorSurface }) {
   const rail = (
     <div className="sticky top-0 z-10 bg-surface/90 backdrop-blur">
       <div className="flex items-center gap-0.5 border-b border-line p-1.5">
-        {RIGHT_TABS.map((t) => (
+        {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
@@ -117,7 +125,7 @@ export function InspectorView({ surface }: { surface: EditorSurface }) {
           </button>
         ))}
       </div>
-      {tab !== "comments" && node ? (
+      {tab !== "comments" && tab !== "env" && node ? (
         <div className="flex items-center justify-between border-b border-line px-3.5 py-2">
           <div className="flex min-w-0 items-center gap-2">
             <span className="rounded bg-accent/15 px-1.5 py-0.5 font-mono text-[11px] font-medium text-accent">{node.tag}</span>
@@ -134,11 +142,22 @@ export function InspectorView({ surface }: { surface: EditorSurface }) {
         </div>
       ) : (
         <div className="flex h-7 items-center px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-          {RIGHT_TABS.find((t) => t.id === tab)!.label}
+          {tabs.find((t) => t.id === tab)?.label ?? ""}
         </div>
       )}
     </div>
   );
+
+  if (tab === "env" && env) {
+    return (
+      <div className="flex h-full flex-col">
+        {rail}
+        <div className="min-h-0 flex-1">
+          <EnvPanel projectId={env.projectId} onRestart={env.onRestart} />
+        </div>
+      </div>
+    );
+  }
 
   if (tab === "comments") {
     return (

@@ -98,19 +98,14 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
 
       {/* collapsible console / terminal footer (the dev server output) */}
       <div className="shrink-0 border-t border-line bg-surface">
-        <div className="flex h-8 items-center px-1">
-          <button
-            onClick={() => setConsoleOpen((o) => !o)}
-            className="flex h-full flex-1 items-center gap-2 px-2 text-[11px] font-medium text-ink-3 transition-colors hover:text-ink"
-          >
-            <Terminal size={13} /> Console
-            {wc.log.length > 0 && <span className="rounded bg-raise px-1 text-[9px] tabular-nums text-ink-3">{wc.log.length}</span>}
-            {consoleOpen ? <ChevronDown size={13} className="ml-auto" /> : <ChevronUp size={13} className="ml-auto" />}
-          </button>
-          <button onClick={() => setEnvOpen(true)} title="Environment variables" className="ml-1 flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-ink-3 transition-colors hover:bg-raise hover:text-ink">
-            <KeyRound size={12} /> Env
-          </button>
-        </div>
+        <button
+          onClick={() => setConsoleOpen((o) => !o)}
+          className="flex h-8 w-full items-center gap-2 px-3 text-[11px] font-medium text-ink-3 transition-colors hover:text-ink"
+        >
+          <Terminal size={13} /> Console
+          {wc.log.length > 0 && <span className="rounded bg-raise px-1 text-[9px] tabular-nums text-ink-3">{wc.log.length}</span>}
+          {consoleOpen ? <ChevronDown size={13} className="ml-auto" /> : <ChevronUp size={13} className="ml-auto" />}
+        </button>
         {consoleOpen && (
           <div ref={logRef} className="scroll-thin h-44 overflow-auto border-t border-line bg-bg px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-2">
             {wc.log.length === 0 ? (

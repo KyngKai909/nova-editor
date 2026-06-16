@@ -253,8 +253,12 @@ export default function EditorShell() {
           className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${showRight ? "border-l border-line" : ""} ${sweep} max-md:absolute max-md:right-0 max-md:top-0 ${showRight ? "max-md:shadow-2xl" : ""}`}
         >
           <div className="h-full" style={{ width: fit(rightW) }}>
-            {/* same inspector, driven by the live app's surface in webapp mode */}
-            <InspectorView surface={mode === "webapp" ? wc.surface : canvasSurface} />
+            {/* same inspector, driven by the live app's surface in webapp mode;
+                webapp mode also gets an Env tab for the running app's env vars */}
+            <InspectorView
+              surface={mode === "webapp" ? wc.surface : canvasSurface}
+              env={mode === "webapp" ? { projectId, onRestart: wc.restart } : undefined}
+            />
           </div>
           {showRight && <ResizeHandle panel="right" edge="left" onActiveChange={setDragging} />}
         </aside>
