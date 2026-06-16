@@ -57,6 +57,10 @@ const nextConfig = {
     return [
       { source: "/run", headers: isolation },
       { source: "/run/:path*", headers: isolation },
+      // /editor is isolated too so it can boot a WebContainer in-place for the
+      // live preview pane (play-as-toggle). Validated that the canvas still
+      // renders CDN-heavy imported sites under COEP credentialless.
+      { source: "/editor", headers: isolation },
       // baseline security headers on every route
       { source: "/:path*", headers: securityHeaders },
     ];

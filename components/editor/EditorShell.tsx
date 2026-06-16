@@ -5,7 +5,9 @@ import dynamic from "next/dynamic";
 import TopBar from "./TopBar";
 import LeftPanel from "./LeftPanel";
 import Canvas from "./Canvas";
-import Inspector from "./Inspector";
+import { InspectorView } from "./Inspector";
+import { useCanvasSurface } from "./useCanvasSurface";
+import { useWebContainer } from "@/lib/useWebContainer";
 import ExportPanel from "./ExportPanel";
 import ConflictResolver from "@/components/github/ConflictResolver";
 import AiPanel from "./AiPanel";
@@ -25,6 +27,9 @@ const CodeEditor = dynamic(() => import("./CodeEditor"), {
   ssr: false,
   loading: () => <div className="grid h-full place-items-center text-sm text-ink-3">Loading editor…</div>,
 });
+// Live preview pane — only loads (and pulls in @webcontainer/api) when webapp
+// mode is first entered, so the design editor stays lean.
+const WebappCanvas = dynamic(() => import("./WebappCanvas"), { ssr: false });
 
 // clamp a panel width so a persisted desktop size never overflows a phone
 const fit = (px: number) => `min(${px}px, 86vw)`;
@@ -47,6 +52,21 @@ export default function EditorShell() {
   const [right, setRight] = useState(true);
   const [mobile, setMobile] = useState(false);
   const [dragging, setDragging] = useState(false);
+
+  // Play-as-toggle: webapp mode swaps the CENTER pane for the live WebContainer
+  // app while the editor's own panels/inspector stay put. enteredWebapp keeps the
+  // pane mounted once opened so the container persists across toggles.
+  const device = useEditor((s) => s.device);
+  const [mode, setMode] = useState<"design" | "webapp">("design");
+  const [enteredWebapp, setEnteredWebapp] = useState(false);
+  const toggleMode = () =>
+    setMode((m) => {
+      const next = m === "design" ? "webapp" : "design";
+      if (next === "webapp") setEnteredWebapp(true);
+      return next;
+    });
+  const canvasSurface = useCanvasSurface();
+  const wc = useWebContainer({ projectId, active: enteredWebapp, device });
 
   // auto-dismiss the transient notice
   useEffect(() => {
@@ -157,6 +177,8 @@ export default function EditorShell() {
         right={right}
         onToggleLeft={openLeft}
         onToggleRight={openRight}
+        webapp={mode === "webapp"}
+        onToggleWebapp={toggleMode}
       />
 
       <div className="relative flex min-h-0 flex-1">
@@ -182,16 +204,25 @@ export default function EditorShell() {
           {showAi && <ResizeHandle panel="ai" edge="right" onActiveChange={setDragging} />}
         </aside>
 
-        {/* canvas + code */}
+        {/* center pane — design canvas/code, or the live app in webapp mode */}
         <main className="relative flex min-w-0 flex-1">
-          {viewMode !== "code" && (
-            <div className={`relative min-w-0 ${viewMode === "split" ? "w-1/2 border-r border-line" : "flex-1"} bg-[radial-gradient(circle_at_50%_-20%,rgba(204,255,2,0.05),transparent_60%)]`}>
-              <Canvas />
-            </div>
-          )}
-          {viewMode !== "design" && (
-            <div className={`relative min-w-0 ${viewMode === "split" ? "w-1/2" : "flex-1"}`}>
-              <CodeEditor />
+          {/* design: canvas + code (kept mounted, hidden when webapp) */}
+          <div className={`relative flex min-w-0 flex-1 ${mode === "webapp" ? "hidden" : ""}`}>
+            {viewMode !== "code" && (
+              <div className={`relative min-w-0 ${viewMode === "split" ? "w-1/2 border-r border-line" : "flex-1"} bg-[radial-gradient(circle_at_50%_-20%,rgba(204,255,2,0.05),transparent_60%)]`}>
+                <Canvas />
+              </div>
+            )}
+            {viewMode !== "design" && (
+              <div className={`relative min-w-0 ${viewMode === "split" ? "w-1/2" : "flex-1"}`}>
+                <CodeEditor />
+              </div>
+            )}
+          </div>
+          {/* webapp: the live WebContainer app, mounted once so it persists */}
+          {enteredWebapp && (
+            <div className={`relative min-w-0 flex-1 ${mode === "webapp" ? "" : "hidden"}`}>
+              <WebappCanvas wc={wc} />
             </div>
           )}
         </main>
@@ -202,7 +233,8 @@ export default function EditorShell() {
           className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${showRight ? "border-l border-line" : ""} ${sweep} max-md:absolute max-md:right-0 max-md:top-0 ${showRight ? "max-md:shadow-2xl" : ""}`}
         >
           <div className="h-full" style={{ width: fit(rightW) }}>
-            <Inspector />
+            {/* same inspector, driven by the live app's surface in webapp mode */}
+            <InspectorView surface={mode === "webapp" ? wc.surface : canvasSurface} />
           </div>
           {showRight && <ResizeHandle panel="right" edge="left" onActiveChange={setDragging} />}
         </aside>
