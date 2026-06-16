@@ -32,9 +32,13 @@ export interface WcLayerNode {
 }
 export interface WcPageRoute { route: string; label: string; path: string; }
 
-// Map a page file to the URL route the dev server serves it at.
-function routeForPage(path: string): string | null {
-  const p = path.replace(/^src\//, "");
+// Map a page file to the URL route the dev server serves it at. `appBase` is the
+// subdir the app is actually served from (e.g. "app" for a Vite frontend nested in
+// a contracts repo), stripped first so routes are relative to the served root.
+function routeForPage(path: string, appBase = ""): string | null {
+  let pp = path;
+  if (appBase && (pp === appBase || pp.startsWith(appBase + "/"))) pp = pp.slice(appBase.length + 1);
+  const p = pp.replace(/^src\//, "");
   let m = p.match(/^app\/(.*\/)?page\.[tj]sx?$/); // Next App Router
   if (m) return "/" + (m[1] || "").replace(/\/$/, "");
   m = p.match(/^pages\/(.+)\.[tj]sx?$/); // Next Pages Router
@@ -191,6 +195,8 @@ export function useWebContainer({
   const handleRef = useRef<any>(null);
   // router kind/base detected at boot, for the live component-preview route
   const routerRef = useRef<{ kind: "app" | "pages" | "static"; base: string } | null>(null);
+  // subdir the app is served from (e.g. "app"), so routes are relative to it
+  const appDirRef = useRef("");
   const append = (s: string) => setLog((l) => [...l.slice(-400), s]);
 
   const post = useCallback((msg: any) => iframeRef.current?.contentWindow?.postMessage(msg, "*"), []);
@@ -400,6 +406,8 @@ export function useWebContainer({
         editFile(d.line, d.file, (c, n) => spliceJsx(c, n, "text", d.text));
       } else if (d.type === "nova-tree") {
         setTree(Array.isArray(d.tree) ? d.tree : []);
+      } else if (d.type === "nova-console") {
+        append("\n[app] " + (d.text || ""));
       } else if (d.type === "nova-comment-click") {
         useComments.getState().setFocused(d.commentId);
       } else if (d.type === "nova-context") {
@@ -428,7 +436,7 @@ export function useWebContainer({
       const out: WcPageRoute[] = [];
       for (const f of list) {
         if (f.category !== "page") continue;
-        const r = routeForPage(f.path);
+        const r = routeForPage(f.path, appDirRef.current);
         if (r == null || seen.has(r)) continue;
         seen.add(r);
         out.push({ route: r, label: r === "/" ? "/ (home)" : r, path: f.path });
@@ -479,6 +487,7 @@ export function useWebContainer({
         const app = demo ? { dir: "", script: "dev" } : await findAppRoot(wc);
         if (!app) throw new Error("Couldn't find a runnable web app here — no package.json with a dev or start script (Vite/Next/etc.). If the app lives in a subfolder, it should still be detected; otherwise this repo may be contracts/library-only.");
         if (cancelled) return;
+        appDirRef.current = app.dir;
         const appBase = app.dir ? app.dir + "/" : "";
         if (app.dir) append(`[nova] Running the web app in ./${app.dir}\n`);
 

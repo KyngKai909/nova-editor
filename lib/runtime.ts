@@ -6,6 +6,14 @@ import type { EditorNode } from "./types";
 // postMessages it to the parent /run page. Also does inline text editing.
 export const APP_BRIDGE = `
 (function(){
+  // Forward the running app's runtime errors to Nova's console. These otherwise
+  // only land in the iframe's own devtools (invisible in the editor), so a blank
+  // app — e.g. main.tsx throwing on a missing env var — looks like nothing at all.
+  var __nvErrN=0;
+  function nvLog(level,text){ if(__nvErrN++>200)return; try{ parent.postMessage({type:'nova-console',level:level,text:String(text).slice(0,2000)},'*'); }catch(_){ } }
+  window.addEventListener('error',function(e){ nvLog('error',(e.message||'Script error')+(e.filename?' ('+String(e.filename).split('/').pop()+':'+e.lineno+')':'')); });
+  window.addEventListener('unhandledrejection',function(e){ var r=e&&e.reason; nvLog('error','Unhandled rejection: '+(r&&r.message?r.message:String(r))); });
+  var __oce=console.error; console.error=function(){ try{ nvLog('error',Array.prototype.slice.call(arguments).map(function(x){ return x&&x.message?x.message:String(x); }).join(' ')); }catch(_){ } return __oce.apply(console,arguments); };
   function srcOf(el){
     var n=el;
     while(n){
