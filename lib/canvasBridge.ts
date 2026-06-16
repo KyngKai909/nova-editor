@@ -1,12 +1,16 @@
 // Coordinates between the parent app and the canvas iframe.
 //
-// SECURITY: the canvas renders user-imported (potentially untrusted) code, so
-// the iframe is sandboxed WITHOUT `allow-same-origin` → it runs in an opaque
-// origin and physically cannot reach `window.parent` (where API keys live).
-// Because of that, the parent can't touch the iframe's `contentDocument` either,
-// so ALL communication goes over postMessage: the parent sends commands
-// (select / hover / style / class / text / get-styles / preview) and the iframe
-// sends events (select / hover / text-commit / drop / styles-response / ready).
+// The canvas iframe is `sandbox="allow-scripts allow-same-origin …"` — same-origin
+// is required so the bridge can read computed styles and webfonts/Tailwind resolve.
+// All editor<->canvas communication still goes over postMessage (the parent sends
+// select / hover / style / class / text / get-styles / preview; the iframe sends
+// select / hover / text-commit / drop / styles-response / ready / navigate).
+//
+// NOTE (security): because it's same-origin, links in the canvas could otherwise
+// navigate the iframe to Nova's own pages (loading the editor inside the canvas),
+// so the click handler below blocks `<a>` navigation in every mode. Untrusted
+// imported code can in principle reach `window.parent`; secrets are mitigated by
+// being encrypted at rest under a non-extractable key, not the sandbox.
 
 let iframeEl: HTMLIFrameElement | null = null;
 let ready = false;
