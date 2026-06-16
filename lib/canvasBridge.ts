@@ -172,7 +172,16 @@ export const BRIDGE_SCRIPT = `
   document.addEventListener('click',function(e){
     var a=e.target.closest?e.target.closest('a[href]'):null; if(!a)return;
     var href=a.getAttribute('href')||'';
-    if(href.charAt(0)==='#')return; // in-page anchor: let it scroll
+    // In-page anchor: scroll to it ourselves. A <base href> (set so the page's
+    // assets resolve) makes the browser resolve "#x" to an ABSOLUTE url — the
+    // editor's — and NAVIGATE there, loading Nova inside the canvas. So never let
+    // the native nav fire; find the target and scroll to it.
+    if(href.charAt(0)==='#'){
+      e.preventDefault();
+      var fid=href.slice(1);
+      if(fid){ var ft; try{ ft=document.getElementById(fid)||document.querySelector('[name="'+fid+'"]'); }catch(_){} if(ft)ft.scrollIntoView({behavior:'smooth'}); }
+      return;
+    }
     e.preventDefault();
     var ext=href.lastIndexOf('http://',0)===0||href.lastIndexOf('https://',0)===0||href.lastIndexOf('//',0)===0||href.lastIndexOf('mailto:',0)===0||href.lastIndexOf('tel:',0)===0;
     if(ext){ if(preview)window.open(href,'_blank','noopener'); return; }
