@@ -21,6 +21,7 @@ import { useProjects } from "@/store/projectsStore";
 import { InspectorView } from "@/components/editor/Inspector";
 import ElementsPalette from "@/components/editor/ElementsPalette";
 import WcLayers from "@/components/editor/WcLayers";
+import WcPages from "@/components/editor/WcPages";
 import { useWebContainer, type WcPhase } from "@/lib/useWebContainer";
 import { usePanels } from "@/store/panelStore";
 import ResizeHandle from "@/components/editor/ResizeHandle";
@@ -34,23 +35,6 @@ const DEVICES: { id: Device; icon: React.ReactNode; label: string }[] = [
   { id: "mobile", icon: <Smartphone size={15} />, label: "Mobile · 390px" },
 ];
 const DEVICE_W: Record<Device, string> = { desktop: "100%", tablet: "834px", mobile: "390px" };
-
-interface PageRoute { route: string; label: string; path: string; }
-
-// Map a page file to the URL route the dev server serves it at.
-function routeForPage(path: string): string | null {
-  const p = path.replace(/^src\//, "");
-  let m = p.match(/^app\/(.*\/)?page\.[tj]sx?$/); // Next App Router
-  if (m) return "/" + (m[1] || "").replace(/\/$/, "");
-  m = p.match(/^pages\/(.+)\.[tj]sx?$/); // Next Pages Router
-  if (m) {
-    if (/_app|_document|api\//.test(m[1])) return null;
-    return "/" + m[1].replace(/\/index$/, "").replace(/^index$/, "");
-  }
-  m = p.match(/^(?:public\/)?(.+)\.html?$/); // static html
-  if (m) return "/" + (m[1] === "index" ? "" : m[1] + ".html");
-  return null;
-}
 
 const PHASE_LABEL: Record<WcPhase, string> = {
   idle: "Preparing…",
@@ -76,8 +60,6 @@ export default function RunView() {
 
   const [editMode, setEditMode] = useState(true);
   const [leftTab, setLeftTab] = useState<"pages" | "layers" | "components">("layers");
-  const [pages, setPages] = useState<PageRoute[]>([]);
-  const [route, setRoute] = useState("/");
   const [consoleOpen, setConsoleOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [leftOpen, setLeftOpen] = useState(true);
@@ -167,36 +149,6 @@ export default function RunView() {
       setPublishing(false);
     }
   };
-
-  // navigate the live app to a route (Pages tab)
-  const goToRoute = (r: string) => {
-    if (!wc.url || !wc.iframeRef.current) return;
-    wc.iframeRef.current.src = wc.url.replace(/\/$/, "") + (r === "/" ? "/" : r);
-    setRoute(r);
-    wc.setSelected(null);
-    wc.setSelectedId(null);
-  };
-
-  // derive the app's pages/routes from its files
-  useEffect(() => {
-    if (!wc.url || !wc.backend) { setPages([]); return; }
-    let alive = true;
-    wc.backend.list().then((list) => {
-      if (!alive) return;
-      const seen = new Set<string>();
-      const out: PageRoute[] = [];
-      for (const f of list) {
-        if (f.category !== "page") continue;
-        const r = routeForPage(f.path);
-        if (r == null || seen.has(r)) continue;
-        seen.add(r);
-        out.push({ route: r, label: r === "/" ? "/ (home)" : r, path: f.path });
-      }
-      out.sort((a, b) => a.route.localeCompare(b.route));
-      setPages(out);
-    });
-    return () => { alive = false; };
-  }, [wc.url, wc.backend]);
 
   // undo / redo / delete keyboard shortcuts (no deps — capture fresh wc state)
   useEffect(() => {
@@ -323,23 +275,7 @@ export default function RunView() {
                 {leftTab === "components" ? (
                   <ElementsPalette onInsert={insertElement} hasSelection={!!wc.selected?.file} />
                 ) : leftTab === "pages" ? (
-                  !wc.url ? (
-                    <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">Start the app to list its pages.</p>
-                  ) : pages.length === 0 ? (
-                    <p className="px-3 py-2 text-[11px] leading-relaxed text-ink-3">No pages detected. App Router routes (app/**/page) and *.html files show here.</p>
-                  ) : (
-                    pages.map((p) => (
-                      <button
-                        key={p.route}
-                        onClick={() => goToRoute(p.route)}
-                        title={p.path}
-                        className={`flex h-7 w-full items-center gap-2 px-3 text-left text-[12px] transition-colors ${route === p.route ? "bg-accent/15 text-accent" : "text-ink-2 hover:bg-raise hover:text-ink"}`}
-                      >
-                        <FileText size={12} className="shrink-0 opacity-70" />
-                        <span className="truncate">{p.label}</span>
-                      </button>
-                    ))
-                  )
+                  <WcPages pages={wc.pages} route={wc.route} hasUrl={!!wc.url} onGo={wc.goToRoute} />
                 ) : (
                   <WcLayers tree={wc.tree} selectedId={wc.selectedId} hasUrl={!!wc.url} onPick={wc.pickLayer} onHover={wc.hoverLayer} />
                 )}

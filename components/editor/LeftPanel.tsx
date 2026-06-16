@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import ElementsPalette from "./ElementsPalette";
 import WcLayers from "./WcLayers";
-import type { WcLayerNode } from "@/lib/useWebContainer";
+import WcPages from "./WcPages";
+import type { WcLayerNode, WcPageRoute } from "@/lib/useWebContainer";
 import { useEditor } from "@/store/editorStore";
 import { useComments } from "@/store/commentsStore";
 import { setDragComponent, getDragComponent, setDragElement, getDragElement } from "@/lib/dnd";
@@ -336,8 +337,15 @@ export interface WcLayersProps {
   onHover: (id: string | null) => void;
   onRefresh: () => void;
 }
+// Live routes shown in the Pages tab when the editor is in webapp mode.
+export interface WcPagesProps {
+  pages: WcPageRoute[];
+  route: string;
+  hasUrl: boolean;
+  onGo: (route: string) => void;
+}
 
-export default function LeftPanel({ webapp = false, wcLayers }: { webapp?: boolean; wcLayers?: WcLayersProps } = {}) {
+export default function LeftPanel({ webapp = false, wcLayers, wcPages }: { webapp?: boolean; wcLayers?: WcLayersProps; wcPages?: WcPagesProps } = {}) {
   const files = useEditor((s) => s.files);
   const tree = useEditor((s) => s.tree);
   const selectedId = useEditor((s) => s.selectedId);
@@ -378,7 +386,7 @@ export default function LeftPanel({ webapp = false, wcLayers }: { webapp?: boole
       </div>
 
       <div className="flex h-7 shrink-0 items-center justify-between px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-        <span>{webapp && tab === "layers" ? "Live layers" : activeLabel}</span>
+        <span>{webapp && tab === "layers" ? "Live layers" : webapp && tab === "pages" ? "Live pages" : activeLabel}</span>
         {webapp && tab === "layers" && wcLayers && (
           <button onClick={wcLayers.onRefresh} title="Refresh live layers" className="grid h-5 w-5 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
             <RefreshCw size={11} />
@@ -404,8 +412,18 @@ export default function LeftPanel({ webapp = false, wcLayers }: { webapp?: boole
         )}
 
         {tab === "pages" && (
-          pages.length ? pages.map((f) => <FileRow key={f.path} file={f} icon={<FileText size={13} />} view="design" />)
-            : <Empty>No pages detected.</Empty>
+          webapp ? (
+            <WcPages
+              pages={wcPages?.pages || []}
+              route={wcPages?.route ?? "/"}
+              hasUrl={!!wcPages?.hasUrl}
+              onGo={wcPages?.onGo || (() => {})}
+            />
+          ) : pages.length ? (
+            pages.map((f) => <FileRow key={f.path} file={f} icon={<FileText size={13} />} view="design" />)
+          ) : (
+            <Empty>No pages detected.</Empty>
+          )
         )}
 
         {tab === "components" && (

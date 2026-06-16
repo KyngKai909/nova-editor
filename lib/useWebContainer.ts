@@ -30,6 +30,22 @@ export interface WcLayerNode {
   text?: string;
   children: WcLayerNode[];
 }
+export interface WcPageRoute { route: string; label: string; path: string; }
+
+// Map a page file to the URL route the dev server serves it at.
+function routeForPage(path: string): string | null {
+  const p = path.replace(/^src\//, "");
+  let m = p.match(/^app\/(.*\/)?page\.[tj]sx?$/); // Next App Router
+  if (m) return "/" + (m[1] || "").replace(/\/$/, "");
+  m = p.match(/^pages\/(.+)\.[tj]sx?$/); // Next Pages Router
+  if (m) {
+    if (/_app|_document|api\//.test(m[1])) return null;
+    return "/" + m[1].replace(/\/index$/, "").replace(/^index$/, "");
+  }
+  m = p.match(/^(?:public\/)?(.+)\.html?$/); // static html
+  if (m) return "/" + (m[1] === "index" ? "" : m[1] + ".html");
+  return null;
+}
 
 // One WebContainer boot per page (the API allows only one).
 let wcBootPromise: Promise<any> | null = null;
@@ -76,6 +92,8 @@ export function useWebContainer({
   const [selected, setSelected] = useState<WcSelection | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tree, setTree] = useState<WcLayerNode[]>([]);
+  const [pages, setPages] = useState<WcPageRoute[]>([]);
+  const [route, setRoute] = useState("/");
   const [past, setPast] = useState<{ path: string; before: string; after: string }[]>([]);
   const [future, setFuture] = useState<{ path: string; before: string; after: string }[]>([]);
 
@@ -248,6 +266,16 @@ export function useWebContainer({
   const restart = useCallback(() => setRunId((n) => n + 1), []);
   const clearLog = useCallback(() => setLog([]), []);
 
+  // Navigate the running app to a route (Pages tab) — point the iframe at it and
+  // drop the current selection (it belonged to the previous page).
+  const goToRoute = useCallback((r: string) => {
+    if (!url || !iframeRef.current) return;
+    iframeRef.current.src = url.replace(/\/$/, "") + (r === "/" ? "/" : r);
+    setRoute(r);
+    setSelected(null);
+    setSelectedId(null);
+  }, [url]);
+
   // bridge messages from the running app: selection, inline text, layer tree, comments
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -277,6 +305,27 @@ export function useWebContainer({
     const t = setTimeout(refreshTree, 800);
     return () => clearTimeout(t);
   }, [url, refreshTree]);
+
+  // derive the app's pages/routes from its files (for the Pages tab)
+  useEffect(() => {
+    if (!url || !backend) { setPages([]); setRoute("/"); return; }
+    let alive = true;
+    backend.list().then((list) => {
+      if (!alive) return;
+      const seen = new Set<string>();
+      const out: WcPageRoute[] = [];
+      for (const f of list) {
+        if (f.category !== "page") continue;
+        const r = routeForPage(f.path);
+        if (r == null || seen.has(r)) continue;
+        seen.add(r);
+        out.push({ route: r, label: r === "/" ? "/ (home)" : r, path: f.path });
+      }
+      out.sort((a, b) => a.route.localeCompare(b.route));
+      setPages(out);
+    });
+    return () => { alive = false; };
+  }, [url, backend]);
 
   // comment pins while the inspector's Comments tab is open
   useEffect(() => {
@@ -359,6 +408,7 @@ export function useWebContainer({
 
   return {
     phase, log, error, url, selected, selectedId, tree, surface, backend,
+    pages, route, goToRoute,
     past, future, undo, redo, editFile,
     iframeRef, restart, clearLog, refreshTree, pickLayer, hoverLayer,
     setSelected, setSelectedId,

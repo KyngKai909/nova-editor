@@ -198,6 +198,12 @@ export default function EditorShell() {
                 onHover: wc.hoverLayer,
                 onRefresh: wc.refreshTree,
               }}
+              wcPages={{
+                pages: wc.pages,
+                route: wc.route,
+                hasUrl: !!wc.url,
+                onGo: wc.goToRoute,
+              }}
             />
           </div>
           {showLeft && <ResizeHandle panel="left" edge="right" onActiveChange={setDragging} />}
