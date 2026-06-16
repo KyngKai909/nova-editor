@@ -161,6 +161,19 @@ export const BRIDGE_SCRIPT = `
   });
   document.addEventListener('mouseleave',function(){ if(hovered){hovered.removeAttribute('data-wfc-hover');hovered=null;} post({type:'wfc-hover',id:null}); });
 
+  // Never let a link navigate the canvas iframe — a relative/absolute href
+  // resolves against Nova's own origin (srcDoc base), so it would load the editor
+  // (or homepage) INSIDE the canvas. Block it in every mode; in preview, send
+  // external links to a new tab and let in-page anchors work normally.
+  document.addEventListener('click',function(e){
+    var a=e.target.closest?e.target.closest('a[href]'):null; if(!a)return;
+    var href=a.getAttribute('href')||'';
+    if(href.charAt(0)==='#')return;
+    e.preventDefault();
+    var ext=href.lastIndexOf('http://',0)===0||href.lastIndexOf('https://',0)===0;
+    if(preview&&ext)window.open(href,'_blank','noopener');
+  },true);
+
   document.addEventListener('click',function(e){
     if(preview)return;
     var t=e.target.closest('[data-wfc-id]'); if(!t)return;
