@@ -4,9 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight, FileCode2, Type, Box, Image as ImageIcon, Link2, Square, Code2,
   MousePointer2, Files, Layers, Component, FolderTree, FileText, Copy, Trash2, GripVertical,
-  Upload, MessageSquare,
+  Upload, MessageSquare, RefreshCw,
 } from "lucide-react";
 import ElementsPalette from "./ElementsPalette";
+import WcLayers from "./WcLayers";
+import type { WcLayerNode } from "@/lib/useWebContainer";
 import { useEditor } from "@/store/editorStore";
 import { useComments } from "@/store/commentsStore";
 import { setDragComponent, getDragComponent, setDragElement, getDragElement } from "@/lib/dnd";
@@ -325,7 +327,17 @@ const TABS: { id: Tab; icon: React.ReactNode; label: string }[] = [
   { id: "files", icon: <FolderTree size={15} />, label: "Files" },
 ];
 
-export default function LeftPanel() {
+// Live layers shown in the Layers tab when the editor is in webapp mode.
+export interface WcLayersProps {
+  tree: WcLayerNode[];
+  selectedId: string | null;
+  hasUrl: boolean;
+  onPick: (id: string) => void;
+  onHover: (id: string | null) => void;
+  onRefresh: () => void;
+}
+
+export default function LeftPanel({ webapp = false, wcLayers }: { webapp?: boolean; wcLayers?: WcLayersProps } = {}) {
   const files = useEditor((s) => s.files);
   const tree = useEditor((s) => s.tree);
   const selectedId = useEditor((s) => s.selectedId);
@@ -365,14 +377,30 @@ export default function LeftPanel() {
         ))}
       </div>
 
-      <div className="flex h-7 shrink-0 items-center px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-        {activeLabel}
+      <div className="flex h-7 shrink-0 items-center justify-between px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-ink-3">
+        <span>{webapp && tab === "layers" ? "Live layers" : activeLabel}</span>
+        {webapp && tab === "layers" && wcLayers && (
+          <button onClick={wcLayers.onRefresh} title="Refresh live layers" className="grid h-5 w-5 place-items-center rounded text-ink-3 hover:bg-raise hover:text-ink">
+            <RefreshCw size={11} />
+          </button>
+        )}
       </div>
 
       <div className="scroll-thin min-h-0 flex-1 overflow-y-auto pb-2">
         {tab === "layers" && (
-          tree.length ? tree.map((n) => <LayerRow key={n.id} node={n} depth={0} />)
-            : <Empty>Select a page or component to see its layers.</Empty>
+          webapp ? (
+            <WcLayers
+              tree={wcLayers?.tree || []}
+              selectedId={wcLayers?.selectedId ?? null}
+              hasUrl={!!wcLayers?.hasUrl}
+              onPick={wcLayers?.onPick || (() => {})}
+              onHover={wcLayers?.onHover || (() => {})}
+            />
+          ) : tree.length ? (
+            tree.map((n) => <LayerRow key={n.id} node={n} depth={0} />)
+          ) : (
+            <Empty>Select a page or component to see its layers.</Empty>
+          )
         )}
 
         {tab === "pages" && (

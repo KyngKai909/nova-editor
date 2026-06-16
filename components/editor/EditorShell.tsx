@@ -188,7 +188,17 @@ export default function EditorShell() {
           className={`relative z-30 h-full shrink-0 overflow-hidden bg-surface ${showLeft ? "border-r border-line" : ""} ${sweep} max-md:absolute max-md:left-0 max-md:top-0 ${showLeft ? "max-md:shadow-2xl" : ""}`}
         >
           <div className="h-full" style={{ width: fit(leftW) }}>
-            <LeftPanel />
+            <LeftPanel
+              webapp={mode === "webapp"}
+              wcLayers={{
+                tree: wc.tree,
+                selectedId: wc.selectedId,
+                hasUrl: !!wc.url,
+                onPick: wc.pickLayer,
+                onHover: wc.hoverLayer,
+                onRefresh: wc.refreshTree,
+              }}
+            />
           </div>
           {showLeft && <ResizeHandle panel="left" edge="right" onActiveChange={setDragging} />}
         </aside>
