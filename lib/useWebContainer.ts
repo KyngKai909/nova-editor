@@ -246,6 +246,7 @@ export function useWebContainer({
   const pickLayer = useCallback((id: string) => post({ type: "nova-pick", id }), [post]);
   const hoverLayer = useCallback((id: string | null) => id && post({ type: "nova-hl", id }), [post]);
   const restart = useCallback(() => setRunId((n) => n + 1), []);
+  const clearLog = useCallback(() => setLog([]), []);
 
   // bridge messages from the running app: selection, inline text, layer tree, comments
   useEffect(() => {
@@ -358,8 +359,8 @@ export function useWebContainer({
 
   return {
     phase, log, error, url, selected, selectedId, tree, surface, backend,
-    past, future, undo, redo,
-    iframeRef, restart, refreshTree, pickLayer, hoverLayer,
+    past, future, undo, redo, editFile,
+    iframeRef, restart, clearLog, refreshTree, pickLayer, hoverLayer,
     setSelected, setSelectedId,
   };
 }
