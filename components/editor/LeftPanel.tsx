@@ -345,7 +345,7 @@ export interface WcPagesProps {
   onGo: (route: string) => void;
 }
 
-export default function LeftPanel({ webapp = false, wcLayers, wcPages }: { webapp?: boolean; wcLayers?: WcLayersProps; wcPages?: WcPagesProps } = {}) {
+export default function LeftPanel({ webapp = false, wcLayers, wcPages, onPreviewComponent }: { webapp?: boolean; wcLayers?: WcLayersProps; wcPages?: WcPagesProps; onPreviewComponent?: (path: string) => void } = {}) {
   const files = useEditor((s) => s.files);
   const tree = useEditor((s) => s.tree);
   const selectedId = useEditor((s) => s.selectedId);
@@ -432,9 +432,26 @@ export default function LeftPanel({ webapp = false, wcLayers, wcPages }: { webap
             <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3">Project components</div>
             {components.length ? (
               <>
-                {components.map((f) => <FileRow key={f.path} file={f} icon={<Component size={13} />} view="design" draggable />)}
+                {components.map((f) =>
+                  webapp ? (
+                    <button
+                      key={f.path}
+                      onClick={() => onPreviewComponent?.(f.path)}
+                      title={`${f.path} — preview live, by itself, in the app frame`}
+                      className="group flex w-full items-center gap-2 px-3 py-1.5 text-left text-[12px] text-ink-2 transition-colors hover:bg-raise/40"
+                    >
+                      <Component size={13} className="shrink-0 text-ink-3" />
+                      <span className="truncate">{f.name}</span>
+                      <span className="ml-auto shrink-0 text-[9px] uppercase text-ink-3">{f.kind}</span>
+                    </button>
+                  ) : (
+                    <FileRow key={f.path} file={f} icon={<Component size={13} />} view="design" draggable />
+                  )
+                )}
                 <p className="px-3 pt-2 text-[10.5px] leading-relaxed text-ink-3">
-                  Click to edit in isolation, or drag onto a JSX page (canvas or layer) to insert an instance.
+                  {webapp
+                    ? "Click to render it live, by itself, in the app frame — using the running app's real context (providers, CSS). First render compiles the route."
+                    : "Click to edit in isolation, or drag onto a JSX page (canvas or layer) to insert an instance."}
                 </p>
               </>
             ) : (

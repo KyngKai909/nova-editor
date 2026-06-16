@@ -204,6 +204,7 @@ export default function EditorShell() {
                 hasUrl: !!wc.url,
                 onGo: wc.goToRoute,
               }}
+              onPreviewComponent={wc.previewComponent}
             />
           </div>
           {showLeft && <ResizeHandle panel="left" edge="right" onActiveChange={setDragging} />}

@@ -47,6 +47,40 @@ function routeForPage(path: string): string | null {
   return null;
 }
 
+// PascalCase name guessed from a component file path (named-export fallback).
+function pascalName(path: string): string {
+  let base = path.split("/").pop()!.replace(/\.[tj]sx?$/, "");
+  if (base.toLowerCase() === "index") base = path.split("/").slice(-2, -1)[0] || "Component";
+  return base.replace(/(^|[-_ ])(\w)/g, (_m, _s, c: string) => c.toUpperCase()).replace(/[^A-Za-z0-9]/g, "");
+}
+
+// Relative import specifier from one project file to another (extension stripped).
+function relImport(fromFile: string, toFile: string): string {
+  const fromDir = fromFile.split("/").slice(0, -1);
+  const to = toFile.replace(/\.[tj]sx?$/, "").split("/");
+  let i = 0;
+  while (i < fromDir.length && i < to.length && fromDir[i] === to[i]) i++;
+  const rel = [...fromDir.slice(i).map(() => ".."), ...to.slice(i)].join("/");
+  return rel.startsWith(".") ? rel : "./" + rel;
+}
+
+// An ephemeral preview page: finds the component's export (default or named) and
+// renders it centered. As a route it inherits the app's root layout — providers,
+// fonts, global CSS — so app-tied components render with their real context.
+function previewSource(rel: string, name: string): string {
+  return `"use client";
+import * as __M from ${JSON.stringify(rel)};
+const __C = (__M.default || __M[${JSON.stringify(name)}] || Object.values(__M).find((v) => typeof v === "function"));
+export default function NovaPreview() {
+  return (
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 48 }}>
+      {__C ? <__C /> : <p style={{ fontFamily: "system-ui", color: "#888" }}>No component export found in ${rel}</p>}
+    </div>
+  );
+}
+`;
+}
+
 // One WebContainer boot per page (the API allows only one).
 let wcBootPromise: Promise<any> | null = null;
 async function bootContainer() {
@@ -104,6 +138,8 @@ export function useWebContainer({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const wcRef = useRef<any>(null);
   const handleRef = useRef<any>(null);
+  // router kind/base detected at boot, for the live component-preview route
+  const routerRef = useRef<{ kind: "app" | "pages" | "static"; base: string } | null>(null);
   const append = (s: string) => setLog((l) => [...l.slice(-400), s]);
 
   const post = useCallback((msg: any) => iframeRef.current?.contentWindow?.postMessage(msg, "*"), []);
@@ -276,6 +312,30 @@ export function useWebContainer({
     setSelectedId(null);
   }, [url]);
 
+  // Preview a single project component live, by itself, in the running app frame
+  // (Components tab). Writes an ephemeral route into the WebContainer ONLY — never
+  // through to disk/git — that renders just this component, then navigates to it.
+  // It inherits the app's real layout/providers/CSS, so app-tied components work.
+  const previewComponent = useCallback(async (componentPath: string) => {
+    const wc = wcRef.current;
+    const info = routerRef.current;
+    if (!wc || !url) return;
+    if (!info || info.kind === "static") {
+      append("\n[nova] Live component preview needs a Next.js app (App or Pages Router).");
+      return;
+    }
+    const name = pascalName(componentPath);
+    const file = info.kind === "app" ? `${info.base}/__nova_preview/page.tsx` : `${info.base}/__nova_preview.tsx`;
+    const rel = relImport(file, componentPath);
+    try {
+      if (info.kind === "app") await wc.fs.mkdir(`${info.base}/__nova_preview`, { recursive: true }).catch(() => {});
+      await wc.fs.writeFile(file, previewSource(rel, name)); // WC-only — not write-through
+      goToRoute("/__nova_preview");
+    } catch (e: any) {
+      append("\n[nova] Couldn't write the preview route: " + (e?.message || e));
+    }
+  }, [url, goToRoute]);
+
   // bridge messages from the running app: selection, inline text, layer tree, comments
   useEffect(() => {
     const onMsg = (e: MessageEvent) => {
@@ -374,8 +434,13 @@ export function useWebContainer({
           } catch { /* not present */ }
           return false;
         };
+        routerRef.current = { kind: "static", base: "" };
         for (const p of ["index.html", "public/index.html", "app/layout.tsx", "app/layout.jsx", "src/app/layout.tsx", "src/app/layout.jsx", "pages/_document.tsx", "pages/_document.jsx", "src/pages/_document.tsx", "src/pages/_document.jsx"]) {
-          if (await tryInject(p)) break;
+          if (await tryInject(p)) {
+            if (/\bapp\/layout\./.test(p)) routerRef.current = { kind: "app", base: p.replace(/\/layout\.[tj]sx$/, "") };
+            else if (/pages\/_document\./.test(p)) routerRef.current = { kind: "pages", base: p.replace(/\/_document\.[tj]sx$/, "") };
+            break;
+          }
         }
         try { const pub = await wc.fs.readdir("public"); for (const name of pub) if (/\.html?$/i.test(name)) await tryInject("public/" + name); } catch { /* no public */ }
         let script = "dev";
@@ -408,7 +473,7 @@ export function useWebContainer({
 
   return {
     phase, log, error, url, selected, selectedId, tree, surface, backend,
-    pages, route, goToRoute,
+    pages, route, goToRoute, previewComponent,
     past, future, undo, redo, editFile,
     iframeRef, restart, clearLog, refreshTree, pickLayer, hoverLayer,
     setSelected, setSelectedId,
