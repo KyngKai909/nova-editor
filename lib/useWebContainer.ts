@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useComments } from "@/store/commentsStore";
 import { useEnvVars } from "@/store/envStore";
+import { extractComponentControls, type PropControl } from "@/lib/componentProps";
 import { getHandle } from "@/lib/handleStore";
 import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
 import { APP_BRIDGE, resolveWcPath, findNodeByLine } from "@/lib/runtime";
@@ -82,14 +83,15 @@ export default function NovaPreview() {
 // An ephemeral preview page: finds the component's export (default or named) and
 // renders it centered. As a route it inherits the app's root layout — providers,
 // fonts, global CSS — so app-tied components render with their real context.
-function previewSource(rel: string, name: string): string {
+function previewSource(rel: string, name: string, props: Record<string, any> = {}): string {
   return `"use client";
 import * as __M from ${JSON.stringify(rel)};
 const __C = (__M.default || __M[${JSON.stringify(name)}] || Object.values(__M).find((v) => typeof v === "function"));
+const __P = ${JSON.stringify(props)};
 export default function NovaPreview() {
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 48 }}>
-      {__C ? <__C /> : <p style={{ fontFamily: "system-ui", color: "#888" }}>No component export found in ${rel}</p>}
+      {__C ? <__C {...__P} /> : <p style={{ fontFamily: "system-ui", color: "#888" }}>No component export found in ${rel}</p>}
     </div>
   );
 }
@@ -205,6 +207,8 @@ export function useWebContainer({
   const [tree, setTree] = useState<WcLayerNode[]>([]);
   const [pages, setPages] = useState<WcPageRoute[]>([]);
   const [route, setRoute] = useState("/");
+  // the component currently being previewed (Components tab) + its live props
+  const [previewComp, setPreviewComp] = useState<{ path: string; name: string; controls: PropControl[]; props: Record<string, any> } | null>(null);
   const [past, setPast] = useState<{ path: string; before: string; after: string }[]>([]);
   const [future, setFuture] = useState<{ path: string; before: string; after: string }[]>([]);
 
@@ -389,12 +393,22 @@ export function useWebContainer({
     setRoute(r);
     setSelected(null);
     setSelectedId(null);
+    if (r !== "/__nova_preview") setPreviewComp(null); // navigated off the component preview
   }, [url]);
 
   // Preview a single project component live, by itself, in the running app frame
   // (Components tab). Writes an ephemeral route into the WebContainer ONLY — never
   // through to disk/git — that renders just this component, then navigates to it.
   // It inherits the app's real layout/providers/CSS, so app-tied components work.
+  // Write the preview route (pre-registered at boot) for a component with the
+  // given props, so navigating to it renders <Component {...props} />.
+  const writePreviewFile = useCallback(async (componentPath: string, name: string, props: Record<string, any>) => {
+    const wc = wcRef.current; const info = routerRef.current;
+    if (!wc || !info || info.kind === "static") return;
+    const file = info.kind === "app" ? `${info.base}/__nova_preview/page.tsx` : `${info.base}/__nova_preview.tsx`;
+    await wc.fs.writeFile(file, previewSource(relImport(file, componentPath), name, props)); // WC-only — not write-through
+  }, []);
+
   const previewComponent = useCallback(async (componentPath: string) => {
     const wc = wcRef.current;
     const info = routerRef.current;
@@ -403,18 +417,29 @@ export function useWebContainer({
       append("\n[nova] Live component preview needs a Next.js app (App or Pages Router).");
       return;
     }
-    // Rewrite the route pre-registered at boot, then navigate — the route already
-    // exists in Next's tree, so it resolves instead of 404-ing.
     const name = pascalName(componentPath);
-    const file = info.kind === "app" ? `${info.base}/__nova_preview/page.tsx` : `${info.base}/__nova_preview.tsx`;
-    const rel = relImport(file, componentPath);
+    let controls: PropControl[] = [];
+    try { controls = extractComponentControls(await wc.fs.readFile(componentPath, "utf-8")); } catch { /* no props */ }
+    const props: Record<string, any> = {};
+    for (const c of controls) props[c.name] = c.default;
+    setPreviewComp({ path: componentPath, name, controls, props });
     try {
-      await wc.fs.writeFile(file, previewSource(rel, name)); // WC-only — not write-through
+      await writePreviewFile(componentPath, name, props);
       goToRoute("/__nova_preview");
     } catch (e: any) {
       append("\n[nova] Couldn't write the preview route: " + (e?.message || e));
     }
-  }, [url, goToRoute]);
+  }, [url, goToRoute, writePreviewFile]);
+
+  // Live-edit a previewed component's prop → rewrite the route → HMR re-renders.
+  const setPreviewProp = useCallback((name: string, value: any) => {
+    setPreviewComp((pc) => {
+      if (!pc) return pc;
+      const props = { ...pc.props, [name]: value };
+      writePreviewFile(pc.path, pc.name, props).catch(() => {});
+      return { ...pc, props };
+    });
+  }, [writePreviewFile]);
 
   // bridge messages from the running app: selection, inline text, layer tree, comments
   useEffect(() => {
@@ -587,7 +612,7 @@ export function useWebContainer({
 
   return {
     phase, log, error, url, selected, selectedId, tree, surface, backend,
-    pages, route, goToRoute, previewComponent,
+    pages, route, goToRoute, previewComponent, previewComp, setPreviewProp,
     past, future, undo, redo, editFile,
     iframeRef, restart, clearLog, refreshTree, pickLayer, hoverLayer,
     setSelected, setSelectedId,

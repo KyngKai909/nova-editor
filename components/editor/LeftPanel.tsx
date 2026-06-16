@@ -9,7 +9,15 @@ import {
 import ElementsPalette from "./ElementsPalette";
 import WcLayers from "./WcLayers";
 import WcPages from "./WcPages";
+import ComponentControls from "./ComponentControls";
 import type { WcLayerNode, WcPageRoute } from "@/lib/useWebContainer";
+import type { PropControl } from "@/lib/componentProps";
+
+// Live component preview + its editable props (Components tab, webapp mode).
+export interface WcPreviewProps {
+  comp: { path: string; name: string; controls: PropControl[]; props: Record<string, any> } | null;
+  onChange: (name: string, value: any) => void;
+}
 import { useEditor } from "@/store/editorStore";
 import { useComments } from "@/store/commentsStore";
 import { setDragComponent, getDragComponent, setDragElement, getDragElement } from "@/lib/dnd";
@@ -345,7 +353,7 @@ export interface WcPagesProps {
   onGo: (route: string) => void;
 }
 
-export default function LeftPanel({ webapp = false, wcLayers, wcPages, onPreviewComponent }: { webapp?: boolean; wcLayers?: WcLayersProps; wcPages?: WcPagesProps; onPreviewComponent?: (path: string) => void } = {}) {
+export default function LeftPanel({ webapp = false, wcLayers, wcPages, onPreviewComponent, wcPreview }: { webapp?: boolean; wcLayers?: WcLayersProps; wcPages?: WcPagesProps; onPreviewComponent?: (path: string) => void; wcPreview?: WcPreviewProps } = {}) {
   const files = useEditor((s) => s.files);
   const tree = useEditor((s) => s.tree);
   const selectedId = useEditor((s) => s.selectedId);
@@ -428,6 +436,15 @@ export default function LeftPanel({ webapp = false, wcLayers, wcPages, onPreview
 
         {tab === "components" && (
           <>
+            {webapp && wcPreview?.comp && (
+              <ComponentControls
+                key={wcPreview.comp.path}
+                name={wcPreview.comp.name}
+                controls={wcPreview.comp.controls}
+                props={wcPreview.comp.props}
+                onChange={wcPreview.onChange}
+              />
+            )}
             <CanvasElements />
             <div className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-3">Project components</div>
             {components.length ? (

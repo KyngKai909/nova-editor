@@ -206,6 +206,7 @@ export default function EditorShell() {
                 onGo: wc.goToRoute,
               }}
               onPreviewComponent={wc.previewComponent}
+              wcPreview={{ comp: wc.previewComp, onChange: wc.setPreviewProp }}
             />
           </div>
           {showLeft && <ResizeHandle panel="left" edge="right" onActiveChange={setDragging} />}
