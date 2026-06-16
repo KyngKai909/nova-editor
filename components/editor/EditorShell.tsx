@@ -214,25 +214,28 @@ export default function EditorShell() {
           {showAi && <ResizeHandle panel="ai" edge="right" onActiveChange={setDragging} />}
         </aside>
 
-        {/* center pane — design canvas/code, or the live app in webapp mode */}
+        {/* center pane — honors the Design/Split/Code view toggle in BOTH design
+            and webapp modes: the preview half swaps the design canvas for the live
+            app, while Split/Code keep the CodeEditor alongside or in place of it. */}
         <main className="relative flex min-w-0 flex-1">
-          {/* design: canvas + code (kept mounted, hidden when webapp) */}
-          <div className={`relative flex min-w-0 flex-1 ${mode === "webapp" ? "hidden" : ""}`}>
-            {viewMode !== "code" && (
-              <div className={`relative min-w-0 ${viewMode === "split" ? "w-1/2 border-r border-line" : "flex-1"} bg-[radial-gradient(circle_at_50%_-20%,rgba(204,255,2,0.05),transparent_60%)]`}>
+          {/* preview slot — design canvas, or the live app in webapp mode. Canvas
+              stays mounted always and WebappCanvas once entered (hidden, not
+              unmounted) so their iframes + selection survive view/mode toggles. */}
+          {viewMode !== "code" && (
+            <div className={`relative min-w-0 ${viewMode === "split" ? "w-1/2 border-r border-line" : "flex-1"} bg-[radial-gradient(circle_at_50%_-20%,rgba(204,255,2,0.05),transparent_60%)]`}>
+              <div className={`absolute inset-0 ${mode === "webapp" ? "hidden" : ""}`}>
                 <Canvas />
               </div>
-            )}
-            {viewMode !== "design" && (
-              <div className={`relative min-w-0 ${viewMode === "split" ? "w-1/2" : "flex-1"}`}>
-                <CodeEditor />
-              </div>
-            )}
-          </div>
-          {/* webapp: the live WebContainer app, mounted once so it persists */}
-          {enteredWebapp && (
-            <div className={`relative min-w-0 flex-1 ${mode === "webapp" ? "" : "hidden"}`}>
-              <WebappCanvas wc={wc} />
+              {enteredWebapp && (
+                <div className={`absolute inset-0 ${mode === "webapp" ? "" : "hidden"}`}>
+                  <WebappCanvas wc={wc} />
+                </div>
+              )}
+            </div>
+          )}
+          {viewMode !== "design" && (
+            <div className={`relative min-w-0 ${viewMode === "split" ? "w-1/2" : "flex-1"}`}>
+              <CodeEditor />
             </div>
           )}
         </main>
