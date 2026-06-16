@@ -3,24 +3,19 @@
 import { useEffect, useRef, useState } from "react";
 import { GitBranch, ChevronDown, Plus, Loader2, ArrowDownToLine, GitMerge } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
-import { useGitHub } from "@/store/githubStore";
 import { useProjects } from "@/store/projectsStore";
-import { listBranches, createBranch, importRepoFilesAuth, getBranchHeadSha } from "@/lib/githubApi";
-import { mergeThreeWay } from "@/lib/merge";
-import { diff3Strings, conflictCount, buildResolved } from "@/lib/diff3";
-import { useConflicts, type FileConflict } from "@/store/conflictsStore";
+import { listBranches, createBranch, importRepoFilesAuth } from "@/lib/githubApi";
+import { useConflicts } from "@/store/conflictsStore";
+import { useGitSync } from "./useGitSync";
 
-// Branch picker + GitHub "Pull & merge" for connected projects. Committing,
+// Branch picker + GitHub "Pull & merge" for connected projects. Sync state and
+// the pull come from useGitSync (shared with the status footer). Committing,
 // pushing and PRs live in the Publish panel.
 export default function GitBar() {
-  const token = useGitHub((s) => s.token);
-  const projectId = useEditor((s) => s.projectId);
-  const changed = useEditor((s) => s.files.filter((f) => f.content !== f.original).length);
+  const { token, project, gh, changed, canPull, behind, busy, pull, setBehind, setBusy, baseHrefFor } = useGitSync();
   const loadFiles = useEditor((s) => s.loadFiles);
-  const setNotice = useEditor((s) => s.setNotice);
-  const project = useProjects((s) => s.projects.find((p) => p.id === projectId));
+  const projectId = useEditor((s) => s.projectId);
   const updateProject = useProjects((s) => s.updateProject);
-  const setConflicts = useConflicts((s) => s.setConflicts);
   const setConflictsOpen = useConflicts((s) => s.setOpen);
   const openConflicts = useConflicts((s) => (projectId ? (s.byProject[projectId] || []).length : 0));
 
@@ -28,14 +23,7 @@ export default function GitBar() {
   const [branches, setBranches] = useState<string[] | null>(null);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [behind, setBehind] = useState(false); // remote HEAD moved since our baseline
   const ref = useRef<HTMLDivElement>(null);
-
-  const gh = project?.github;
-  // Nova-managed pull is for in-browser github projects; device-backed clones
-  // sync through the real folder on disk (the user's own git), so skip them.
-  const canPull = !!gh && !!token && project?.storage !== "device";
 
   useEffect(() => {
     const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setMenu(false); };
@@ -43,88 +31,12 @@ export default function GitBar() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  // Cheap upstream-update probe: compare the branch HEAD to our stored baseline.
-  useEffect(() => {
-    let alive = true;
-    if (!canPull || !gh?.commitSha) { setBehind(false); return; }
-    getBranchHeadSha(token!, gh.owner, gh.repo, gh.branch)
-      .then((head) => { if (alive) setBehind(head !== gh.commitSha); })
-      .catch(() => {});
-    return () => { alive = false; };
-  }, [canPull, token, gh?.owner, gh?.repo, gh?.branch, gh?.commitSha]);
-
   if (!gh || !token) return null; // only for connected, repo-linked projects
 
   const openMenu = async () => {
     setMenu((m) => !m);
     if (!branches) {
       try { setBranches(await listBranches(token, gh.owner, gh.repo)); } catch { setBranches([]); }
-    }
-  };
-
-  const baseHrefFor = (branch: string) =>
-    project?.baseHref && project.baseHref.includes("jsdelivr")
-      ? `https://cdn.jsdelivr.net/gh/${gh.owner}/${gh.repo}@${branch}/`
-      : project?.baseHref ?? null;
-
-  // Pull the branch HEAD and 3-way merge it with the current working copy:
-  // remote-only changes fast-forward, your edits stay, and files changed on both
-  // sides get a line-level (diff3) merge — cleanly-mergeable ones auto-resolve,
-  // the rest open the conflict resolver.
-  const pull = async () => {
-    if (!canPull || !project) return;
-    setBusy(true);
-    setMenu(false);
-    try {
-      const { files: remote, assets, commitSha } = await importRepoFilesAuth(token, gh.owner, gh.repo, gh.branch);
-      const local = useEditor.getState().files;
-      const result = mergeThreeWay(local, remote);
-      const remoteByPath = new Map(remote.map((f) => [f.path, f]));
-
-      const trueConflicts: FileConflict[] = [];
-      let autoMerged = 0;
-      const finalFiles = result.files.map((f) => {
-        if (!result.conflicts.includes(f.path)) return f;
-        const L = local.find((x) => x.path === f.path);
-        const R = remoteByPath.get(f.path);
-        const baseTxt = L?.original ?? "";
-        const mine = L?.content ?? "";
-        if (!R) {
-          // edited locally + deleted upstream → file-level conflict
-          trueConflicts.push({ path: f.path, base: baseTxt, mine, theirs: "", deleted: true });
-          return f;
-        }
-        const regions = diff3Strings(mine, baseTxt, R.content);
-        if (conflictCount(regions) === 0) {
-          autoMerged++;
-          return { ...f, content: buildResolved(regions, []) }; // clean line-merge
-        }
-        trueConflicts.push({ path: f.path, base: baseTxt, mine, theirs: R.content });
-        return f;
-      });
-
-      const baseHref = baseHrefFor(gh.branch);
-      loadFiles(finalFiles, assets, baseHref, project.id);
-      updateProject(project.id, { github: { ...gh, commitSha }, baseHref, files: finalFiles });
-      setConflicts(project.id, trueConflicts); // opens the resolver when non-empty
-      setBehind(false);
-
-      const bits: string[] = [];
-      if (result.pulled.length) bits.push(`${result.pulled.length} updated`);
-      if (result.added.length) bits.push(`${result.added.length} added`);
-      if (result.removed.length) bits.push(`${result.removed.length} removed`);
-      if (autoMerged) bits.push(`${autoMerged} auto-merged`);
-      if (result.kept.length) bits.push(`${result.kept.length} kept`);
-      const summary = bits.join(" · ") || "already up to date";
-      setNotice(
-        trueConflicts.length
-          ? `Pulled — ${trueConflicts.length} file${trueConflicts.length === 1 ? "" : "s"} need resolving${summary !== "already up to date" ? ` · ${summary}` : ""}`
-          : `Pulled ${gh.branch} · ${summary}`
-      );
-    } catch (e: any) {
-      alert(e.message);
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -185,7 +97,7 @@ export default function GitBar() {
           {canPull && (
             <>
               <button
-                onClick={pull}
+                onClick={() => { setMenu(false); pull(); }}
                 disabled={busy}
                 className="flex w-full items-center gap-2 px-3 py-2 text-left text-[12.5px] text-ink-2 transition-colors hover:bg-raise disabled:opacity-50"
               >

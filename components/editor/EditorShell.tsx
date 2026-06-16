@@ -6,6 +6,7 @@ import TopBar from "./TopBar";
 import LeftPanel from "./LeftPanel";
 import Canvas from "./Canvas";
 import { InspectorView } from "./Inspector";
+import StatusFooter from "./StatusFooter";
 import { useCanvasSurface } from "./useCanvasSurface";
 import { useWebContainer } from "@/lib/useWebContainer";
 import ExportPanel from "./ExportPanel";
@@ -279,6 +280,8 @@ export default function EditorShell() {
           />
         )}
       </div>
+
+      <StatusFooter />
 
       {notice && (
         <div className="pointer-events-none fixed bottom-5 left-1/2 z-50 -translate-x-1/2 animate-fade-up rounded-full border border-line-2 bg-surface px-4 py-2 text-[12.5px] text-ink shadow-2xl">
