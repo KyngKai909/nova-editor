@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Lock, RefreshCw, Upload } from "lucide-react";
+import { Lock, RefreshCw, Upload, Save } from "lucide-react";
 import { useEnvVars } from "@/store/envStore";
 
 // Reusable env-vars editor: view / type, or upload a .env file. Saved encrypted
@@ -48,16 +48,18 @@ export default function EnvPanel({
         className="scroll-thin min-h-[160px] flex-1 resize-none rounded-md border border-line bg-bg p-2.5 font-mono text-[12px] leading-relaxed text-ink outline-none focus:border-accent/60"
       />
       <input ref={fileRef} type="file" accept=".env,.txt,text/plain" hidden onChange={onUpload} />
-      <div className="flex items-center gap-2">
-        <button onClick={() => fileRef.current?.click()} className="flex h-8 items-center gap-1.5 rounded-md border border-line px-2.5 text-[12px] text-ink-2 transition-colors hover:bg-raise hover:text-ink">
-          <Upload size={13} /> Upload .env
-        </button>
-        <div className="ml-auto flex gap-2">
-          <button onClick={() => save(false)} className="h-8 rounded-md border border-line px-3 text-[12px] text-ink-2 transition-colors hover:bg-raise hover:text-ink">Save</button>
-          <button onClick={() => save(true)} className="flex h-8 items-center gap-1.5 rounded-md bg-accent px-3 text-[12px] font-semibold text-accent-ink transition-colors hover:brightness-110">
-            <RefreshCw size={12} /> Save &amp; restart
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <button onClick={() => fileRef.current?.click()} className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-line px-2.5 text-[12px] text-ink-2 transition-colors hover:bg-raise hover:text-ink">
+            <Upload size={13} /> Upload .env
+          </button>
+          <button onClick={() => save(false)} className="flex h-8 flex-1 items-center justify-center gap-1.5 rounded-md border border-line px-3 text-[12px] text-ink-2 transition-colors hover:bg-raise hover:text-ink">
+            <Save size={13} /> Save
           </button>
         </div>
+        <button onClick={() => save(true)} className="flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-accent px-3 text-[12px] font-semibold text-accent-ink transition-colors hover:brightness-110">
+          <RefreshCw size={12} /> Save &amp; restart
+        </button>
       </div>
       <span className="flex items-center gap-1.5 text-[10.5px] text-ink-3"><Lock size={11} /> Encrypted in your browser · never sent to a server</span>
     </div>
