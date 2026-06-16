@@ -119,6 +119,47 @@ const DEMO_TREE: Record<string, any> = {
 // tree from the injected bridge, an EditorSurface that edits the running source,
 // and undo/redo over those edits. `active` gates the boot (so the editor only
 // starts a container when webapp mode is actually entered).
+// Find the directory to run the dev server from. Many repos aren't a web app at
+// the root (a Hardhat/monorepo with the frontend in app/, apps/web, etc.), so we
+// scan the root + one level of subdirs (and apps/* , packages/*) for a package.json
+// whose dev/start script looks like a web dev server. Falls back to the root if it
+// has any dev/start script; returns null if nothing's runnable.
+const WEB_DEV = /(vite|next|react-scripts|astro|@remix-run|remix |nuxt|vue-cli-service|parcel|webpack|http-server|\bserve\b|gatsby|svelte-kit|sveltekit|solid-start|@redwoodjs|rsbuild|docusaurus|expo|ng serve|preact)/i;
+async function findAppRoot(wc: any): Promise<{ dir: string; script: string } | null> {
+  const readPkg = async (dir: string) => {
+    try { return JSON.parse(await wc.fs.readFile((dir ? dir + "/" : "") + "package.json", "utf-8")); } catch { return null; }
+  };
+  const dirs: string[] = [""];
+  try {
+    for (const e of await wc.fs.readdir(".", { withFileTypes: true }))
+      if (e.isDirectory() && !e.name.startsWith(".") && e.name !== "node_modules") dirs.push(e.name);
+  } catch { /* ignore */ }
+  for (const parent of ["apps", "packages"]) {
+    try {
+      for (const e of await wc.fs.readdir(parent, { withFileTypes: true }))
+        if (e.isDirectory()) dirs.push(parent + "/" + e.name);
+    } catch { /* no such dir */ }
+  }
+  let best: { dir: string; script: string; score: number } | null = null;
+  let rootFallback: { dir: string; script: string } | null = null;
+  for (const dir of dirs) {
+    const pkg = await readPkg(dir);
+    const sc = pkg?.scripts;
+    if (!sc) continue;
+    const script = sc.dev ? "dev" : sc.start ? "start" : null;
+    if (!script) continue;
+    if (dir === "" && !rootFallback) rootFallback = { dir: "", script };
+    const cmd = String(sc[script] || "");
+    const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+    if (!(WEB_DEV.test(cmd) || Object.keys(deps).some((d) => WEB_DEV.test(d)))) continue;
+    const depth = dir ? dir.split("/").length : 0;
+    const named = /(^|\/)(app|web|frontend|client|site|www)$/.test(dir) ? 1 : 0;
+    const score = (dir === "" ? 4 : 0) + named * 2 - depth + (WEB_DEV.test(cmd) ? 1 : 0);
+    if (!best || score > best.score) best = { dir, script, score };
+  }
+  return best ? { dir: best.dir, script: best.script } : rootFallback;
+}
+
 export function useWebContainer({
   projectId,
   active,
@@ -432,9 +473,18 @@ export function useWebContainer({
         const fsTree = demo ? DEMO_TREE : await readDirTree(handle);
         await wc.mount(fsTree);
         if (cancelled) return;
+
+        // Find which directory actually holds the runnable web app (the repo root
+        // is often a Hardhat/monorepo with the frontend in app/, apps/web, …).
+        const app = demo ? { dir: "", script: "dev" } : await findAppRoot(wc);
+        if (!app) throw new Error("Couldn't find a runnable web app here — no package.json with a dev or start script (Vite/Next/etc.). If the app lives in a subfolder, it should still be detected; otherwise this repo may be contracts/library-only.");
+        if (cancelled) return;
+        const appBase = app.dir ? app.dir + "/" : "";
+        if (app.dir) append(`[nova] Running the web app in ./${app.dir}\n`);
+
         try {
-          await wc.fs.mkdir("public", { recursive: true }).catch(() => {});
-          await wc.fs.writeFile("public/nova-bridge.js", APP_BRIDGE);
+          await wc.fs.mkdir(`${appBase}public`, { recursive: true }).catch(() => {});
+          await wc.fs.writeFile(`${appBase}public/nova-bridge.js`, APP_BRIDGE);
         } catch { /* best-effort */ }
         const TAG = '<script src="/nova-bridge.js"></script>';
         const tryInject = async (path: string) => {
@@ -446,14 +496,15 @@ export function useWebContainer({
           return false;
         };
         routerRef.current = { kind: "static", base: "" };
-        for (const p of ["index.html", "public/index.html", "app/layout.tsx", "app/layout.jsx", "src/app/layout.tsx", "src/app/layout.jsx", "pages/_document.tsx", "pages/_document.jsx", "src/pages/_document.tsx", "src/pages/_document.jsx"]) {
+        for (const rel of ["index.html", "public/index.html", "app/layout.tsx", "app/layout.jsx", "src/app/layout.tsx", "src/app/layout.jsx", "pages/_document.tsx", "pages/_document.jsx", "src/pages/_document.tsx", "src/pages/_document.jsx"]) {
+          const p = appBase + rel;
           if (await tryInject(p)) {
-            if (/\bapp\/layout\./.test(p)) routerRef.current = { kind: "app", base: p.replace(/\/layout\.[tj]sx$/, "") };
-            else if (/pages\/_document\./.test(p)) routerRef.current = { kind: "pages", base: p.replace(/\/_document\.[tj]sx$/, "") };
+            if (/\bapp\/layout\./.test(rel)) routerRef.current = { kind: "app", base: p.replace(/\/layout\.[tj]sx$/, "") };
+            else if (/pages\/_document\./.test(rel)) routerRef.current = { kind: "pages", base: p.replace(/\/_document\.[tj]sx$/, "") };
             break;
           }
         }
-        try { const pub = await wc.fs.readdir("public"); for (const name of pub) if (/\.html?$/i.test(name)) await tryInject("public/" + name); } catch { /* no public */ }
+        try { const pub = await wc.fs.readdir(`${appBase}public`); for (const name of pub) if (/\.html?$/i.test(name)) await tryInject(`${appBase}public/` + name); } catch { /* no public */ }
         // Pre-register the live component-preview route BEFORE the dev server
         // starts, so Next picks it up in its initial route scan. (WebContainer fs
         // events don't reliably trigger Next's runtime route detection, so a route
@@ -467,16 +518,11 @@ export function useWebContainer({
             await wc.fs.writeFile(`${info.base}/__nova_preview.tsx`, previewPlaceholder());
           }
         } catch { /* best-effort */ }
-        let script = "dev";
-        try {
-          const raw = (fsTree as any)["package.json"].file.contents;
-          const text = typeof raw === "string" ? raw : new TextDecoder().decode(raw);
-          const pkg = JSON.parse(text);
-          if (!pkg.scripts?.dev) script = pkg.scripts?.start ? "start" : "dev";
-        } catch { throw new Error("No package.json at the project root — this doesn't look like a runnable app."); }
+        const script = app.script;
+        const spawnOpts = app.dir ? { cwd: app.dir } : undefined;
         setPhase("installing");
-        append("$ npm install");
-        const install = await wc.spawn("npm", ["install"]);
+        append(`$ npm install${app.dir ? ` (in ./${app.dir})` : ""}`);
+        const install = await wc.spawn("npm", ["install"], spawnOpts);
         install.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
         const code = await install.exit;
         if (cancelled) return;
@@ -485,7 +531,7 @@ export function useWebContainer({
         append(`\n$ npm run ${script}`);
         wc.on("server-ready", (_port: number, serverUrl: string) => { if (!cancelled) { setUrl(serverUrl); setPhase("ready"); } });
         wc.on("error", (e: any) => !cancelled && setError(e?.message || String(e)));
-        const dev = await wc.spawn("npm", ["run", script]);
+        const dev = await wc.spawn("npm", ["run", script], spawnOpts);
         dev.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
       } catch (e: any) {
         if (!cancelled) { setError(e?.message || String(e)); setPhase("error"); }
