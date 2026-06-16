@@ -201,12 +201,6 @@ export function InspectorView({ surface }: { surface: EditorSurface }) {
         </div>
       ) : (
         <>
-          {!isHtml && (
-            <div className="border-b border-line bg-accent/[0.06] px-3.5 py-2 text-[11px] leading-relaxed text-accent/80">
-              JSX: style edits write to the element’s inline <span className="font-mono">style</span> object.
-            </div>
-          )}
-
           <Section title="Layout">
             <Field label="Display">
               <Segmented

@@ -278,7 +278,9 @@ export default function Canvas() {
         if (e.target === e.currentTarget) selectNode(null);
       }}
     >
-      <div className="flex min-h-full items-start justify-center p-7">
+      {/* safe center: centers the frame but aligns to the start (and stays
+          scrollable) when it's wider than the viewport, instead of clipping it */}
+      <div className="flex min-h-full items-start [justify-content:safe_center] p-7">
         <div
           className="shrink-0"
           style={{

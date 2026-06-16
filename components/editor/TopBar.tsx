@@ -105,7 +105,7 @@ export default function TopBar({
   const iconBtn = "grid h-7 w-7 place-items-center rounded-md transition-colors hover:bg-raise hover:text-ink";
 
   return (
-    <header className="grid h-12 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-2 border-b border-line bg-surface px-3">
+    <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b border-line bg-surface px-3">
       {/* LEFT — navigate · history · file */}
       <div className="flex min-w-0 items-center gap-1">
         <Link href="/dashboard" onClick={(e) => { e.preventDefault(); navigate("/dashboard"); }} title="Dashboard" className={`${iconBtn} text-ink-3`}>
@@ -154,8 +154,9 @@ export default function TopBar({
         </div>
       </div>
 
-      {/* CENTER — canvas size, dead center (device presets + custom width) */}
-      <div className="hidden items-center rounded-lg border border-line bg-bg p-0.5 md:flex">
+      {/* CENTER — canvas size (device presets + width + zoom). Hidden below lg so
+          it never crowds the left/right groups at tablet width. */}
+      <div className="hidden shrink-0 items-center rounded-lg border border-line bg-bg p-0.5 lg:flex">
         {DEVICES.map((d) => (
           <button
             key={d.id}
@@ -176,7 +177,7 @@ export default function TopBar({
       </div>
 
       {/* RIGHT — view · result · ship */}
-      <div className="flex items-center justify-end gap-1">
+      <div className="flex shrink-0 items-center gap-1">
         <div className="hidden items-center gap-0.5 rounded-lg border border-line bg-bg p-0.5 sm:flex">
           {VIEWS.map((v) => (
             <button
