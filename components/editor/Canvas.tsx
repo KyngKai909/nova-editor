@@ -110,6 +110,42 @@ function findInTree(nodes: any[], id: string): any {
   return null;
 }
 
+// Resolve a link href clicked in the canvas (preview) to a project page file, so
+// cross-page links switch the canvas like browsing the real site. Handles
+// absolute (/about), relative (./about.html), clean URLs (/about → about.html),
+// directory indexes, and a basename fallback. Returns the file path or null.
+function resolvePageHref(href: string, currentPath: string | null, files: { path: string }[]): string | null {
+  const h = (href || "").split("#")[0].split("?")[0].trim();
+  if (!h) return null;
+  const pages = files.filter((f) => /\.html?$/i.test(f.path));
+  if (!pages.length) return null;
+  let raw: string;
+  if (h.charAt(0) === "/") {
+    raw = h.slice(1);
+  } else {
+    const dir = currentPath && currentPath.includes("/") ? currentPath.slice(0, currentPath.lastIndexOf("/") + 1) : "";
+    raw = dir + h;
+  }
+  const parts: string[] = [];
+  for (const seg of raw.split("/")) {
+    if (seg === "" || seg === ".") continue;
+    if (seg === "..") parts.pop();
+    else parts.push(seg);
+  }
+  const path = parts.join("/");
+  const candidates = [path, path + ".html", path + ".htm", (path ? path + "/" : "") + "index.html", path || "index.html"];
+  for (const c of candidates) {
+    const m = pages.find((p) => p.path === c || p.path.replace(/^public\//, "") === c);
+    if (m) return m.path;
+  }
+  const base = (path.split("/").pop() || path).replace(/\.html?$/i, "");
+  if (base) {
+    const m = pages.find((p) => (p.path.split("/").pop() || "").replace(/\.html?$/i, "") === base);
+    if (m) return m.path;
+  }
+  return null;
+}
+
 export default function Canvas() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -194,6 +230,12 @@ export default function Canvas() {
       if (!d?.type) return;
       if (d.type === "wfc-select") selectNode(d.id);
       else if (d.type === "wfc-hover") hoverNode(d.id);
+      else if (d.type === "wfc-navigate") {
+        // a link to another project page was clicked in preview → switch to it
+        const st = useEditor.getState();
+        const target = resolvePageHref(d.href, st.activePath, st.files);
+        if (target && target !== st.activePath) st.selectFile(target);
+      }
       else if (d.type === "wfc-text") updateText(d.id, d.text);
       else if (d.type === "wfc-drop") {
         const comp = getDragComponent();

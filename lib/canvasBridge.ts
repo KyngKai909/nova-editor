@@ -168,10 +168,13 @@ export const BRIDGE_SCRIPT = `
   document.addEventListener('click',function(e){
     var a=e.target.closest?e.target.closest('a[href]'):null; if(!a)return;
     var href=a.getAttribute('href')||'';
-    if(href.charAt(0)==='#')return;
+    if(href.charAt(0)==='#')return; // in-page anchor: let it scroll
     e.preventDefault();
-    var ext=href.lastIndexOf('http://',0)===0||href.lastIndexOf('https://',0)===0;
-    if(preview&&ext)window.open(href,'_blank','noopener');
+    var ext=href.lastIndexOf('http://',0)===0||href.lastIndexOf('https://',0)===0||href.lastIndexOf('//',0)===0||href.lastIndexOf('mailto:',0)===0||href.lastIndexOf('tel:',0)===0;
+    if(ext){ if(preview)window.open(href,'_blank','noopener'); return; }
+    // internal link → in preview, ask the editor to switch to that page (like the
+    // real site would); in edit mode the select handler below takes over.
+    if(preview)post({type:'wfc-navigate',href:href});
   },true);
 
   document.addEventListener('click',function(e){
