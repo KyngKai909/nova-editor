@@ -59,7 +59,10 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
               />
               {wc.phase !== "ready" && (
-                <div className="absolute inset-0 grid place-items-center bg-bg/95 text-center">
+                /* solid bg-bg scrim: opacity-modifier classes (bg-bg/95) compile
+                   to nothing for the custom CSS-var colors, so a translucent scrim
+                   would vanish and leave this light text on the white iframe. */
+                <div className="absolute inset-0 grid place-items-center bg-bg text-center">
                   {wc.phase === "error" ? (
                     <div className="max-w-md px-6">
                       <AlertTriangle size={26} className="mx-auto text-red-400" />
@@ -72,7 +75,7 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
                     <div className="flex flex-col items-center gap-3 text-ink-3">
                       <Loader2 size={24} className="animate-spin text-accent" />
                       <p className="text-[13px]">{PHASE_LABEL[wc.phase]}</p>
-                      <p className="max-w-xs text-[11px] text-ink-3/70">First run installs dependencies in-browser — it can take a minute.</p>
+                      <p className="max-w-xs text-[11px] text-ink-3">First run installs dependencies in-browser — it can take a minute.</p>
                     </div>
                   )}
                 </div>
