@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Loader2, AlertTriangle, RefreshCw, Terminal, ChevronDown, ChevronUp } from "lucide-react";
+import { Loader2, AlertTriangle, RefreshCw, Terminal, ChevronDown, ChevronUp, KeyRound } from "lucide-react";
 import { useEditor, DEVICE_WIDTH } from "@/store/editorStore";
 import type { useWebContainer, WcPhase } from "@/lib/useWebContainer";
+import EnvModal from "./EnvModal";
 
 const PHASE_LABEL: Record<WcPhase, string> = {
   idle: "Preparing…",
@@ -22,8 +23,10 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
   const device = useEditor((s) => s.device);
   const customWidth = useEditor((s) => s.customWidth);
   const zoom = useEditor((s) => s.zoom);
+  const projectId = useEditor((s) => s.projectId);
 
   const [consoleOpen, setConsoleOpen] = useState(false);
+  const [envOpen, setEnvOpen] = useState(false);
   const stageRef = useRef<HTMLDivElement>(null);
   const logRef = useRef<HTMLDivElement>(null);
   const [stageW, setStageW] = useState(0);
@@ -67,9 +70,14 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
                     <div className="max-w-md px-6">
                       <AlertTriangle size={26} className="mx-auto text-red-400" />
                       <p className="mt-3 text-[13px] leading-relaxed text-ink-2">{wc.error}</p>
-                      <button onClick={wc.restart} className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] text-ink-2 hover:bg-raise">
-                        <RefreshCw size={13} /> Retry
-                      </button>
+                      <div className="mt-4 flex items-center justify-center gap-2">
+                        <button onClick={wc.restart} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] text-ink-2 hover:bg-raise">
+                          <RefreshCw size={13} /> Retry
+                        </button>
+                        <button onClick={() => setEnvOpen(true)} className="inline-flex items-center gap-1.5 rounded-lg border border-line px-3 py-2 text-[12px] text-ink-2 hover:bg-raise">
+                          <KeyRound size={13} /> Env vars
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <div className="flex flex-col items-center gap-3 text-ink-3">
@@ -90,14 +98,19 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
 
       {/* collapsible console / terminal footer (the dev server output) */}
       <div className="shrink-0 border-t border-line bg-surface">
-        <button
-          onClick={() => setConsoleOpen((o) => !o)}
-          className="flex h-8 w-full items-center gap-2 px-3 text-[11px] font-medium text-ink-3 transition-colors hover:text-ink"
-        >
-          <Terminal size={13} /> Console
-          {wc.log.length > 0 && <span className="rounded bg-raise px-1 text-[9px] tabular-nums text-ink-3">{wc.log.length}</span>}
-          {consoleOpen ? <ChevronDown size={13} className="ml-auto" /> : <ChevronUp size={13} className="ml-auto" />}
-        </button>
+        <div className="flex h-8 items-center px-1">
+          <button
+            onClick={() => setConsoleOpen((o) => !o)}
+            className="flex h-full flex-1 items-center gap-2 px-2 text-[11px] font-medium text-ink-3 transition-colors hover:text-ink"
+          >
+            <Terminal size={13} /> Console
+            {wc.log.length > 0 && <span className="rounded bg-raise px-1 text-[9px] tabular-nums text-ink-3">{wc.log.length}</span>}
+            {consoleOpen ? <ChevronDown size={13} className="ml-auto" /> : <ChevronUp size={13} className="ml-auto" />}
+          </button>
+          <button onClick={() => setEnvOpen(true)} title="Environment variables" className="ml-1 flex h-6 shrink-0 items-center gap-1.5 rounded-md px-2 text-[11px] text-ink-3 transition-colors hover:bg-raise hover:text-ink">
+            <KeyRound size={12} /> Env
+          </button>
+        </div>
         {consoleOpen && (
           <div ref={logRef} className="scroll-thin h-44 overflow-auto border-t border-line bg-bg px-3 py-2 font-mono text-[11px] leading-relaxed text-ink-2">
             {wc.log.length === 0 ? (
@@ -108,6 +121,8 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
           </div>
         )}
       </div>
+
+      {envOpen && <EnvModal projectId={projectId} onClose={() => setEnvOpen(false)} onRestart={wc.restart} />}
     </div>
   );
 }

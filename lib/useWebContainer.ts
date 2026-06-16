@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useComments } from "@/store/commentsStore";
+import { useEnvVars } from "@/store/envStore";
 import { getHandle } from "@/lib/handleStore";
 import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
 import { APP_BRIDGE, resolveWcPath, findNodeByLine } from "@/lib/runtime";
@@ -123,6 +124,27 @@ const DEMO_TREE: Record<string, any> = {
 // tree from the injected bridge, an EditorSurface that edits the running source,
 // and undo/redo over those edits. `active` gates the boot (so the editor only
 // starts a container when webapp mode is actually entered).
+// Parse raw .env text (KEY=value lines, # comments, optional quotes) into a map.
+function parseEnv(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const line of (text || "").split("\n")) {
+    const t = line.trim();
+    if (!t || t.startsWith("#")) continue;
+    const eq = t.indexOf("=");
+    if (eq < 0) continue;
+    const k = t.slice(0, eq).trim().replace(/^export\s+/, "");
+    let v = t.slice(eq + 1).trim();
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) v = v.slice(1, -1);
+    if (k) out[k] = v;
+  }
+  return out;
+}
+// Merge Nova-provided vars over an existing .env.local (Nova wins), serialized back.
+function mergeEnv(existing: string, overlay: Record<string, string>): string {
+  const merged = { ...parseEnv(existing), ...overlay };
+  return Object.entries(merged).map(([k, v]) => `${k}=${v}`).join("\n") + "\n";
+}
+
 // Find the directory to run the dev server from. Many repos aren't a web app at
 // the root (a Hardhat/monorepo with the frontend in app/, apps/web, etc.), so we
 // scan the root + one level of subdirs (and apps/* , packages/*) for a package.json
@@ -527,6 +549,19 @@ export function useWebContainer({
             await wc.fs.writeFile(`${info.base}/__nova_preview.tsx`, previewPlaceholder());
           }
         } catch { /* best-effort */ }
+        // Apply the project's Nova-managed env vars: merge them into the app's
+        // .env.local (Nova wins) so the dev server (Vite/Next) loads them. Stored
+        // encrypted client-side; only ever written into this local container.
+        try {
+          const overlay = parseEnv(projectId ? useEnvVars.getState().byProject[projectId] || "" : "");
+          if (Object.keys(overlay).length) {
+            let existing = "";
+            try { existing = await wc.fs.readFile(`${appBase}.env.local`, "utf-8"); } catch { /* none yet */ }
+            await wc.fs.writeFile(`${appBase}.env.local`, mergeEnv(existing, overlay));
+            append(`[nova] Applied ${Object.keys(overlay).length} env var(s) to ${appBase}.env.local\n`);
+          }
+        } catch { /* best-effort */ }
+
         const script = app.script;
         const spawnOpts = app.dir ? { cwd: app.dir } : undefined;
         setPhase("installing");
