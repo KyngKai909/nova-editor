@@ -297,7 +297,7 @@ owner/repo</pre>
           </div>
           <div class="rounded-xl border border-line bg-surface/40 p-4">
             <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="folder-tree" class="h-3.5 w-3.5"></i></span> Why it matters</div>
-            <div class="text-[13px] leading-relaxed text-ink-2">The canvas bundles one file at a time, so a component that imports only npm packages and other loaded components renders perfectly; one that pulls in stores, server-only APIs, or Next runtime is routed to <b class="text-ink-2">Run</b> instead. Structuring presentational components apart from app wiring gives you the most that's directly editable on the canvas.</div>
+            <div class="text-[13px] leading-relaxed text-ink-2">The canvas bundles one file at a time, so a component that imports only npm packages and other loaded components renders perfectly; one that pulls in stores, server-only APIs, or Next runtime previews live in <b class="text-ink-2">Run</b>&rsquo;s Components tab instead — by itself, with the app&rsquo;s real context. Structuring presentational components apart from app wiring gives you the most that&rsquo;s directly editable on the canvas.</div>
           </div>
         </section>
 
@@ -417,11 +417,25 @@ owner/repo</pre>
             <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Running live</h2>
           </div>
           <p class="text-[14px] leading-relaxed text-ink-2">
-            For full apps (Vite/React), <b class="text-ink">Run app</b> boots the real project in your browser via WebContainers — nothing is uploaded. Then click an element in the running app and Nova maps it back to source so you can edit its class or text, with hot reload.
+            Hit <b class="text-ink">Run ▶</b> in the toolbar and the canvas switches to your live app — the same panels stay put, only the center swaps to the real project, booted in your browser via WebContainers (nothing is uploaded). Click an element in the running app and Nova maps it back to source so you can edit its class or text, with hot reload. <b class="text-ink">Split</b> and <b class="text-ink">Code</b> views work here too.
           </p>
-          <div class="rounded-xl border border-line bg-surface/40 p-4">
-            <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="play" class="h-3.5 w-3.5"></i></span> Requirements</div>
-            <div class="text-[13px] leading-relaxed text-ink-2">A folder-backed full clone (Settings → Storage) on a Chromium browser (Chrome / Edge / Arc). First boot installs dependencies; reloads after that are fast.</div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="play" class="h-3.5 w-3.5"></i></span> Requirements</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">A folder-backed full clone (Settings → Storage) on a Chromium browser (Chrome / Edge / Arc). Nova finds the app even in a subfolder (e.g. a Vite app in <span class="font-mono text-[12px]">app/</span> of a contracts or monorepo). First boot installs dependencies; reloads after that are fast.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="panel-left" class="h-3.5 w-3.5"></i></span> Live layers, pages &amp; components</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">In Run, the left panel mirrors the running app: <b class="text-ink-2">Layers</b> is its live DOM tree, <b class="text-ink-2">Pages</b> lists routes you can jump to, and <b class="text-ink-2">Components</b> renders any one component by itself in the app frame — with the app&rsquo;s real providers and CSS.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="key-round" class="h-3.5 w-3.5"></i></span> Environment variables</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">Set per-project env vars in the <b class="text-ink-2">Env</b> tab (type them or upload a .env). Nova writes them into the running app&rsquo;s <span class="font-mono text-[12px]">.env.local</span> so Vite (<span class="font-mono text-[12px]">VITE_…</span>) and Next (<span class="font-mono text-[12px]">NEXT_PUBLIC_…</span>) pick them up. Encrypted in your browser, never sent to a server.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="terminal" class="h-3.5 w-3.5"></i></span> Console &amp; errors</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">The dev-server output and your app&rsquo;s runtime errors stream to the <b class="text-ink-2">Console</b> at the bottom (app errors are prefixed <span class="font-mono text-[12px]">[app]</span>) — so a blank screen tells you why, usually a missing env var.</div>
+            </div>
           </div>
         </section>
 
@@ -447,7 +461,7 @@ owner/repo</pre>
             <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Storage &amp; privacy</h2>
           </div>
           <p class="text-[14px] leading-relaxed text-ink-2">
-            Projects live in your browser and, optionally, a folder on your disk. Your GitHub token and AI keys are <b class="text-ink">encrypted at rest</b> in your browser and sent <b class="text-ink">directly</b> to GitHub / the AI provider — never through a Nova server. The Nova devs never receive your keys, and the source is open so you can verify it.
+            Projects live in your browser and, optionally, a folder on your disk. Your GitHub token, AI keys, and any env vars you set for Run are <b class="text-ink">encrypted at rest</b> in your browser; keys are sent <b class="text-ink">directly</b> to GitHub / the AI provider — never through a Nova server, and env vars are only ever written into the local in-browser container. The Nova devs never receive your secrets, and the source is open so you can verify it.
           </p>
           <div class="rounded-xl border border-line bg-surface/40 p-4">
             <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="key-round" class="h-3.5 w-3.5"></i></span> Key safety — and its honest limits</div>
@@ -470,8 +484,10 @@ owner/repo</pre>
             <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">“No editable .html/.jsx/.tsx files.”</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Nova's canvas opens HTML/JSX/TSX. Check the branch, or full-clone to work with the whole project.</div></div>
             <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">The AI errors immediately.</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">On a bring-your-own-key model: 401 = bad key (re-check in Settings → AI); 429 = rate-limited / out of credit. Make sure the selected provider has a key (green dot in the picker).</div></div>
             <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">Nova Lite won't load.</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">It needs a WebGPU browser (recent Chrome, Edge, Arc, or Safari 18+) and downloads ~2 GB on first use, cached for next time. On a low-memory GPU it auto-falls back to a smaller model. No WebGPU? Add your own API key and pick another model instead.</div></div>
-            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">“Run app” won't start.</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Run mode needs a folder-backed full clone on a Chromium browser. Set a projects folder in Settings → Storage and re-import.</div></div>
-            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">Which browsers work?</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Editing works anywhere modern; folder storage and Run app need a Chromium browser (Chrome / Edge / Arc).</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">Run (▶) won't start.</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Run needs a folder-backed full clone on a Chromium browser — set a projects folder in Settings → Storage and re-import. “Missing script: dev” means no runnable web app was found; Nova looks in the root and subfolders (app/, apps/*) for a package.json with a dev/start script.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">The live app is blank.</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">The app booted but crashed at load — open the <b class="text-ink-2">Console</b> and look for <span class="font-mono text-[12px]">[app]</span> errors. Most often it's a missing environment variable; add it in the <b class="text-ink-2">Env</b> tab and Save &amp; restart.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">How do I set environment variables?</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">In Run, open the <b class="text-ink-2">Env</b> tab on the right — type <span class="font-mono text-[12px]">KEY=value</span> lines or upload a .env, then Save &amp; restart. They're stored encrypted per project and written into the app's <span class="font-mono text-[12px]">.env.local</span>.</div></div>
+            <div class="p-4"><div class="text-[13.5px] font-semibold text-ink">Which browsers work?</div><div class="mt-1 text-[13px] leading-relaxed text-ink-2">Editing works anywhere modern; folder storage and Run need a Chromium browser (Chrome / Edge / Arc).</div></div>
           </div>
           <p class="text-[13px] text-ink-3">Still stuck? Nova is in alpha — please send feedback so we can fix it.</p>
         </section>
