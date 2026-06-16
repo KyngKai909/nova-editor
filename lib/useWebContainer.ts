@@ -64,6 +64,16 @@ function relImport(fromFile: string, toFile: string): string {
   return rel.startsWith(".") ? rel : "./" + rel;
 }
 
+// The preview route's content before any component is picked. Written at boot so
+// Next registers the route in its initial scan (see boot for why).
+function previewPlaceholder(): string {
+  return `"use client";
+export default function NovaPreview() {
+  return <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 48, fontFamily: "system-ui", color: "#888" }}>Pick a component in the Components tab to preview it here.</div>;
+}
+`;
+}
+
 // An ephemeral preview page: finds the component's export (default or named) and
 // renders it centered. As a route it inherits the app's root layout — providers,
 // fonts, global CSS — so app-tied components render with their real context.
@@ -319,16 +329,17 @@ export function useWebContainer({
   const previewComponent = useCallback(async (componentPath: string) => {
     const wc = wcRef.current;
     const info = routerRef.current;
-    if (!wc || !url) return;
+    if (!wc || !url) { append("\n[nova] Start the app (▶) before previewing a component."); return; }
     if (!info || info.kind === "static") {
       append("\n[nova] Live component preview needs a Next.js app (App or Pages Router).");
       return;
     }
+    // Rewrite the route pre-registered at boot, then navigate — the route already
+    // exists in Next's tree, so it resolves instead of 404-ing.
     const name = pascalName(componentPath);
     const file = info.kind === "app" ? `${info.base}/__nova_preview/page.tsx` : `${info.base}/__nova_preview.tsx`;
     const rel = relImport(file, componentPath);
     try {
-      if (info.kind === "app") await wc.fs.mkdir(`${info.base}/__nova_preview`, { recursive: true }).catch(() => {});
       await wc.fs.writeFile(file, previewSource(rel, name)); // WC-only — not write-through
       goToRoute("/__nova_preview");
     } catch (e: any) {
@@ -443,6 +454,19 @@ export function useWebContainer({
           }
         }
         try { const pub = await wc.fs.readdir("public"); for (const name of pub) if (/\.html?$/i.test(name)) await tryInject("public/" + name); } catch { /* no public */ }
+        // Pre-register the live component-preview route BEFORE the dev server
+        // starts, so Next picks it up in its initial route scan. (WebContainer fs
+        // events don't reliably trigger Next's runtime route detection, so a route
+        // added later would 404 forever.) previewComponent just rewrites this file.
+        try {
+          const info = routerRef.current;
+          if (info?.kind === "app") {
+            await wc.fs.mkdir(`${info.base}/__nova_preview`, { recursive: true }).catch(() => {});
+            await wc.fs.writeFile(`${info.base}/__nova_preview/page.tsx`, previewPlaceholder());
+          } else if (info?.kind === "pages") {
+            await wc.fs.writeFile(`${info.base}/__nova_preview.tsx`, previewPlaceholder());
+          }
+        } catch { /* best-effort */ }
         let script = "dev";
         try {
           const raw = (fsTree as any)["package.json"].file.contents;
