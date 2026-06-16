@@ -133,9 +133,18 @@
             <span class="inline-flex translate-y-[1px] items-center self-center rounded-full border border-accent/40 bg-accent/10 pl-[7px] pr-[5px] py-[1px] text-[9px] font-semibold uppercase leading-none tracking-[0.15em] text-accent">Alpha</span>
           </span>
         </a>
-        <a href="/dashboard" class="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
-          Open the app <i data-lucide="arrow-right" class="h-3.5 w-3.5"></i>
-        </a>
+        <div class="flex items-center gap-2">
+          <a href="/dashboard" class="flex items-center gap-1.5 rounded-full bg-ink px-4 py-2 text-[13px] font-semibold text-bg transition-colors hover:bg-accent hover:text-accent-ink">
+            Open the app <i data-lucide="arrow-right" class="h-3.5 w-3.5"></i>
+          </a>
+          <button id="menu-btn" aria-label="Open menu" aria-expanded="false" class="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-line text-ink-2 transition-colors hover:bg-surface hover:text-ink lg:hidden">
+            <i data-lucide="menu" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </div>
+      <!-- mobile section nav (collapsible) — populated from the sidebar links -->
+      <div id="mobile-nav" class="hidden border-t border-line bg-bg/95 backdrop-blur lg:hidden">
+        <nav id="mobile-nav-list" class="mx-auto flex max-h-[70vh] max-w-6xl flex-col gap-0.5 overflow-y-auto px-5 py-3 sm:px-8"></nav>
       </div>
     </header>
 
@@ -514,6 +523,36 @@ owner/repo</pre>
   <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
   <script>
     if (window.lucide) lucide.createIcons();
+
+    // mobile/tablet section nav — clone the sidebar links into a collapsible menu
+    // (the sidebar itself is hidden below lg), toggled by the header button.
+    (function () {
+      var btn = document.getElementById("menu-btn");
+      var panel = document.getElementById("mobile-nav");
+      var list = document.getElementById("mobile-nav-list");
+      var src = document.querySelector("aside nav");
+      if (!btn || !panel || !list || !src) return;
+      src.querySelectorAll("a").forEach(function (a) {
+        var c = a.cloneNode(true);
+        c.removeAttribute("data-nav"); // avoid scroll-spy id collisions
+        c.addEventListener("click", function (e) {
+          var href = c.getAttribute("href");
+          // scroll explicitly: closing the panel hides this anchor, which would
+          // otherwise cancel the browser's native hash scroll.
+          if (href && href.charAt(0) === "#") {
+            e.preventDefault();
+            var target = document.getElementById(href.slice(1));
+            if (target) { target.scrollIntoView({ behavior: "smooth" }); history.replaceState(null, "", href); }
+          }
+          close();
+        });
+        list.appendChild(c);
+      });
+      function open() { panel.classList.remove("hidden"); btn.setAttribute("aria-expanded", "true"); }
+      function close() { panel.classList.add("hidden"); btn.setAttribute("aria-expanded", "false"); }
+      btn.addEventListener("click", function () { panel.classList.contains("hidden") ? open() : close(); });
+      window.addEventListener("resize", function () { if (window.innerWidth >= 1024) close(); });
+    })();
 
     // sidebar scroll-spy — highlight the section in view (mirrors the React IntersectionObserver)
     (function () {
