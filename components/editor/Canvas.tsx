@@ -96,7 +96,7 @@ function buildNoticeDoc(message: string, isolate: boolean): string {
     <div class="ic">◍</div>
     <div class="t">Not previewable on the canvas</div>
     <p>${esc}</p>
-    <p class="hint">Switch to <b>Code</b> to edit it, or use <b>Run</b> to preview the whole app live.</p>
+    <p class="hint">Switch to <b>Code</b> to edit it, or hit <b>Run&nbsp;▶</b> to preview the whole app live in the canvas.</p>
   </div></body></html>`;
 }
 

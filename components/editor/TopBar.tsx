@@ -154,9 +154,10 @@ export default function TopBar({
         </div>
       </div>
 
-      {/* CENTER — canvas size (device presets + width + zoom). Hidden below lg so
-          it never crowds the left/right groups at tablet width. */}
-      <div className="hidden shrink-0 items-center rounded-lg border border-line bg-bg p-0.5 lg:flex">
+      {/* CENTER — canvas size (device presets + width + zoom). Shown from md up;
+          the width field is dropped below lg so the group stays compact and never
+          crowds the left/right groups at tablet width. */}
+      <div className="hidden shrink-0 items-center rounded-lg border border-line bg-bg p-0.5 md:flex">
         {DEVICES.map((d) => (
           <button
             key={d.id}
@@ -167,8 +168,8 @@ export default function TopBar({
             {d.icon}
           </button>
         ))}
-        <div className="mx-0.5 h-5 w-px bg-line" />
-        <WidthField />
+        <div className="mx-0.5 hidden h-5 w-px bg-line lg:block" />
+        <div className="hidden lg:block"><WidthField /></div>
         {/* zoom lives in the same canvas-size container, divided like the px input */}
         <div className="mx-0.5 h-5 w-px bg-line" />
         <button onClick={() => setZoom(zoom - 0.1)} title="Zoom out" className={`${iconBtn} text-ink-3`}><Minus size={13} /></button>
