@@ -222,8 +222,12 @@ proxy.on("upgrade", (req, socket, head) => {
     if (head?.length) up.write(head);
     socket.pipe(up); up.pipe(socket);
   });
+  // tear down both ends together on error OR clean close, so HMR sockets from
+  // every reload/navigation fully release (the agent is long-lived).
   up.on("error", () => socket.destroy());
+  up.on("close", () => socket.destroy());
   socket.on("error", () => up.destroy());
+  socket.on("close", () => up.destroy());
 });
 proxy.listen(PROXY_PORT, "127.0.0.1");
 
