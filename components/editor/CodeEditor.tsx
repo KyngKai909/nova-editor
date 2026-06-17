@@ -6,10 +6,15 @@ import { FileCode2 } from "lucide-react";
 import { useEditor } from "@/store/editorStore";
 
 function langFor(path: string): string {
-  if (path.endsWith(".tsx") || path.endsWith(".ts")) return "typescript";
-  if (path.endsWith(".jsx") || path.endsWith(".js")) return "javascript";
-  if (path.endsWith(".html") || path.endsWith(".htm")) return "html";
-  if (path.endsWith(".css")) return "css";
+  const p = path.toLowerCase();
+  if (/\.(tsx|ts|mts|cts)$/.test(p)) return "typescript";
+  if (/\.(jsx|js|mjs|cjs)$/.test(p)) return "javascript";
+  if (/\.(html?|htm)$/.test(p)) return "html";
+  if (/\.(css|scss|less)$/.test(p)) return "css";
+  if (/\.jsonc?$/.test(p)) return "json";
+  if (/\.(md|mdx|markdown)$/.test(p)) return "markdown";
+  if (/\.ya?ml$/.test(p)) return "yaml";
+  if (/\.xml$/.test(p)) return "xml";
   return "plaintext";
 }
 

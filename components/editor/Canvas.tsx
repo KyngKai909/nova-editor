@@ -182,6 +182,9 @@ export default function Canvas() {
     let cancelled = false;
     if (!file) { setDoc(""); return; }
 
+    // non-visual files (css/ts/json/config/md) aren't rendered on the canvas
+    if (file.kind === "code") { setDoc(buildNoticeDoc("This is a code file — edit it in the Code view.", isolate)); return; }
+
     if (file.kind === "html") {
       const html = htmlDoc ? instrument(htmlDoc, assets, BRIDGE_SCRIPT, baseHref || undefined, usesTailwind) : "";
       // Tag the doc with reloadKey so a revert that produces byte-identical HTML

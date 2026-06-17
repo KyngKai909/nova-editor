@@ -2,8 +2,8 @@
 export interface SourceFile {
   path: string;          // e.g. "src/components/Hero.tsx"
   name: string;          // e.g. "Hero.tsx"
-  kind: "html" | "jsx";  // how we parse/render it
-  category: "page" | "component"; // full screen vs reusable component
+  kind: "html" | "jsx" | "code";  // html/jsx render on the canvas; code = text-only (Code view)
+  category: "page" | "component" | "code"; // full screen vs reusable vs non-visual file
   content: string;       // current (possibly edited) source
   original: string;      // pristine source as imported (for diffing)
 }

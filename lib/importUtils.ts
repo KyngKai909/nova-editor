@@ -1,15 +1,24 @@
 import type { SourceFile } from "./types";
 
+// Non-visual text files Nova can open in the Code editor (logic, config, docs).
+// Covers all the common config files via their extensions (tailwind.config.js,
+// next.config.mjs, vite.config.ts, tsconfig.json, package.json, …). CSS is NOT
+// here — it's wired through the canvas asset pipeline and handled separately.
+const CODE_RE = /\.(ts|mts|cts|js|mjs|cjs|json|jsonc|md|mdx|markdown|ya?ml|toml|xml|txt)$/i;
+const CODE_NAMES = /(^|\/)(\.gitignore|\.npmrc|\.nvmrc|\.browserslistrc|\.editorconfig|dockerfile|procfile)$/i;
+
 export function fileKind(path: string): SourceFile["kind"] | null {
   if (path.endsWith(".html") || path.endsWith(".htm")) return "html";
   if (path.endsWith(".jsx") || path.endsWith(".tsx")) return "jsx";
+  if (CODE_RE.test(path) || CODE_NAMES.test(path)) return "code";
   return null;
 }
 
-// Classify a file as a full "page" (screen / document you navigate to) or a
-// reusable "component". HTML files are always pages; JSX/TSX are components
-// unless their path/name looks route-level.
+// Classify a file as a full "page" (screen / document you navigate to), a
+// reusable "component", or non-visual "code". HTML files are always pages;
+// JSX/TSX are components unless their path/name looks route-level.
 export function classifyFile(path: string, kind: SourceFile["kind"]): SourceFile["category"] {
+  if (kind === "code") return "code";
   if (kind === "html") return "page";
   const p = path.toLowerCase();
   if (/(^|\/)(pages|app|routes|views|screens)\//.test(p)) return "page";

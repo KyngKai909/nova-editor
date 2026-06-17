@@ -1,6 +1,6 @@
 import type { SourceFile } from "./types";
 import type { AssetMap } from "./assets";
-import { toSourceFiles, isAsset, stripCommonRoot } from "./importUtils";
+import { toSourceFiles, isAsset, stripCommonRoot, fileKind } from "./importUtils";
 import { fetchRepoFiles, parseRepoUrl } from "./github";
 
 export interface ImportResult {
@@ -23,11 +23,11 @@ export async function importFolder(fileList: FileList): Promise<ImportResult> {
     const rel = (f as any).webkitRelativePath || f.name;
     if (rel.includes("/")) root = rel.split("/")[0];
     const path = strip(rel);
-    if (/\.(html?|jsx|tsx)$/i.test(path)) entries.push({ path: rel, content: await f.text() });
+    if (fileKind(path)) entries.push({ path: rel, content: await f.text() });
     else if (isAsset(path)) assets[path] = URL.createObjectURL(f);
   }
   const files = toSourceFiles(entries);
-  if (!files.length) throw new Error("No .html / .jsx / .tsx files found in that selection.");
+  if (!files.length) throw new Error("No editable files (.html / .jsx / .tsx / .ts / .css … ) found in that selection.");
   return { files, assets, baseHref: null, suggestedName: root };
 }
 

@@ -185,7 +185,7 @@ function FileRow({
       draggable={draggable}
       onDragStart={() => draggable && setDragComponent(file.path)}
       onDragEnd={() => setDragComponent(null)}
-      onClick={() => { selectFile(file.path); setViewMode(view); }}
+      onClick={() => { selectFile(file.path); setViewMode(file.kind === "code" ? "code" : view); }}
       title={
         draggable
           ? `${file.name} — drag onto a JSX page, or click to edit`
