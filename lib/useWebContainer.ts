@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useComments } from "@/store/commentsStore";
 import { useEnvVars } from "@/store/envStore";
 import { extractComponentControls, type PropControl } from "@/lib/componentProps";
+import { hashLock, getDepSnapshot, putDepSnapshot } from "@/lib/depCache";
 import { getHandle } from "@/lib/handleStore";
 import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
 import { APP_BRIDGE, resolveWcPath, findNodeByLine } from "@/lib/runtime";
@@ -589,16 +590,54 @@ export function useWebContainer({
 
         const script = app.script;
         const spawnOpts = app.dir ? { cwd: app.dir } : undefined;
-        setPhase("installing");
-        append(`$ npm install${app.dir ? ` (in ./${app.dir})` : ""}`);
-        const install = await wc.spawn("npm", ["install"], spawnOpts);
-        install.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
-        const code = await install.exit;
-        if (cancelled) return;
-        if (code !== 0) throw new Error(`npm install exited with code ${code}.`);
+
+        // node_modules cache: if a snapshot exists for this exact lockfile, mount
+        // it and skip install. Purely an accelerator — any failure here falls
+        // through to a normal install, so boot behaves identically without it.
+        let cacheKey: string | null = null;
+        let restored = false;
+        try {
+          let lockText = "";
+          for (const ln of ["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb"]) {
+            try { lockText = await wc.fs.readFile(`${appBase}${ln}`, "utf-8"); if (lockText) break; } catch { /* next */ }
+          }
+          if (lockText) {
+            cacheKey = "v1:" + (await hashLock(lockText));
+            const snap = await getDepSnapshot(cacheKey);
+            if (snap && !cancelled) {
+              setPhase("installing");
+              append("\n[nova] Restoring node_modules from cache (skipping install)…\n");
+              await wc.fs.mkdir(`${appBase}node_modules`, { recursive: true }).catch(() => {});
+              await wc.mount(snap, { mountPoint: `${appBase}node_modules` });
+              restored = true;
+            }
+          }
+        } catch { /* fall back to a normal install */ }
+
+        if (!restored) {
+          setPhase("installing");
+          append(`$ npm install${app.dir ? ` (in ./${app.dir})` : ""}`);
+          const install = await wc.spawn("npm", ["install"], spawnOpts);
+          install.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
+          const code = await install.exit;
+          if (cancelled) return;
+          if (code !== 0) throw new Error(`npm install exited with code ${code}.`);
+        }
+
         setPhase("starting");
         append(`\n$ npm run ${script}`);
-        wc.on("server-ready", (_port: number, serverUrl: string) => { if (!cancelled) { setUrl(serverUrl); setPhase("ready"); } });
+        wc.on("server-ready", (_port: number, serverUrl: string) => {
+          if (cancelled) return;
+          setUrl(serverUrl);
+          setPhase("ready");
+          // first install only: snapshot node_modules in the background for next time
+          if (cacheKey && !restored) {
+            wc.export(`${appBase}node_modules`, { format: "binary" })
+              .then((snap: Uint8Array) => putDepSnapshot(cacheKey as string, snap))
+              .then(() => append("\n[nova] Cached node_modules — restarts will skip install."))
+              .catch(() => { /* quota / unavailable */ });
+          }
+        });
         wc.on("error", (e: any) => !cancelled && setError(e?.message || String(e)));
         const dev = await wc.spawn("npm", ["run", script], spawnOpts);
         dev.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
