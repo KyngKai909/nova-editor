@@ -72,6 +72,34 @@ export async function readDirTree(dir: any): Promise<Record<string, any>> {
   return tree;
 }
 
+// Read an entire directory into a FLAT list for the local runner agent. Text
+// files ride as strings; binary assets (images/fonts/media) ride base64 so they
+// survive the JSON transport. Skips node_modules/.git etc. (the agent reinstalls).
+const BINARY_RE = /\.(png|jpe?g|gif|webp|avif|ico|otf|ttf|woff2?|eot|mp4|webm|mov|mp3|wav|ogg|flac|pdf|wasm|zip|gz|woff)$/i;
+export async function readFlatFiles(
+  dir: any,
+  prefix = "",
+): Promise<{ path: string; content: string; encoding?: "base64" }[]> {
+  const out: { path: string; content: string; encoding?: "base64" }[] = [];
+  for await (const [name, handle] of dir.entries()) {
+    if (SKIP_DIRS.has(name) || name === ".git") continue;
+    const path = prefix ? `${prefix}/${name}` : name;
+    if (handle.kind === "file") {
+      const file = await handle.getFile();
+      if (BINARY_RE.test(name)) {
+        const buf = new Uint8Array(await file.arrayBuffer());
+        let bin = ""; for (let i = 0; i < buf.length; i++) bin += String.fromCharCode(buf[i]);
+        out.push({ path, content: btoa(bin), encoding: "base64" });
+      } else {
+        out.push({ path, content: await file.text() });
+      }
+    } else if (handle.kind === "directory") {
+      out.push(...(await readFlatFiles(handle, path)));
+    }
+  }
+  return out;
+}
+
 // Write the given files back into the directory, creating subfolders as needed.
 // Content may be text or raw bytes (for binary files in a full clone).
 export async function writeFiles(

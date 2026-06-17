@@ -13,6 +13,7 @@ import { useAi } from "@/store/aiStore";
 import { isSupabaseConfigured } from "@/lib/supabase";
 import { useRouteTransition } from "@/components/transition/RouteTransition";
 import GitBar from "@/components/github/GitBar";
+import RuntimePicker from "@/components/editor/RuntimePicker";
 import CollaboratorsModal from "@/components/collab/CollaboratorsModal";
 
 const ROLE_LABEL: Record<string, string> = { editor: "Editor", commentor: "Commenter", viewer: "Viewer" };
@@ -196,9 +197,12 @@ export default function TopBar({
         <Divider />
 
         {isDevice && (
-          <button onClick={onToggleWebapp} title={webapp ? "Back to the design canvas" : "Run the live app in the preview pane"} className={`${iconBtn} ${webapp ? "bg-accent text-accent-ink" : "border border-line text-ink-2"}`}>
-            <Play size={13} />
-          </button>
+          <div className="flex items-center gap-1">
+            <button onClick={onToggleWebapp} title={webapp ? "Back to the design canvas" : "Run the live app in the preview pane"} className={`${iconBtn} ${webapp ? "bg-accent text-accent-ink" : "border border-line text-ink-2"}`}>
+              <Play size={13} />
+            </button>
+            <RuntimePicker />
+          </div>
         )}
         <button
           onClick={togglePreview}

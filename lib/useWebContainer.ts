@@ -6,11 +6,14 @@ import { useEnvVars } from "@/store/envStore";
 import { extractComponentControls, type PropControl } from "@/lib/componentProps";
 import { hashLock, getDepSnapshot, putDepSnapshot } from "@/lib/depCache";
 import { getHandle } from "@/lib/handleStore";
-import { verifyPermission, readDirTree, writeFiles } from "@/lib/fileSystem";
+import { verifyPermission, readDirTree, readFlatFiles, writeFiles } from "@/lib/fileSystem";
 import { APP_BRIDGE, resolveWcPath, findNodeByLine } from "@/lib/runtime";
 import { parseJsx } from "@/lib/jsxParser";
 import { spliceJsx, setJsxProp, removeJsxProp } from "@/lib/jsxEdit";
 import { makeWcBackend } from "@/lib/aiBackend";
+import { runProject, streamLogs, stopRun as stopLocalRun, writeFiles as writeLocalFiles, runnerProxyUrl } from "@/lib/localRunner";
+import { useRunner } from "@/store/runnerStore";
+import { classifyFile, fileKind } from "@/lib/importUtils";
 import { toTokens, toClassName } from "@/lib/runStyle";
 import type { EditorSurface } from "@/lib/editorSurface";
 import type { EditorNode } from "@/lib/types";
@@ -189,6 +192,44 @@ async function findAppRoot(wc: any): Promise<{ dir: string; script: string } | n
   return best ? { dir: best.dir, script: best.script } : rootFallback;
 }
 
+// Flat-file equivalents of findAppRoot / resolveWcPath for the local-runner path,
+// which works over a sent file list ({path,content}[]) instead of a WebContainer fs.
+function detectAppRootFlat(files: { path: string; content: string; encoding?: string }[]): { dir: string; script: string } | null {
+  let best: { dir: string; script: string; score: number } | null = null;
+  let rootFallback: { dir: string; script: string } | null = null;
+  for (const f of files) {
+    if (f.encoding || !/(^|\/)package\.json$/.test(f.path)) continue;
+    const dir = f.path.includes("/") ? f.path.slice(0, f.path.lastIndexOf("/")) : "";
+    let pkg: any; try { pkg = JSON.parse(f.content); } catch { continue; }
+    const sc = pkg?.scripts; if (!sc) continue;
+    const script = sc.dev ? "dev" : sc.start ? "start" : null;
+    if (!script) continue;
+    if (dir === "" && !rootFallback) rootFallback = { dir: "", script };
+    const cmd = String(sc[script] || "");
+    const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+    if (!(WEB_DEV.test(cmd) || Object.keys(deps).some((d) => WEB_DEV.test(d)))) continue;
+    const depth = dir ? dir.split("/").length : 0;
+    const named = /(^|\/)(app|web|frontend|client|site|www)$/.test(dir) ? 1 : 0;
+    const score = (dir === "" ? 4 : 0) + named * 2 - depth + (WEB_DEV.test(cmd) ? 1 : 0);
+    if (!best || score > best.score) best = { dir, script, score };
+  }
+  return best ? { dir: best.dir, script: best.script } : rootFallback;
+}
+// Resolve a bridge-reported source file to a key in the sent-file cache. The
+// bridge path is relative to the dev-server root (= the app subdir), so we also
+// try prefixing appDir and a suffix/endsWith match.
+function resolveLocalPath(file: string, appDir: string, keys: Iterable<string>): string | null {
+  const noSlash = file.replace(/^\//, "");
+  const cands = new Set<string>([file, noSlash]);
+  if (appDir) cands.add(`${appDir}/${noSlash}`);
+  const parts = noSlash.split("/");
+  for (let i = 0; i < parts.length; i++) cands.add(parts.slice(i).join("/"));
+  const keySet = new Set(keys);
+  for (const c of cands) if (keySet.has(c)) return c;
+  for (const k of keySet) if (k.endsWith("/" + noSlash)) return k;
+  return null;
+}
+
 export function useWebContainer({
   projectId,
   active,
@@ -226,14 +267,32 @@ export function useWebContainer({
   const appDirRef = useRef("");
   const append = (s: string) => setLog((l) => [...l.slice(-400), s]);
 
+  // ── local-runner path (run on the user's machine via the companion agent) ──
+  const runnerToken = useRunner((s) => s.token);
+  const runtime = useRunner((s) => s.runtime);
+  const runtimeRef = useRef(runtime); runtimeRef.current = runtime;
+  const runnerTokenRef = useRef(runnerToken); runnerTokenRef.current = runnerToken;
+  const localRunIdRef = useRef<string | null>(null);
+  const localFilesRef = useRef<Map<string, string>>(new Map()); // path -> content, for editFile reads
+  const localStopRef = useRef<(() => void) | null>(null); // close the log SSE stream
+  const [localBackend, setLocalBackend] = useState<ReturnType<typeof makeWcBackend> | undefined>(undefined);
+
   const post = useCallback((msg: any) => iframeRef.current?.contentWindow?.postMessage(msg, "*"), []);
 
   const writeThrough = useCallback(async (path: string, content: string) => {
+    // local runner: patch the agent's copy (→ HMR) and the on-disk folder (persist)
+    if (localRunIdRef.current && runnerTokenRef.current) {
+      localFilesRef.current.set(path, content);
+      try { await writeLocalFiles(runnerTokenRef.current, localRunIdRef.current, [{ path, content }]); } catch { /* best-effort */ }
+      if (handleRef.current) { try { await writeFiles(handleRef.current, [{ path, content }]); } catch { /* best-effort */ } }
+      return;
+    }
     const wc = wcRef.current;
     if (!wc) return;
     await wc.fs.writeFile(path, content);
     if (handleRef.current) { try { await writeFiles(handleRef.current, [{ path, content }]); } catch { /* best-effort */ } }
   }, []);
+  const writeThroughRef = useRef(writeThrough); writeThroughRef.current = writeThrough;
 
   const record = useCallback((path: string, before: string, after: string) => {
     if (before === after) return;
@@ -260,12 +319,25 @@ export function useWebContainer({
   }, [writeThrough]);
 
   const backend = useMemo(
-    () => (url && wcRef.current ? makeWcBackend(wcRef.current, handleRef.current, (p, b, a) => record(p, b, a)) : undefined),
-    [url, record]
+    () => localBackend ?? (url && wcRef.current ? makeWcBackend(wcRef.current, handleRef.current, (p, b, a) => record(p, b, a)) : undefined),
+    [url, record, localBackend]
   );
 
   // Edit the source file backing the selected element, then let HMR re-render.
   const editFile = useCallback(async (line: number | undefined, file: string | undefined, fn: (content: string, node: any) => string | null) => {
+    // local runner: read from the sent-file cache (no WC fs), AST-edit, write back.
+    if (localRunIdRef.current) {
+      if (!file || !line) return;
+      const path = resolveLocalPath(file, appDirRef.current, localFilesRef.current.keys());
+      if (!path) return;
+      const content = localFilesRef.current.get(path);
+      if (content == null) return;
+      const node = findNodeByLine(parseJsx(content), content, line);
+      if (!node) return;
+      const next = fn(content, node);
+      if (next && next !== content) { record(path, content, next); await writeThrough(path, next); }
+      return;
+    }
     const wc = wcRef.current;
     if (!wc || !file || !line) return;
     const path = await resolveWcPath(wc.fs, file);
@@ -411,6 +483,7 @@ export function useWebContainer({
   }, []);
 
   const previewComponent = useCallback(async (componentPath: string) => {
+    if (localRunIdRef.current) { append("\n[nova] Live component preview runs in Browser mode for now — switch Run to Browser to preview a single component."); return; }
     const wc = wcRef.current;
     const info = routerRef.current;
     if (!wc || !url) { append("\n[nova] Start the app (▶) before previewing a component."); return; }
@@ -507,12 +580,79 @@ export function useWebContainer({
   useEffect(() => {
     if (!active) return;
     let cancelled = false;
-    (async () => {
-      setError(null); setUrl(null); setLog([]);
+    const useLocal = runtimeRef.current === "local" && !!runnerTokenRef.current;
+
+    // Run the project on the native companion agent instead of a WebContainer.
+    // The agent injects the SAME bridge into the served HTML (via its proxy), so
+    // selection/inspect/tree all work identically — only execution moves to the
+    // user's machine. Component preview stays browser-only for now.
+    async function bootLocal() {
+      const token = runnerTokenRef.current as string;
+      if (localRunIdRef.current) { try { stopLocalRun(token, localRunIdRef.current); } catch { /* gone */ } localRunIdRef.current = null; }
+      if (localStopRef.current) { localStopRef.current(); localStopRef.current = null; }
+      routerRef.current = { kind: "static", base: "" };
+      const demo = projectId === "__demo__";
+      let files: { path: string; content: string; encoding?: "base64" }[];
+      if (demo) {
+        files = [
+          { path: "package.json", content: JSON.stringify({ name: "nova-demo", scripts: { dev: "node server.js" } }) },
+          { path: "server.js", content: "const http=require('http');http.createServer((q,r)=>{r.setHeader('Content-Type','text/html');r.end('<body style=\"font-family:system-ui;display:grid;place-items:center;height:100vh;margin:0;background:#0a0a0a;color:#ccff02\"><h1>\\u2713 The local runner is running your app</h1></body>')}).listen(3000,()=>console.log('Local:   http://localhost:3000/'));" },
+        ];
+      } else {
+        const handle = await getHandle(projectId as string);
+        if (!handle) throw new Error("The local runner needs a folder-backed project (a full clone on disk). Set a projects folder in Settings, then re-import the repo.");
+        if (!(await verifyPermission(handle, false))) throw new Error("Folder permission denied.");
+        handleRef.current = handle;
+        setPhase("mounting");
+        files = await readFlatFiles(handle);
+      }
+      if (cancelled) return;
+      const app = demo ? { dir: "", script: "dev" } : detectAppRootFlat(files);
+      if (!app) throw new Error("Couldn't find a runnable web app here — no package.json with a dev or start script (Vite/Next/etc.).");
+      appDirRef.current = app.dir;
+      const appBase = app.dir ? app.dir + "/" : "";
+      if (app.dir) append(`[nova] Running the web app in ./${app.dir} on your machine\n`);
+      // apply Nova-managed env vars by merging them into the .env.local we send
       try {
+        const overlay = parseEnv(projectId ? useEnvVars.getState().byProject[projectId] || "" : "");
+        if (Object.keys(overlay).length) {
+          const envPath = `${appBase}.env.local`;
+          const cur = files.find((f) => f.path === envPath);
+          const merged = mergeEnv(cur?.content || "", overlay);
+          if (cur) cur.content = merged; else files.push({ path: envPath, content: merged });
+          append(`[nova] Applied ${Object.keys(overlay).length} env var(s) to ${appBase}.env.local\n`);
+        }
+      } catch { /* best-effort */ }
+      // seed the edit-read cache (text files) + a backend for the Pages tab
+      localFilesRef.current = new Map(files.filter((f) => !f.encoding).map((f) => [f.path, f.content]));
+      const fileList = files.map((f) => ({ path: f.path, category: classifyFile(f.path, fileKind(f.path) || "jsx") }));
+      setLocalBackend({
+        list: async () => fileList,
+        read: async (p: string) => localFilesRef.current.get(p) ?? null,
+        write: async (p: string, content: string) => { await writeThroughRef.current(p, content); return { ok: true }; },
+      });
+      setPhase("installing");
+      append(`$ npm install + npm run ${app.script} (on your machine)\n`);
+      const rid = await runProject(token, files, { bridge: APP_BRIDGE, cwd: app.dir, script: app.script, install: true });
+      if (cancelled) { try { stopLocalRun(token, rid); } catch { /* gone */ } return; }
+      localRunIdRef.current = rid;
+      setPhase("starting");
+      localStopRef.current = streamLogs(
+        token, rid,
+        (s) => { if (!cancelled) append(s); },
+        () => { if (!cancelled) { setUrl(runnerProxyUrl()); setPhase("ready"); } },
+        (code) => { if (!cancelled && code) { setError(`The dev server exited (code ${code}). Check the console for details.`); setPhase("error"); } },
+      );
+    }
+
+    (async () => {
+      setError(null); setUrl(null); setLog([]); setLocalBackend(undefined);
+      try {
+        if (!projectId) throw new Error("No project specified.");
+        if (useLocal) { await bootLocal(); return; }
+        localRunIdRef.current = null; // back on the in-browser path
         if (typeof window !== "undefined" && !(window as any).crossOriginIsolated)
           throw new Error("This page isn't cross-origin isolated, so the in-browser runtime can't start. Try a hard refresh.");
-        if (!projectId) throw new Error("No project specified.");
         const demo = projectId === "__demo__";
         let handle: any = null;
         if (!demo) {
@@ -645,7 +785,12 @@ export function useWebContainer({
         if (!cancelled) { setError(e?.message || String(e)); setPhase("error"); }
       }
     })();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      // close the local log stream; the dev server keeps running on the agent
+      // (the next local boot stops the previous run before starting a new one).
+      if (localStopRef.current) { localStopRef.current(); localStopRef.current = null; }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, runId, active]);
 

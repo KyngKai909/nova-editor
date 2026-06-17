@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, AlertTriangle, RefreshCw, Terminal, ChevronDown, ChevronUp, KeyRound } from "lucide-react";
 import { useEditor, DEVICE_WIDTH } from "@/store/editorStore";
+import { useRunner } from "@/store/runnerStore";
 import type { useWebContainer, WcPhase } from "@/lib/useWebContainer";
 import EnvModal from "./EnvModal";
 
@@ -24,6 +25,9 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
   const customWidth = useEditor((s) => s.customWidth);
   const zoom = useEditor((s) => s.zoom);
   const projectId = useEditor((s) => s.projectId);
+  const runtime = useRunner((s) => s.runtime);
+  const setRuntime = useRunner((s) => s.setRuntime);
+  const runnerPaired = useRunner((s) => !!s.token);
 
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [envOpen, setEnvOpen] = useState(false);
@@ -83,7 +87,21 @@ export default function WebappCanvas({ wc }: { wc: ReturnType<typeof useWebConta
                     <div className="flex flex-col items-center gap-3 text-ink-3">
                       <Loader2 size={24} className="animate-spin text-accent" />
                       <p className="text-[13px]">{PHASE_LABEL[wc.phase]}</p>
-                      <p className="max-w-xs text-[11px] text-ink-3">First run installs dependencies in-browser — it can take a minute.</p>
+                      {runtime === "local" ? (
+                        <p className="max-w-xs text-[11px] text-ink-3">Running on your machine via the local runner — first run installs dependencies natively.</p>
+                      ) : (
+                        <p className="max-w-xs text-[11px] text-ink-3">
+                          First run installs dependencies in-browser — it can take a minute.
+                          {runnerPaired && (
+                            <>
+                              {" "}
+                              <button onClick={() => setRuntime("local")} className="text-accent underline-offset-2 hover:underline">
+                                Big project? Run on your machine →
+                              </button>
+                            </>
+                          )}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

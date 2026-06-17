@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import TopBar from "./TopBar";
 import LeftPanel from "./LeftPanel";
@@ -21,6 +21,7 @@ import { useProjects } from "@/store/projectsStore";
 import { useSettings } from "@/store/settingsStore";
 import { useAi } from "@/store/aiStore";
 import { usePanels } from "@/store/panelStore";
+import { useRunner } from "@/store/runnerStore";
 import { fsSupported } from "@/lib/fileSystem";
 import { saveProjectToDevice } from "@/lib/deviceProject";
 
@@ -68,6 +69,16 @@ export default function EditorShell() {
     });
   const canvasSurface = useCanvasSurface();
   const wc = useWebContainer({ projectId, active: enteredWebapp, device });
+
+  // switching the runtime (browser ⇄ local) while the app is live re-runs it on
+  // the newly-chosen backend.
+  const runtime = useRunner((s) => s.runtime);
+  const prevRuntime = useRef(runtime);
+  useEffect(() => {
+    if (prevRuntime.current === runtime) return;
+    prevRuntime.current = runtime;
+    if (mode === "webapp") wc.restart();
+  }, [runtime, mode, wc]);
 
   // auto-dismiss the transient notice
   useEffect(() => {
