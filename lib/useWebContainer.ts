@@ -11,7 +11,7 @@ import { APP_BRIDGE, resolveWcPath, findNodeByLine } from "@/lib/runtime";
 import { parseJsx } from "@/lib/jsxParser";
 import { spliceJsx, setJsxProp, removeJsxProp } from "@/lib/jsxEdit";
 import { makeWcBackend } from "@/lib/aiBackend";
-import { runProject, streamLogs, stopRun as stopLocalRun, writeFiles as writeLocalFiles, runnerProxyUrl } from "@/lib/localRunner";
+import { runProject, streamLogs, stopRun as stopLocalRun, writeFiles as writeLocalFiles, attachRun, runnerProxyUrl } from "@/lib/localRunner";
 import { useRunner } from "@/store/runnerStore";
 import { classifyFile, fileKind } from "@/lib/importUtils";
 import { toTokens, toClassName } from "@/lib/runStyle";
@@ -215,6 +215,21 @@ function detectAppRootFlat(files: { path: string; content: string; encoding?: st
   }
   return best ? { dir: best.dir, script: best.script } : rootFallback;
 }
+// Detect the router kind + base dir for the live component-preview route, from
+// the flat file list (mirrors the inject-loop the WebContainer boot uses, but the
+// agent's proxy injects the bridge so here we only need to find the route home).
+function detectRouterFlat(files: { path: string }[], appBase: string): { kind: "app" | "pages" | "static"; base: string } {
+  const paths = new Set(files.map((f) => f.path));
+  const exists = (p: string) => paths.has(`${p}.tsx`) || paths.has(`${p}.jsx`) || paths.has(`${p}.ts`) || paths.has(`${p}.js`);
+  for (const layout of [`${appBase}app/layout`, `${appBase}src/app/layout`])
+    if (exists(layout)) return { kind: "app", base: layout.replace(/\/layout$/, "") };
+  for (const doc of [`${appBase}pages/_document`, `${appBase}src/pages/_document`])
+    if (exists(doc)) return { kind: "pages", base: doc.replace(/\/_document$/, "") };
+  for (const dir of [`${appBase}pages`, `${appBase}src/pages`])
+    if (files.some((f) => f.path.startsWith(`${dir}/`) && /\.[tj]sx?$/.test(f.path))) return { kind: "pages", base: dir };
+  return { kind: "static", base: "" };
+}
+
 // Resolve a bridge-reported source file to a key in the sent-file cache. The
 // bridge path is relative to the dev-server root (= the app subdir), so we also
 // try prefixing appDir and a suffix/endsWith match.
@@ -476,24 +491,36 @@ export function useWebContainer({
   // Write the preview route (pre-registered at boot) for a component with the
   // given props, so navigating to it renders <Component {...props} />.
   const writePreviewFile = useCallback(async (componentPath: string, name: string, props: Record<string, any>) => {
-    const wc = wcRef.current; const info = routerRef.current;
-    if (!wc || !info || info.kind === "static") return;
+    const info = routerRef.current;
+    if (!info || info.kind === "static") return;
     const file = info.kind === "app" ? `${info.base}/__nova_preview/page.tsx` : `${info.base}/__nova_preview.tsx`;
-    await wc.fs.writeFile(file, previewSource(relImport(file, componentPath), name, props)); // WC-only — not write-through
+    const src = previewSource(relImport(file, componentPath), name, props);
+    // ephemeral preview route — written to the runtime only, never through to disk/git
+    if (localRunIdRef.current && runnerTokenRef.current) {
+      try { await writeLocalFiles(runnerTokenRef.current, localRunIdRef.current, [{ path: file, content: src }]); } catch { /* best-effort */ }
+      return;
+    }
+    const wc = wcRef.current;
+    if (!wc) return;
+    await wc.fs.writeFile(file, src);
   }, []);
 
   const previewComponent = useCallback(async (componentPath: string) => {
-    if (localRunIdRef.current) { append("\n[nova] Live component preview runs in Browser mode for now — switch Run to Browser to preview a single component."); return; }
+    const local = !!localRunIdRef.current;
     const wc = wcRef.current;
     const info = routerRef.current;
-    if (!wc || !url) { append("\n[nova] Start the app (▶) before previewing a component."); return; }
+    if (!url || (!local && !wc)) { append("\n[nova] Start the app (▶) before previewing a component."); return; }
     if (!info || info.kind === "static") {
       append("\n[nova] Live component preview needs a Next.js app (App or Pages Router).");
       return;
     }
     const name = pascalName(componentPath);
     let controls: PropControl[] = [];
-    try { controls = extractComponentControls(await wc.fs.readFile(componentPath, "utf-8")); } catch { /* no props */ }
+    try {
+      const key = resolveLocalPath(componentPath, appDirRef.current, localFilesRef.current.keys()) || componentPath;
+      const content = local ? localFilesRef.current.get(key) ?? null : await wc!.fs.readFile(componentPath, "utf-8");
+      if (content) controls = extractComponentControls(content);
+    } catch { /* no props */ }
     const props: Record<string, any> = {};
     for (const c of controls) props[c.name] = c.default;
     setPreviewComp({ path: componentPath, name, controls, props });
@@ -584,11 +611,13 @@ export function useWebContainer({
 
     // Run the project on the native companion agent instead of a WebContainer.
     // The agent injects the SAME bridge into the served HTML (via its proxy), so
-    // selection/inspect/tree all work identically — only execution moves to the
-    // user's machine. Component preview stays browser-only for now.
+    // selection/inspect/tree/component-preview all work identically — only
+    // execution moves to the user's machine.
     async function bootLocal() {
       const token = runnerTokenRef.current as string;
-      if (localRunIdRef.current) { try { stopLocalRun(token, localRunIdRef.current); } catch { /* gone */ } localRunIdRef.current = null; }
+      const runKey = `nova-local-run:${projectId}`;
+      const hadRun = !!localRunIdRef.current; // in-session restart vs. a fresh mount
+      if (localRunIdRef.current) { try { stopLocalRun(token, localRunIdRef.current); } catch { /* gone */ } localRunIdRef.current = null; try { sessionStorage.removeItem(runKey); } catch { /* no ss */ } }
       if (localStopRef.current) { localStopRef.current(); localStopRef.current = null; }
       routerRef.current = { kind: "static", base: "" };
       const demo = projectId === "__demo__";
@@ -623,7 +652,8 @@ export function useWebContainer({
           append(`[nova] Applied ${Object.keys(overlay).length} env var(s) to ${appBase}.env.local\n`);
         }
       } catch { /* best-effort */ }
-      // seed the edit-read cache (text files) + a backend for the Pages tab
+      // seed the edit-read cache (text files) + a backend for the Pages tab — from
+      // the REAL project files, before adding the ephemeral preview route below.
       localFilesRef.current = new Map(files.filter((f) => !f.encoding).map((f) => [f.path, f.content]));
       const fileList = files.map((f) => ({ path: f.path, category: classifyFile(f.path, fileKind(f.path) || "jsx") }));
       setLocalBackend({
@@ -631,17 +661,51 @@ export function useWebContainer({
         read: async (p: string) => localFilesRef.current.get(p) ?? null,
         write: async (p: string, content: string) => { await writeThroughRef.current(p, content); return { ok: true }; },
       });
+
+      // detect the router + pre-register the live component-preview route NOW, so
+      // the dev server scans it at startup (routes added after start can 404 — same
+      // constraint as the WebContainer path). previewComponent just rewrites it.
+      routerRef.current = detectRouterFlat(files, appBase);
+      const rinfo = routerRef.current;
+      if (rinfo.kind === "app") files.push({ path: `${rinfo.base}/__nova_preview/page.tsx`, content: previewPlaceholder() });
+      else if (rinfo.kind === "pages") files.push({ path: `${rinfo.base}/__nova_preview.tsx`, content: previewPlaceholder() });
+
+      // re-attach to a still-running agent run after a Nova reload (skip reinstall).
+      // Only on a fresh mount — an in-session restart wants a clean run.
+      if (!hadRun) {
+        let prevRid: string | null = null;
+        try { prevRid = sessionStorage.getItem(runKey); } catch { /* no ss */ }
+        if (prevRid) {
+          const att = await attachRun(token, prevRid);
+          if (cancelled) return;
+          if (att) {
+            localRunIdRef.current = prevRid;
+            append("[nova] Re-attached to the dev server already running on your machine (skipping reinstall).\n");
+            setPhase("starting");
+            localStopRef.current = streamLogs(
+              token, prevRid,
+              (s) => { if (!cancelled) append(s); },
+              () => { if (!cancelled) { setUrl(runnerProxyUrl()); setPhase("ready"); } },
+              (code) => { if (!cancelled && code) { setError(`The dev server exited (code ${code}). Check the console for details.`); setPhase("error"); } if (code) { try { sessionStorage.removeItem(runKey); } catch { /* no ss */ } } },
+            );
+            return;
+          }
+          try { sessionStorage.removeItem(runKey); } catch { /* no ss */ }
+        }
+      }
+
       setPhase("installing");
       append(`$ npm install + npm run ${app.script} (on your machine)\n`);
       const rid = await runProject(token, files, { bridge: APP_BRIDGE, cwd: app.dir, script: app.script, install: true });
       if (cancelled) { try { stopLocalRun(token, rid); } catch { /* gone */ } return; }
       localRunIdRef.current = rid;
+      try { sessionStorage.setItem(runKey, rid); } catch { /* no ss */ }
       setPhase("starting");
       localStopRef.current = streamLogs(
         token, rid,
         (s) => { if (!cancelled) append(s); },
         () => { if (!cancelled) { setUrl(runnerProxyUrl()); setPhase("ready"); } },
-        (code) => { if (!cancelled && code) { setError(`The dev server exited (code ${code}). Check the console for details.`); setPhase("error"); } },
+        (code) => { if (!cancelled && code) { setError(`The dev server exited (code ${code}). Check the console for details.`); setPhase("error"); } if (code) { try { sessionStorage.removeItem(runKey); } catch { /* no ss */ } } },
       );
     }
 

@@ -74,6 +74,19 @@ export function streamLogs(token: string, runId: string, onLog: (s: string) => v
   return () => es.close();
 }
 
+// Re-point the agent's proxy at an already-running run (after a Nova reload).
+// Returns the run's url if it's still alive, or null if the agent no longer has it.
+export async function attachRun(token: string, runId: string): Promise<{ url: string | null } | null> {
+  try {
+    const res = await fetch(`${RUNNER_URL}/attach/${runId}`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    if (!res.ok) return null;
+    const j = await res.json();
+    return { url: j.url ?? null };
+  } catch {
+    return null;
+  }
+}
+
 export async function stopRun(token: string, runId: string): Promise<void> {
   try { await fetch(`${RUNNER_URL}/stop/${runId}`, { method: "POST", headers: { authorization: `Bearer ${token}` } }); } catch { /* ignore */ }
 }

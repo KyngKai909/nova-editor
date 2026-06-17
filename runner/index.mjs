@@ -162,6 +162,15 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, { ok: true });
     } catch (e) { return json(res, 500, { error: String(e?.message || e) }); }
   }
+  // re-attach a still-alive run after a Nova reload: point the proxy at it again
+  // (the run survives in-memory as long as the agent process lives).
+  if (p.startsWith("/attach/") && req.method === "POST") {
+    const id = p.slice(8);
+    const run = runs.get(id);
+    if (!run || run.exited) return json(res, 404, { error: "no such run" });
+    activeRunId = id;
+    return json(res, 200, { ok: true, url: run.url, ready: !!run.url });
+  }
   if (p.startsWith("/stop/") && req.method === "POST") { const id = p.slice(6); stopRun(id); if (activeRunId === id) activeRunId = null; return json(res, 200, { ok: true }); }
   return json(res, 404, { error: "not found" });
 });
