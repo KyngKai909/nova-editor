@@ -1,10 +1,11 @@
 import type { SourceFile } from "./types";
 
-// Non-visual text files Nova can open in the Code editor (logic, config, docs).
-// Covers all the common config files via their extensions (tailwind.config.js,
-// next.config.mjs, vite.config.ts, tsconfig.json, package.json, …). CSS is NOT
-// here — it's wired through the canvas asset pipeline and handled separately.
-const CODE_RE = /\.(ts|mts|cts|js|mjs|cjs|json|jsonc|md|mdx|markdown|ya?ml|toml|xml|txt)$/i;
+// Non-visual text files Nova can open in the Code editor (logic, config, docs,
+// stylesheets). Covers all the common config files via their extensions
+// (tailwind.config.js, next.config.mjs, vite.config.ts, tsconfig.json,
+// package.json, …). CSS is here too — the canvas regenerates a blob URL from the
+// editable content so edits to a linked stylesheet still apply.
+const CODE_RE = /\.(ts|mts|cts|js|mjs|cjs|json|jsonc|md|mdx|markdown|ya?ml|toml|xml|txt|css|scss|sass|less)$/i;
 const CODE_NAMES = /(^|\/)(\.gitignore|\.npmrc|\.nvmrc|\.browserslistrc|\.editorconfig|dockerfile|procfile)$/i;
 
 export function fileKind(path: string): SourceFile["kind"] | null {
@@ -27,7 +28,7 @@ export function classifyFile(path: string, kind: SourceFile["kind"]): SourceFile
   return "component";
 }
 
-const ASSET_RE = /\.(png|jpe?g|gif|svg|webp|avif|ico|otf|ttf|woff2?|css|mp4|webm)$/i;
+const ASSET_RE = /\.(png|jpe?g|gif|svg|webp|avif|ico|otf|ttf|woff2?|mp4|webm)$/i;
 
 export function isAsset(path: string): boolean {
   return ASSET_RE.test(path);

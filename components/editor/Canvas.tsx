@@ -149,6 +149,7 @@ function resolvePageHref(href: string, currentPath: string | null, files: { path
 export default function Canvas() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const cssUrlsRef = useRef<string[]>([]); // blob URLs for editable CSS, revoked on rebuild/unmount
   const [containerW, setContainerW] = useState(0);
   const files = useEditor((s) => s.files);
   const assets = useEditor((s) => s.assets);
@@ -186,7 +187,20 @@ export default function Canvas() {
     if (file.kind === "code") { setDoc(buildNoticeDoc("This is a code file — edit it in the Code view.", isolate)); return; }
 
     if (file.kind === "html") {
-      const html = htmlDoc ? instrument(htmlDoc, assets, BRIDGE_SCRIPT, baseHref || undefined, usesTailwind) : "";
+      // CSS is now an editable source file. Regenerate a fresh blob URL from its
+      // current content each render (revoking the previous set) and merge it over
+      // the static assets, so editing a linked stylesheet shows up on the canvas.
+      cssUrlsRef.current.forEach((u) => URL.revokeObjectURL(u));
+      cssUrlsRef.current = [];
+      const cssAssets: Record<string, string> = {};
+      for (const f of files) {
+        if (f.kind === "code" && /\.(css|scss|sass|less)$/i.test(f.path)) {
+          const u = URL.createObjectURL(new Blob([f.content], { type: "text/css" }));
+          cssAssets[f.path] = u;
+          cssUrlsRef.current.push(u);
+        }
+      }
+      const html = htmlDoc ? instrument(htmlDoc, { ...assets, ...cssAssets }, BRIDGE_SCRIPT, baseHref || undefined, usesTailwind) : "";
       // Tag the doc with reloadKey so a revert that produces byte-identical HTML
       // still changes srcDoc and forces a real iframe reload. Live edits mutate
       // the iframe DOM via postMessage without re-serializing srcDoc, so an undo
@@ -281,6 +295,9 @@ export default function Canvas() {
     setIframe(iframeRef.current);
     return () => setIframe(null);
   }, []);
+
+  // revoke leftover CSS blob URLs when the canvas unmounts
+  useEffect(() => () => { cssUrlsRef.current.forEach((u) => URL.revokeObjectURL(u)); }, []);
 
   // a new srcDoc is about to load — invalidate readiness until wfc-ready
   useEffect(() => {
