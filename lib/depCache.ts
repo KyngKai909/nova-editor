@@ -46,6 +46,22 @@ export async function getDepSnapshot(key: string): Promise<Uint8Array | null> {
   }
 }
 
+export async function delDepSnapshot(key: string): Promise<void> {
+  try {
+    const db = await openDb();
+    db.transaction(STORE, "readwrite").objectStore(STORE).delete(key);
+  } catch {
+    /* ignore */
+  }
+}
+
+// Per-browser kill switch: set when a restored snapshot proves unusable (e.g. the
+// WebContainer build can't re-grant the .bin exec bit), so we stop caching and
+// always do a clean install instead of fail-recovering on every boot.
+const NO_CACHE_FLAG = "nova:wc-no-cache";
+export const depCacheDisabled = () => { try { return !!localStorage.getItem(NO_CACHE_FLAG); } catch { return false; } };
+export const disableDepCache = () => { try { localStorage.setItem(NO_CACHE_FLAG, "1"); } catch { /* ignore */ } };
+
 export async function putDepSnapshot(key: string, data: Uint8Array): Promise<void> {
   try {
     if (!data || data.byteLength > MAX_BYTES) return; // don't cache a single oversized tree

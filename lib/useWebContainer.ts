@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useComments } from "@/store/commentsStore";
 import { useEnvVars } from "@/store/envStore";
 import { extractComponentControls, type PropControl } from "@/lib/componentProps";
-import { hashLock, getDepSnapshot, putDepSnapshot } from "@/lib/depCache";
+import { hashLock, getDepSnapshot, putDepSnapshot, delDepSnapshot, depCacheDisabled, disableDepCache } from "@/lib/depCache";
 import { getHandle } from "@/lib/handleStore";
 import { verifyPermission, readDirTree, readFlatFiles, writeFiles } from "@/lib/fileSystem";
 import { APP_BRIDGE, resolveWcPath, findNodeByLine } from "@/lib/runtime";
@@ -805,7 +805,7 @@ export function useWebContainer({
           for (const ln of ["package-lock.json", "pnpm-lock.yaml", "yarn.lock", "bun.lockb"]) {
             try { lockText = await wc.fs.readFile(`${appBase}${ln}`, "utf-8"); if (lockText) break; } catch { /* next */ }
           }
-          if (lockText) {
+          if (lockText && !depCacheDisabled()) {
             cacheKey = "v1:" + (await hashLock(lockText));
             const snap = await getDepSnapshot(cacheKey);
             if (snap && !cancelled) {
@@ -813,6 +813,9 @@ export function useWebContainer({
               append("\n[nova] Restoring node_modules from cache (skipping install)…\n");
               await wc.fs.mkdir(`${appBase}node_modules`, { recursive: true }).catch(() => {});
               await wc.mount(snap, { mountPoint: `${appBase}node_modules` });
+              // Snapshots drop the exec bit on the .bin shims, so the CLI
+              // (next/vite/…) would fail with `spawn … EACCES`. Re-grant it.
+              try { await (await wc.spawn("chmod", ["-R", "+x", `${appBase}node_modules/.bin`])).exit; } catch { /* chmod may be unavailable */ }
               restored = true;
             }
           }
@@ -830,12 +833,16 @@ export function useWebContainer({
 
         setPhase("starting");
         append(`\n$ npm run ${script}`);
+        let becameReady = false;
+        let recovered = false;
         wc.on("server-ready", (_port: number, serverUrl: string) => {
           if (cancelled) return;
+          becameReady = true;
           setUrl(serverUrl);
           setPhase("ready");
-          // first install only: snapshot node_modules in the background for next time
-          if (cacheKey && !restored) {
+          // cache node_modules in the background — only after a real (clean)
+          // install, never a restore, and never once the cache is disabled.
+          if (cacheKey && !restored && !depCacheDisabled()) {
             wc.export(`${appBase}node_modules`, { format: "binary" })
               .then((snap: Uint8Array) => putDepSnapshot(cacheKey as string, snap))
               .then(() => append("\n[nova] Cached node_modules — restarts will skip install."))
@@ -843,8 +850,37 @@ export function useWebContainer({
           }
         });
         wc.on("error", (e: any) => !cancelled && setError(e?.message || String(e)));
-        const dev = await wc.spawn("npm", ["run", script], spawnOpts);
-        dev.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
+
+        // Spawn the dev server. If a CACHE-RESTORED run dies before it's ready
+        // (almost always a lost exec bit → `spawn … EACCES` that chmod couldn't
+        // fix on this browser), drop the bad snapshot, disable the cache, do a
+        // clean install once, and retry — so the run still succeeds.
+        const startDev = async () => {
+          const dev = await wc.spawn("npm", ["run", script], spawnOpts);
+          dev.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
+          dev.exit.then(async (code: number) => {
+            if (cancelled || becameReady) return; // a healthy server keeps running
+            if (restored && !recovered) {
+              recovered = true;
+              append("\n[nova] Cached dependencies wouldn't start (EACCES) — reinstalling cleanly…\n");
+              disableDepCache();
+              if (cacheKey) await delDepSnapshot(cacheKey).catch(() => {});
+              try { await wc.fs.rm(`${appBase}node_modules`, { recursive: true, force: true }); } catch { /* ignore */ }
+              setPhase("installing");
+              const inst = await wc.spawn("npm", ["install"], spawnOpts);
+              inst.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
+              if ((await inst.exit) !== 0) { if (!cancelled) { setError("npm install failed during recovery."); setPhase("error"); } return; }
+              restored = false;
+              setPhase("starting");
+              append(`\n$ npm run ${script}`);
+              startDev();
+            } else if (!cancelled) {
+              setError(`The dev server exited (code ${code}) before it was ready. Check the console for the cause.`);
+              setPhase("error");
+            }
+          });
+        };
+        startDev();
       } catch (e: any) {
         if (!cancelled) { setError(e?.message || String(e)); setPhase("error"); }
       }
