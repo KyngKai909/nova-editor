@@ -43,6 +43,20 @@ export default function Dashboard() {
     mySharedProjects().then(setShared).catch(() => {});
   }, [signedIn]);
 
+  // Surface (and clear) an OAuth-link error bounced back in the URL — Supabase
+  // puts it in either the query string or the hash.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const h = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const code = q.get("error_code") || h.get("error_code");
+    if (!code) return;
+    const msg = code === "identity_already_exists"
+      ? "GitHub is already linked to your account — click Connect GitHub again to refresh access, or paste a token in Settings → GitHub."
+      : (q.get("error_description") || h.get("error_description") || "Couldn't connect GitHub.").replace(/\+/g, " ");
+    window.history.replaceState({}, "", "/dashboard");
+    alert(msg);
+  }, []);
+
   const openShared = (sp: SharedProject) => {
     const rec = sp.data;
     if (!rec?.files?.length) { alert("This shared project hasn't synced yet — ask the owner to open it once."); return; }
