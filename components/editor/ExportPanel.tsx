@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   X, Download, FileCode2, Check, HardDrive, Loader2, GitCommitHorizontal,
   GitPullRequest, GitBranch, ExternalLink, UploadCloud,
@@ -8,11 +8,13 @@ import {
 import { useEditor } from "@/store/editorStore";
 import { useProjects } from "@/store/projectsStore";
 import { useGitHub } from "@/store/githubStore";
+import { useRunner } from "@/store/runnerStore";
 import { lineDiff } from "@/lib/diff";
 import { fsSupported } from "@/lib/fileSystem";
 import { downloadZip } from "@/lib/zip";
 import { saveProjectToDevice } from "@/lib/deviceProject";
 import { commitFiles, commitToNewBranchAndPR, getBranchHeadSha } from "@/lib/githubApi";
+import { probeRunner, gitClone, gitStatus, gitWriteFiles, gitCommit, gitPush } from "@/lib/localRunner";
 import ConnectModal from "@/components/github/ConnectModal";
 import PublishModal from "@/components/github/PublishModal";
 
@@ -25,6 +27,15 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
   const updateProject = useProjects((s) => s.updateProject);
   const token = useGitHub((s) => s.token);
   const ghUser = useGitHub((s) => s.user);
+  const rtoken = useRunner((s) => s.token);
+  const [agentReady, setAgentReady] = useState(false); // commit/push via real local git when up
+
+  useEffect(() => {
+    if (!rtoken) { setAgentReady(false); return; }
+    let alive = true;
+    probeRunner().then((r) => { if (alive) setAgentReady(r.up); }).catch(() => {});
+    return () => { alive = false; };
+  }, [rtoken]);
 
   const changed = files.filter((f) => f.content !== f.original);
   const [active, setActive] = useState(changed[0]?.path ?? null);
@@ -71,6 +82,28 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
     setBusy("Pushing…");
     setError(null);
     try {
+      // ── real git via the agent: write edits into the clone, commit, push ────
+      // git itself rejects a non-fast-forward push, so this can't silently
+      // overwrite upstream — we still warn early if behind.
+      if (agentReady && rtoken) {
+        const repo = { owner: gh.owner, repo: gh.repo, branch: gh.branch };
+        await gitClone(rtoken, repo, token);
+        const st = await gitStatus(rtoken, repo, token, true);
+        if ((st.behind || 0) > 0 && !confirm(`${gh.branch} has new commits on GitHub.\n\nSync (pull) them first to avoid a rejected push. Push anyway?`)) {
+          setBusy(null);
+          return;
+        }
+        await gitWriteFiles(rtoken, repo, changes);
+        const ident = ghUser ? { name: ghUser.name || ghUser.login, email: `${ghUser.login}@users.noreply.github.com` } : undefined;
+        const { head } = await gitCommit(rtoken, repo, message, ident);
+        await gitPush(rtoken, repo, token);
+        markCommitted();
+        if (projectId) updateProject(projectId, { github: { ...gh, commitSha: head } });
+        setNotice(`Pushed to ${gh.owner}/${gh.repo}@${gh.branch} · ${head.slice(0, 7)} (local git)`);
+        onClose();
+        return;
+      }
+
       // non-fast-forward guard: if the branch moved upstream since our baseline,
       // a push would silently overwrite remote changes to files we also edited.
       if (gh.commitSha) {

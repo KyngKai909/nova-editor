@@ -24,6 +24,7 @@ import { usePanels } from "@/store/panelStore";
 import { useRunner } from "@/store/runnerStore";
 import { fsSupported } from "@/lib/fileSystem";
 import { saveProjectToDevice } from "@/lib/deviceProject";
+import { gitWriteFiles } from "@/lib/localRunner";
 
 const CodeEditor = dynamic(() => import("./CodeEditor"), {
   ssr: false,
@@ -95,16 +96,26 @@ export default function EditorShell() {
     return () => clearTimeout(t);
   }, [files, projectId, updateProject]);
 
-  // IDE-style autosave to disk: device-backed projects write their files straight
-  // back to the folder on a debounce (the folder handle is already authorized).
+  // IDE-style autosave on a debounce: device-backed projects write straight back
+  // to their folder; GitHub-connected projects also write through to the agent's
+  // real git clone (best-effort) so commit/pull operate on the latest edits.
   useEffect(() => {
-    if (!projectId || !files.length || !fsSupported()) return;
-    if (!useSettings.getState().autoSaveToDisk) return;
-    const proj = useProjects.getState().projects.find((p) => p.id === projectId);
-    if (proj?.storage !== "device") return;
+    if (!projectId || !files.length) return;
     if (!files.some((f) => f.content !== f.original)) return; // nothing changed
+    const proj = useProjects.getState().projects.find((p) => p.id === projectId);
+    const changed = files.filter((f) => f.content !== f.original).map((f) => ({ path: f.path, content: f.content }));
     const t = setTimeout(() => {
-      saveProjectToDevice(projectId, files.map((f) => ({ path: f.path, content: f.content }))).catch(() => {});
+      if (proj?.storage === "device" && fsSupported() && useSettings.getState().autoSaveToDisk) {
+        saveProjectToDevice(projectId, files.map((f) => ({ path: f.path, content: f.content }))).catch(() => {});
+      }
+      // git working copy: keep the agent's clone in sync with your edits. No-op if
+      // the agent is down (request fails) or the clone doesn't exist yet — it's
+      // created on the first Sync/Publish, after which this keeps it current.
+      const gh = proj?.github;
+      const rt = useRunner.getState().token;
+      if (gh && rt && changed.length) {
+        gitWriteFiles(rt, { owner: gh.owner, repo: gh.repo, branch: gh.branch }, changed).catch(() => {});
+      }
     }, 1500);
     return () => clearTimeout(t);
   }, [files, projectId]);

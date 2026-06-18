@@ -275,6 +275,24 @@ const server = http.createServer(async (req, res) => {
     const untracked = (await runGit(["ls-files", "--others", "--exclude-standard"], { cwd: dir })).out;
     return json(res, 200, { path: dir, files: [...tracked.split("\n"), ...untracked.split("\n")].filter(Boolean) });
   }
+  // bulk read every tracked file (so Nova can open the clone in one request).
+  // Text rides as utf8; binary (NUL-sniffed) rides base64.
+  if (p === "/git/files" && req.method === "POST") {
+    const { owner, repo } = await body(req);
+    if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
+    const dir = repoDir(owner, repo);
+    const tracked = (await runGit(["ls-files"], { cwd: dir })).out.split("\n").filter(Boolean).slice(0, 4000);
+    const files = [];
+    for (const rel of tracked) {
+      try {
+        const buf = fs.readFileSync(path.join(dir, rel));
+        const isBin = buf.subarray(0, 8000).includes(0);
+        files.push(isBin ? { path: rel, content: buf.toString("base64"), encoding: "base64" } : { path: rel, content: buf.toString("utf8") });
+      } catch { /* skip unreadable */ }
+    }
+    const head = (await runGit(["rev-parse", "HEAD"], { cwd: dir })).out;
+    return json(res, 200, { files, head });
+  }
   if (p === "/git/read" && req.method === "POST") {
     const { owner, repo, path: rel, encoding } = await body(req);
     if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });

@@ -127,6 +127,10 @@ export const gitChanged = (token: string, repo: GitRepo, from?: string) =>
   gitPost<{ changed: GitChange[] | null }>(token, "changed", { ...repo, from });
 export const gitTree = (token: string, repo: GitRepo) =>
   gitPost<{ path: string; files: string[] }>(token, "tree", repo);
+// Bulk read every tracked file in one request (for opening the clone). Binary
+// files come back base64-encoded.
+export const gitFiles = (token: string, repo: GitRepo) =>
+  gitPost<{ files: { path: string; content: string; encoding?: "base64" }[]; head: string }>(token, "files", repo);
 export const gitRead = (token: string, repo: GitRepo, path: string, encoding?: "base64") =>
   gitPost<{ content: string; encoding?: "base64" }>(token, "read", { ...repo, path, encoding });
 export const gitWriteFiles = (token: string, repo: GitRepo, files: { path: string; content: string; encoding?: "base64" }[]) =>
