@@ -459,11 +459,21 @@ owner/repo</pre>
             <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Publishing &amp; GitHub</h2>
           </div>
           <p class="text-[14px] leading-relaxed text-ink-2">
-            Click <b class="text-ink">Publish</b> to review a clean diff of exactly what changed. Then download, save to your folder, or — for connected projects — <b class="text-ink">commit &amp; push</b> or <b class="text-ink">open a pull request</b>. Pushing triggers your existing Vercel/Netlify deploy; Nova stays out of your pipeline.
+            Click <b class="text-ink">Publish</b> to review a clean diff of exactly what changed, then — for connected projects — <b class="text-ink">commit &amp; push</b> or <b class="text-ink">open a pull request</b> (or just download / save to your folder). Pushing triggers your existing Vercel/Netlify deploy; Nova stays out of your pipeline. To pull changes that were pushed elsewhere, use <b class="text-ink">Sync</b>.
           </p>
-          <div class="rounded-xl border border-line bg-surface/40 p-4">
-            <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="git-pull-request" class="h-3.5 w-3.5"></i></span> Imported vs. connected</div>
-            <div class="text-[13px] leading-relaxed text-ink-2">Importing a public URL gives you the files; connecting GitHub (a token, in Settings) is what lets you push back or create a new repo.</div>
+          <div class="grid gap-3 sm:grid-cols-2">
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="git-pull-request" class="h-3.5 w-3.5"></i></span> Imported vs. connected</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">Importing a public URL gives you the files; connecting GitHub (a token, in Settings) is what lets you push back or create a new repo.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="refresh-cw" class="h-3.5 w-3.5"></i></span> Sync — pull upstream changes</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">When the branch moves on GitHub, the footer shows <b class="text-ink-2">Update available</b>. Hit <b class="text-ink-2">Sync</b> to pull &amp; merge: remote-only changes fast-forward, your edits are kept, and files changed on both sides get a line-level merge — clean ones auto-merge, the rest open a conflict resolver. Sync never pushes.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4 sm:col-span-2">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="git-branch" class="h-3.5 w-3.5"></i></span> Real git with the local runner</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">With the <b class="text-ink-2">local runner</b> connected (see Running live), Sync and Publish run as real <span class="font-mono text-[12px]">git pull</span> / <span class="font-mono text-[12px]">commit</span> / <span class="font-mono text-[12px]">push</span> in a real clone on your machine — full history preserved, and a non-fast-forward push is rejected rather than silently overwriting. Without the agent, Nova does the same over the GitHub API. Your token is used straight from your browser, or — with the agent — sent only to <span class="font-mono text-[12px]">127.0.0.1</span>; never a Nova server.</div>
+            </div>
           </div>
         </section>
 
