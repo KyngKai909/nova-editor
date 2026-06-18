@@ -18,7 +18,9 @@ const PORT = Number(process.env.NOVA_RUNNER_PORT || 4319);
 const PROXY_PORT = PORT + 1; // serves the running app WITH the bridge injected
 // Origins allowed to talk to the agent. Add your own with NOVA_ORIGIN=...
 const ORIGINS = new Set([
-  "https://nova-editor-six.vercel.app",
+  "https://novaeditor.org",
+  "https://www.novaeditor.org",
+  "https://nova-editor-six.vercel.app", // the Vercel deployment still resolves
   "http://localhost:3000",
   "http://localhost:3011",
   ...(process.env.NOVA_ORIGIN ? process.env.NOVA_ORIGIN.split(",").map((s) => s.trim()) : []),

@@ -71,7 +71,7 @@ const has = (needle, msg) => ok(out.includes(needle), msg || `missing: ${needle}
 // 1. The full <head> survives — every SEO/social tag, in its source form.
 has('<meta name="description"', "dropped <meta name=description>");
 has('<meta name="theme-color" content="#08080a" />', "dropped/altered theme-color");
-has('<link rel="canonical" href="https://nova-editor-six.vercel.app/" />', "dropped canonical");
+has('<link rel="canonical" href="https://novaeditor.org/" />', "dropped canonical");
 for (const p of ["og:type", "og:url", "og:title", "og:description", "og:image"]) {
   has(`property="${p}"`, `dropped og tag: ${p}`);
 }

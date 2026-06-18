@@ -22,5 +22,5 @@ export function planForPrice(priceId: string | undefined | null): "pro" | "studi
 // Pin to the SDK's bundled API version (omitting apiVersion) so upgrades are
 // explicit. appInfo just tags requests in the Stripe dashboard.
 export const stripe: Stripe | null = secret
-  ? new Stripe(secret, { appInfo: { name: "Nova", url: "https://nova-editor-six.vercel.app" } })
+  ? new Stripe(secret, { appInfo: { name: "Nova", url: "https://novaeditor.org" } })
   : null;

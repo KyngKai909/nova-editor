@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const SITE = "https://nova-editor-six.vercel.app";
+const SITE = "https://novaeditor.org";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

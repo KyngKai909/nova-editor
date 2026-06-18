@@ -22,7 +22,7 @@ const serif = Instrument_Serif({
   display: "swap",
 });
 
-const SITE_URL = "https://nova-editor-six.vercel.app";
+const SITE_URL = "https://novaeditor.org";
 const TITLE = "Nova — The visual editor for real code";
 const DESCRIPTION =
   "Nova is a browser-based, Git-native visual editor for real codebases. Import any site or GitHub repo, edit it on a live canvas with Webflow-grade controls, ask AI on your own key, and ship the code. Open source, local-first, no lock-in.";
