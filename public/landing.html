@@ -147,6 +147,7 @@
         </a>
         <div class="hidden items-center gap-8 md:flex">
           <a href="#why" class="text-[13px] text-ink-2 transition-colors hover:text-ink">Why Nova</a>
+          <a href="#how" class="text-[13px] text-ink-2 transition-colors hover:text-ink">How it works</a>
           <a href="#features" class="text-[13px] text-ink-2 transition-colors hover:text-ink">Features</a>
           <a href="#pricing" class="text-[13px] text-ink-2 transition-colors hover:text-ink">Pricing</a>
           <a href="/docs" class="text-[13px] text-ink-2 transition-colors hover:text-ink">Docs</a>
@@ -160,6 +161,7 @@
       </div>
       <div id="mobile-menu" class="mx-5 hidden rounded-2xl border border-line bg-surface/95 p-4 backdrop-blur md:hidden">
         <a href="#why" class="block py-2.5 text-[15px] text-ink-2">Why Nova</a>
+        <a href="#how" class="block py-2.5 text-[15px] text-ink-2">How it works</a>
         <a href="#features" class="block py-2.5 text-[15px] text-ink-2">Features</a>
         <a href="#pricing" class="block py-2.5 text-[15px] text-ink-2">Pricing</a>
         <a href="/docs" class="block py-2.5 text-[15px] text-ink-2">Docs</a>
@@ -441,6 +443,133 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- how nova compares -->
+    <section id="compare" class="mx-auto max-w-7xl px-5 py-24 sm:px-8 sm:py-32">
+      <div class="reveal max-w-2xl">
+        <p class="mb-4 flex items-center gap-2 text-[12px] uppercase tracking-[0.3em] text-ink-3"><i data-lucide="git-compare" class="h-3.5 w-3.5 text-accent"></i> Compare</p>
+        <h2 class="font-display text-[clamp(2rem,5.5vw,4rem)] font-semibold leading-[1.02] tracking-tightest">
+          How Nova <span class="font-serif italic text-accent">compares</span>.
+        </h2>
+        <p class="mt-6 text-[16px] leading-relaxed text-ink-2 sm:text-[18px]">
+          The only editor that runs your real app and ships to your own Git.
+        </p>
+      </div>
+
+      <p class="reveal mt-6 text-[11px] text-ink-3 md:hidden">Scroll the table sideways to compare →</p>
+
+      <div class="reveal mt-6 overflow-x-auto md:mt-12">
+        <table class="w-full min-w-[840px] border-separate border-spacing-0 text-left">
+          <caption class="sr-only">How Nova compares to Tempo, Onlook, and CSS Studio across framework reach, running your real app in the browser, Git round-trips, where AI runs, whether visual edits cost tokens, code ownership, and pricing. A check means yes, a half-filled circle means partial or caveated, and a dash means no.</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="sticky left-0 z-10 w-[19%] border-b border-line bg-bg p-4 align-bottom"><span class="sr-only">Feature</span></th>
+              <th scope="col" class="rounded-t-xl border-l border-r border-t border-accent/50 bg-accent/[0.05] px-4 pb-4 pt-5 align-bottom">
+                <span class="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight text-ink">
+                  <span class="grid h-5 w-5 place-items-center rounded-md bg-accent text-[11px] leading-none text-accent-ink">✦</span> Nova
+                </span>
+              </th>
+              <th scope="col" class="border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">Tempo</th>
+              <th scope="col" class="border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">Onlook</th>
+              <th scope="col" class="border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">CSS&nbsp;Studio</th>
+            </tr>
+          </thead>
+          <tbody>
+            <!-- framework reach -->
+            <tr>
+              <th scope="row" class="sticky left-0 z-10 border-b border-line bg-bg py-4 pr-4 align-top text-[13px] font-medium text-ink">Framework reach <span class="font-normal text-ink-3">(today)</span></th>
+              <td class="border-l border-r border-accent/50 bg-accent/[0.05] px-4 py-4 align-top text-[13px] leading-relaxed text-ink">HTML, JSX/TSX, Tailwind&nbsp;+&nbsp;CSS, TS/JS, JSON, MD &amp; config — any repo</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">React + Vite + Tailwind</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Next.js + Tailwind</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">React, HTML, Vue, Svelte, Angular, Tailwind</td>
+            </tr>
+            <!-- runs your real app in the browser -->
+            <tr>
+              <th scope="row" class="sticky left-0 z-10 border-b border-line bg-bg py-4 pr-4 align-top text-[13px] font-medium text-ink">Runs your real app in the browser</th>
+              <td class="border-l border-r border-accent/50 bg-accent/[0.05] px-4 py-4 align-top">
+                <span class="flex items-start gap-2 text-[13px] leading-relaxed text-ink">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-accent" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <span><span class="sr-only">Yes — </span>WebContainers — plus a native runner when projects outgrow the tab</span>
+                </span>
+              </td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-3"><span aria-hidden="true">—</span><span class="sr-only">No</span></td>
+              <td class="border-b border-line px-4 py-4 align-top">
+                <span class="flex items-start gap-2 text-[13px] leading-relaxed text-ink-3">
+                  <span aria-hidden="true" class="mt-px">—</span><span><span class="sr-only">No — </span>Points at your localhost</span>
+                </span>
+              </td>
+              <td class="border-b border-line px-4 py-4 align-top">
+                <span class="flex items-start gap-2 text-[13px] leading-relaxed text-ink-3">
+                  <span aria-hidden="true" class="mt-px">—</span><span><span class="sr-only">No — </span>You run it</span>
+                </span>
+              </td>
+            </tr>
+            <!-- round-trips to your own git -->
+            <tr>
+              <th scope="row" class="sticky left-0 z-10 border-b border-line bg-bg py-4 pr-4 align-top text-[13px] font-medium text-ink">Round-trips to your own Git</th>
+              <td class="border-l border-r border-accent/50 bg-accent/[0.05] px-4 py-4 align-top">
+                <span class="flex items-start gap-2 text-[13px] leading-relaxed text-ink">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-accent" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <span><span class="sr-only">Yes — </span>Commit, push &amp; PRs</span>
+                </span>
+              </td>
+              <td class="border-b border-line px-4 py-4 align-top">
+                <span class="flex items-start gap-2 text-[13px] leading-relaxed text-ink-2">
+                  <svg viewBox="0 0 24 24" width="16" height="16" class="mt-0.5 shrink-0 text-ink-2" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3a9 9 0 0 1 0 18z" fill="currentColor"/></svg>
+                  <span><span class="sr-only">Partial — </span>Partial</span>
+                </span>
+              </td>
+              <td class="border-b border-line px-4 py-4 align-top">
+                <span class="flex items-start gap-2 text-[13px] leading-relaxed text-ink-2">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-accent" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <span><span class="sr-only">Yes — </span>Writes to your local code</span>
+                </span>
+              </td>
+              <td class="border-b border-line px-4 py-4 align-top">
+                <span class="flex items-start gap-2 text-[13px] leading-relaxed text-ink-2">
+                  <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="mt-0.5 shrink-0 text-accent" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>
+                  <span><span class="sr-only">Yes — </span>Via your agent</span>
+                </span>
+              </td>
+            </tr>
+            <!-- where ai runs -->
+            <tr>
+              <th scope="row" class="sticky left-0 z-10 border-b border-line bg-bg py-4 pr-4 align-top text-[13px] font-medium text-ink">Where AI runs</th>
+              <td class="border-l border-r border-accent/50 bg-accent/[0.05] px-4 py-4 align-top text-[13px] leading-relaxed text-ink">On your device, or your own key</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Tempo servers (credits)</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Hosted AI</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Your own agent</td>
+            </tr>
+            <!-- visual edits cost tokens (favorable = not costing) -->
+            <tr>
+              <th scope="row" class="sticky left-0 z-10 border-b border-line bg-bg py-4 pr-4 align-top text-[13px] font-medium text-ink">Visual edits cost tokens</th>
+              <td class="border-l border-r border-accent/50 bg-accent/[0.05] px-4 py-4 align-top text-[13px] font-medium leading-relaxed text-accent">Never</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Varies</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Varies</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">No — agent writes</td>
+            </tr>
+            <!-- code ownership -->
+            <tr>
+              <th scope="row" class="sticky left-0 z-10 border-b border-line bg-bg py-4 pr-4 align-top text-[13px] font-medium text-ink">Code ownership</th>
+              <td class="border-l border-r border-accent/50 bg-accent/[0.05] px-4 py-4 align-top text-[13px] leading-relaxed text-ink">Your Git — open source</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Its starter-repo format</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Your local code — open source</td>
+              <td class="border-b border-line px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Your code, agent writes</td>
+            </tr>
+            <!-- pricing -->
+            <tr>
+              <th scope="row" class="sticky left-0 z-10 bg-bg py-4 pr-4 align-top text-[13px] font-medium text-ink">Pricing</th>
+              <td class="rounded-b-xl border-b border-l border-r border-accent/50 bg-accent/[0.05] px-4 py-4 align-top text-[13px] leading-relaxed text-ink">Free · Pro $8/mo</td>
+              <td class="px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">Free / $30 / $4,500&nbsp;mo</td>
+              <td class="px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">OSS free · cloud sales-led</td>
+              <td class="px-4 py-4 align-top text-[13px] leading-relaxed text-ink-2">$99 one-time</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="reveal mt-6 text-[12.5px] leading-relaxed text-ink-3">Comparison based on each tool&rsquo;s public docs as of June 2026. Competitors evolve — corrections welcome.</p>
     </section>
 
     <!-- pricing -->
