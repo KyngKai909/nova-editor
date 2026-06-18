@@ -80,7 +80,7 @@ export default function Dashboard() {
 
       <header className="sticky top-0 z-30 border-b border-line bg-bg/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4 sm:px-8">
-          <Link href="/" onClick={(e) => { e.preventDefault(); navigate("/"); }} className="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
+          <Link href="/" prefetch={false} onClick={(e) => { e.preventDefault(); navigate("/"); }} className="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight">
             <span className="grid h-7 w-7 place-items-center rounded-lg bg-accent text-accent-ink">✦</span>
             Nova
             <AlphaPill />
@@ -223,7 +223,7 @@ function Onboarding({ onNew, onDemo }: { onNew: () => void; onDemo: () => void }
         ))}
       </div>
       <div className="mt-8 text-center">
-        <Link href="/docs" onClick={(e) => { e.preventDefault(); navigate("/docs"); }} className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 transition-colors hover:text-ink">
+        <Link href="/docs" prefetch={false} onClick={(e) => { e.preventDefault(); navigate("/docs"); }} className="inline-flex items-center gap-1.5 text-[13px] text-ink-3 transition-colors hover:text-ink">
           <BookOpen size={14} /> New to Nova? Read the 2-minute guide <ArrowRight size={13} />
         </Link>
       </div>
