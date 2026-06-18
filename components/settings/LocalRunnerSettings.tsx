@@ -41,9 +41,9 @@ export default function LocalRunnerSettings() {
   const connected = status === "up" && tokenValid === true;
 
   return (
-    <section className="mb-8">
+    <section className="rounded-2xl border border-line bg-surface/40 p-5">
       <h2 className="mb-1 flex items-center gap-2 text-[13px] font-semibold uppercase tracking-wide text-ink-2">
-        <Cpu size={14} /> Local runner
+        <span className="text-accent"><Cpu size={14} /></span> Local runner
       </h2>
       <div className="divide-y divide-line">
         {/* status */}
