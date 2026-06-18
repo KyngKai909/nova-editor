@@ -426,7 +426,7 @@ owner/repo</pre>
             <h2 class="font-display text-[clamp(1.6rem,3.5vw,2.4rem)] font-semibold tracking-tightest">Running live</h2>
           </div>
           <p class="text-[14px] leading-relaxed text-ink-2">
-            Hit <b class="text-ink">Run ▶</b> in the toolbar and the canvas switches to your live app — the same panels stay put, only the center swaps to the real project, booted in your browser via WebContainers (nothing is uploaded). Click an element in the running app and Nova maps it back to source so you can edit its class or text, with hot reload. <b class="text-ink">Split</b> and <b class="text-ink">Code</b> views work here too.
+            Hit <b class="text-ink">Run ▶</b> in the toolbar and the canvas switches to your live app — the same panels stay put, only the center swaps to the real project, booted in your browser via WebContainers (nothing is uploaded). Click an element in the running app and Nova maps it back to source so you can edit its class or text, with hot reload. <b class="text-ink">Split</b> and <b class="text-ink">Code</b> views work here too. Projects that outgrow the browser tab can run on your own machine instead — see <b class="text-ink">Run on your machine</b> below.
           </p>
           <div class="grid gap-3 sm:grid-cols-2">
             <div class="rounded-xl border border-line bg-surface/40 p-4">
@@ -444,6 +444,10 @@ owner/repo</pre>
             <div class="rounded-xl border border-line bg-surface/40 p-4">
               <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="terminal" class="h-3.5 w-3.5"></i></span> Console &amp; errors</div>
               <div class="text-[13px] leading-relaxed text-ink-2">The dev-server output and your app&rsquo;s runtime errors stream to the <b class="text-ink-2">Console</b> at the bottom (app errors are prefixed <span class="font-mono text-[12px]">[app]</span>) — so a blank screen tells you why, usually a missing env var.</div>
+            </div>
+            <div class="rounded-xl border border-line bg-surface/40 p-4 sm:col-span-2">
+              <div class="mb-1.5 flex items-center gap-2 text-[13px] font-semibold text-ink"><span class="text-accent"><i data-lucide="cpu" class="h-3.5 w-3.5"></i></span> Run on your machine (bigger projects)</div>
+              <div class="text-[13px] leading-relaxed text-ink-2">The in-browser runtime is memory-capped by the tab. For larger apps, run the dev server natively at full speed: start the tiny companion agent with <span class="font-mono text-[12px]">npx @nova/runner</span>, paste the token it prints into <b class="text-ink-2">Settings → Local runner</b>, then switch the runtime menu beside <b class="text-ink-2">Run ▶</b> to <b class="text-ink-2">On your machine</b>. Click-to-edit, layers, pages and component preview all work exactly the same — only execution moves to your machine. Still fully local: the token only ever talks to <span class="font-mono text-[12px]">127.0.0.1</span>, never a Nova server.</div>
             </div>
           </div>
         </section>
