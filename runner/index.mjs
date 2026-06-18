@@ -50,6 +50,46 @@ function writeProjectFile(root, f) {
   fs.writeFileSync(p, f.encoding === "base64" ? Buffer.from(f.content || "", "base64") : (f.content ?? ""));
 }
 
+// ── git engine ────────────────────────────────────────────────────────────────
+// Real git, run on the user's machine in a real clone. The GitHub token rides as
+// an http.extraHeader per network command so it NEVER lands in .git/config or on
+// disk. Clones live under ~/.nova-runner/repos/<owner>__<repo>/.
+const REPOS_DIR = path.join(CONFIG_DIR, "repos");
+function repoDir(owner, repo) {
+  return path.join(REPOS_DIR, `${owner}__${repo}`.replace(/[^A-Za-z0-9_.-]/g, "_"));
+}
+function authHeader(token) {
+  // GitHub accepts a token as basic-auth (x-access-token:<token>); keep it in
+  // a header, not the remote URL, so it isn't persisted.
+  return `http.extraHeader=AUTHORIZATION: basic ${Buffer.from(`x-access-token:${token}`).toString("base64")}`;
+}
+function runGit(args, { cwd, token } = {}) {
+  return new Promise((resolve) => {
+    const pre = token ? ["-c", authHeader(token)] : [];
+    const p = spawn("git", [...pre, ...args], { cwd, env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_ASKPASS: "echo" } });
+    let out = "", err = "";
+    p.stdout.on("data", (d) => (out += d));
+    p.stderr.on("data", (d) => (err += d));
+    p.on("exit", (code) => resolve({ code, out: out.trim(), err: err.trim() }));
+    p.on("error", (e) => resolve({ code: -1, out: "", err: String(e?.message || e) }));
+  });
+}
+function isCloned(owner, repo) {
+  try { return fs.existsSync(path.join(repoDir(owner, repo), ".git")); } catch { return false; }
+}
+// Snapshot of how the local clone relates to its upstream (after a fetch).
+async function gitStatus(owner, repo, branch, { token, fetch: doFetch } = {}) {
+  const cwd = repoDir(owner, repo);
+  if (!isCloned(owner, repo)) return { cloned: false };
+  if (doFetch) await runGit(["fetch", "origin", branch], { cwd, token });
+  const head = (await runGit(["rev-parse", "HEAD"], { cwd })).out;
+  const cur = (await runGit(["rev-parse", "--abbrev-ref", "HEAD"], { cwd })).out;
+  const counts = await runGit(["rev-list", "--left-right", "--count", `HEAD...origin/${branch}`], { cwd });
+  const [ahead = 0, behind = 0] = counts.out.split(/\s+/).map((n) => Number(n) || 0);
+  const porcelain = (await runGit(["status", "--porcelain"], { cwd })).out;
+  return { cloned: true, branch: cur, head, ahead, behind, dirty: porcelain ? porcelain.split("\n").length : 0 };
+}
+
 function emit(run, type, data) {
   if (type === "log") run.log.push(data);
   for (const res of run.subs) {
@@ -172,6 +212,83 @@ const server = http.createServer(async (req, res) => {
     return json(res, 200, { ok: true, url: run.url, ready: !!run.url });
   }
   if (p.startsWith("/stop/") && req.method === "POST") { const id = p.slice(6); stopRun(id); if (activeRunId === id) activeRunId = null; return json(res, 200, { ok: true }); }
+
+  // ── git: real git on the user's machine, in a real clone ────────────────────
+  // The GitHub token (body.token) is used only as an http.extraHeader for network
+  // commands; it is never written into the clone's config or the remote URL.
+  if (p === "/git/clone" && req.method === "POST") {
+    const { owner, repo, branch = "main", token } = await body(req);
+    if (!owner || !repo) return json(res, 400, { error: "owner and repo required" });
+    const dir = repoDir(owner, repo);
+    try {
+      if (isCloned(owner, repo)) {
+        await runGit(["fetch", "origin", branch], { cwd: dir, token });
+        await runGit(["checkout", branch], { cwd: dir });
+      } else {
+        fs.mkdirSync(REPOS_DIR, { recursive: true });
+        const r = await runGit(["clone", "--branch", branch, "--single-branch", `https://github.com/${owner}/${repo}.git`, dir], { token });
+        if (r.code !== 0) return json(res, 500, { error: r.err || "clone failed" });
+      }
+      return json(res, 200, { path: dir, ...(await gitStatus(owner, repo, branch, {})) });
+    } catch (e) { return json(res, 500, { error: String(e?.message || e) }); }
+  }
+  if (p === "/git/status" && req.method === "POST") {
+    const { owner, repo, branch = "main", token, fetch: doFetch } = await body(req);
+    try { return json(res, 200, await gitStatus(owner, repo, branch, { token, fetch: doFetch })); }
+    catch (e) { return json(res, 500, { error: String(e?.message || e) }); }
+  }
+  if (p === "/git/pull" && req.method === "POST") {
+    const { owner, repo, branch = "main", token } = await body(req);
+    if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
+    const dir = repoDir(owner, repo);
+    const r = await runGit(["pull", "--no-edit", "origin", branch], { cwd: dir, token });
+    const conflicts = (await runGit(["diff", "--name-only", "--diff-filter=U"], { cwd: dir })).out;
+    const st = await gitStatus(owner, repo, branch, {});
+    return json(res, 200, { ...st, ok: r.code === 0, output: [r.out, r.err].filter(Boolean).join("\n"), conflicts: conflicts ? conflicts.split("\n") : [] });
+  }
+  if (p === "/git/tree" && req.method === "POST") {
+    const { owner, repo } = await body(req);
+    if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
+    const dir = repoDir(owner, repo);
+    const tracked = (await runGit(["ls-files"], { cwd: dir })).out;
+    const untracked = (await runGit(["ls-files", "--others", "--exclude-standard"], { cwd: dir })).out;
+    return json(res, 200, { path: dir, files: [...tracked.split("\n"), ...untracked.split("\n")].filter(Boolean) });
+  }
+  if (p === "/git/read" && req.method === "POST") {
+    const { owner, repo, path: rel, encoding } = await body(req);
+    if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
+    const dir = repoDir(owner, repo);
+    const fp = path.join(dir, rel || "");
+    if (!fp.startsWith(dir)) return json(res, 400, { error: "bad path" });
+    try {
+      const buf = fs.readFileSync(fp);
+      return json(res, 200, encoding === "base64" ? { content: buf.toString("base64"), encoding: "base64" } : { content: buf.toString("utf8") });
+    } catch { return json(res, 404, { error: "no such file" }); }
+  }
+  if (p === "/git/write" && req.method === "POST") {
+    const { owner, repo, files } = await body(req);
+    if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
+    const dir = repoDir(owner, repo);
+    try { for (const f of files || []) writeProjectFile(dir, f); return json(res, 200, { ok: true }); }
+    catch (e) { return json(res, 500, { error: String(e?.message || e) }); }
+  }
+  if (p === "/git/commit" && req.method === "POST") {
+    const { owner, repo, message, name, email } = await body(req);
+    if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
+    const dir = repoDir(owner, repo);
+    await runGit(["add", "-A"], { cwd: dir });
+    const ident = name && email ? ["-c", `user.name=${name}`, "-c", `user.email=${email}`] : [];
+    const r = await runGit([...ident, "commit", "-m", message || "Update from Nova"], { cwd: dir });
+    if (r.code !== 0) return json(res, 500, { error: r.err || r.out || "nothing to commit" });
+    return json(res, 200, { head: (await runGit(["rev-parse", "HEAD"], { cwd: dir })).out, output: r.out });
+  }
+  if (p === "/git/push" && req.method === "POST") {
+    const { owner, repo, branch = "main", token } = await body(req);
+    if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
+    const r = await runGit(["push", "origin", branch], { cwd: repoDir(owner, repo), token });
+    if (r.code !== 0) return json(res, 500, { error: r.err || "push failed" });
+    return json(res, 200, { ok: true, output: [r.out, r.err].filter(Boolean).join("\n") });
+  }
   return json(res, 404, { error: "not found" });
 });
 
