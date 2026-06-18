@@ -127,6 +127,12 @@
     .hover\:bg-surface\/60:hover { background-color: rgba(19,19,24,.6); }
     .hover\:text-ink:hover { color: var(--ink); }
     .hover\:text-accent-ink:hover { color: var(--accent-ink); }
+
+    /* "How Nova compares" table: a subtle line divider on each side of the middle
+       (Onlook) column — i.e. before cols 4 and 5. Nova (col 2) keeps its accent
+       border; col 3 (Tempo) sits against Nova's accent edge, so no extra line. */
+    #compare th:nth-child(4), #compare td:nth-child(4),
+    #compare th:nth-child(5), #compare td:nth-child(5) { border-left: 1px solid var(--line); }
   </style>
 </head>
 
@@ -460,19 +466,19 @@
       <p class="reveal mt-6 text-[11px] text-ink-3 md:hidden">Scroll the table sideways to compare →</p>
 
       <div class="reveal mt-6 overflow-x-auto md:mt-12">
-        <table class="w-full min-w-[840px] border-separate border-spacing-0 text-left">
+        <table class="w-full min-w-[840px] table-fixed border-separate border-spacing-0 text-left">
           <caption class="sr-only">How Nova compares to Tempo, Onlook, and CSS Studio across framework reach, running your real app in the browser, Git round-trips, where AI runs, whether visual edits cost tokens, code ownership, and pricing. A check means yes, a half-filled circle means partial or caveated, and a dash means no.</caption>
           <thead>
             <tr>
-              <th scope="col" class="sticky left-0 z-10 w-[19%] border-b border-line bg-bg p-4 align-bottom"><span class="sr-only">Feature</span></th>
-              <th scope="col" class="rounded-t-xl border-l border-r border-t border-accent/50 bg-accent/[0.05] px-4 pb-4 pt-5 align-bottom">
+              <th scope="col" class="sticky left-0 z-10 w-[19.5%] border-b border-line bg-bg p-4 align-bottom"><span class="sr-only">Feature</span></th>
+              <th scope="col" class="w-[22%] rounded-t-xl border-l border-r border-t border-accent/50 bg-accent/[0.05] px-4 pb-4 pt-5 align-bottom">
                 <span class="flex items-center gap-2 font-display text-[16px] font-semibold tracking-tight text-ink">
                   <span class="grid h-5 w-5 place-items-center rounded-md bg-accent text-[11px] leading-none text-accent-ink">✦</span> Nova
                 </span>
               </th>
-              <th scope="col" class="border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">Tempo</th>
-              <th scope="col" class="border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">Onlook</th>
-              <th scope="col" class="border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">CSS&nbsp;Studio</th>
+              <th scope="col" class="w-[19.5%] border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">Tempo</th>
+              <th scope="col" class="w-[19.5%] border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">Onlook</th>
+              <th scope="col" class="w-[19.5%] border-b border-line px-4 pb-4 pt-5 align-bottom font-display text-[16px] font-semibold tracking-tight text-ink-2">CSS&nbsp;Studio</th>
             </tr>
           </thead>
           <tbody>
