@@ -12,7 +12,7 @@ const APP_VERSION = "0.1.0";
 // version centered, local save/storage on the right. Text labels collapse to
 // icons on small screens (titles keep them discoverable) so it never squashes.
 export default function StatusFooter() {
-  const { token, gh, changed, canPull, storage, behind, busy, pull } = useGitSync();
+  const { token, gh, changed, canPull, storage, behind, busy, pull, agentReady } = useGitSync();
   const projectId = useEditor((s) => s.projectId);
   const hasProject = useEditor((s) => s.files.length > 0);
   const setConflictsOpen = useConflicts((s) => s.setOpen);
@@ -53,10 +53,14 @@ export default function StatusFooter() {
               <button
                 onClick={pull}
                 disabled={busy}
-                title={behind ? "Pull & merge upstream changes" : "Check for and merge upstream changes"}
+                title={
+                  agentReady
+                    ? (behind ? "Pull with real git on your machine" : "Fetch & pull with real git on your machine")
+                    : (behind ? "Pull & merge upstream changes" : "Check for and merge upstream changes")
+                }
                 className={`${chip} border transition-colors disabled:opacity-50 ${behind ? "border-accent/40 bg-accent/10 text-accent hover:bg-accent/20" : "border-line text-ink-2 hover:bg-raise hover:text-ink"}`}
               >
-                {busy ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}<span className="hidden sm:inline">Sync</span>
+                {busy ? <Loader2 size={11} className="animate-spin" /> : <RefreshCw size={11} />}<span className="hidden sm:inline">Sync{agentReady ? " · git" : ""}</span>
               </button>
             )}
           </>
