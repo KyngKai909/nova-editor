@@ -241,10 +241,31 @@ const server = http.createServer(async (req, res) => {
     const { owner, repo, branch = "main", token } = await body(req);
     if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
     const dir = repoDir(owner, repo);
+    const before = (await runGit(["rev-parse", "HEAD"], { cwd: dir })).out;
     const r = await runGit(["pull", "--no-edit", "origin", branch], { cwd: dir, token });
+    const after = (await runGit(["rev-parse", "HEAD"], { cwd: dir })).out;
     const conflicts = (await runGit(["diff", "--name-only", "--diff-filter=U"], { cwd: dir })).out;
+    // files the pull touched, so Nova can refresh just those (A/M/D per file)
+    const nameStatus = before && after && before !== after
+      ? (await runGit(["diff", "--name-status", before, after], { cwd: dir })).out : "";
+    const changed = nameStatus
+      ? nameStatus.split("\n").map((l) => { const [s, ...rest] = l.split("\t"); return { status: (s || "")[0], path: rest.join("\t") }; }).filter((c) => c.path)
+      : [];
     const st = await gitStatus(owner, repo, branch, {});
-    return json(res, 200, { ...st, ok: r.code === 0, output: [r.out, r.err].filter(Boolean).join("\n"), conflicts: conflicts ? conflicts.split("\n") : [] });
+    return json(res, 200, { ...st, ok: r.code === 0, output: [r.out, r.err].filter(Boolean).join("\n"), conflicts: conflicts ? conflicts.split("\n") : [], changed });
+  }
+  // files changed between an arbitrary commit (Nova's baseline) and HEAD, so Nova
+  // can refresh exactly what it's missing. `changed: null` ⇒ baseline unknown here
+  // (do a full refresh from /git/tree).
+  if (p === "/git/changed" && req.method === "POST") {
+    const { owner, repo, from } = await body(req);
+    if (!isCloned(owner, repo)) return json(res, 404, { error: "not cloned" });
+    const dir = repoDir(owner, repo);
+    if (!from || (await runGit(["cat-file", "-e", `${from}^{commit}`], { cwd: dir })).code !== 0)
+      return json(res, 200, { changed: null });
+    const ns = (await runGit(["diff", "--name-status", from, "HEAD"], { cwd: dir })).out;
+    const changed = ns ? ns.split("\n").map((l) => { const [s, ...rest] = l.split("\t"); return { status: (s || "")[0], path: rest.join("\t") }; }).filter((c) => c.path) : [];
+    return json(res, 200, { changed });
   }
   if (p === "/git/tree" && req.method === "POST") {
     const { owner, repo } = await body(req);

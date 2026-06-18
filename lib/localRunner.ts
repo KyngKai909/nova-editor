@@ -90,3 +90,48 @@ export async function attachRun(token: string, runId: string): Promise<{ url: st
 export async function stopRun(token: string, runId: string): Promise<void> {
   try { await fetch(`${RUNNER_URL}/stop/${runId}`, { method: "POST", headers: { authorization: `Bearer ${token}` } }); } catch { /* ignore */ }
 }
+
+// ── git engine (real git on the user's machine, via the agent) ──────────────────
+// `token` is the runner pairing token (authenticates to the agent). `ghToken` is
+// the GitHub token, used by the agent only as an http.extraHeader for network ops.
+export interface GitRepo { owner: string; repo: string; branch: string }
+export interface GitStatus { cloned: boolean; path?: string; branch?: string; head?: string; ahead?: number; behind?: number; dirty?: number }
+export interface GitChange { status: string; path: string } // status: A|M|D|...
+export interface GitPullResult extends GitStatus { ok: boolean; output: string; conflicts: string[]; changed: GitChange[] }
+
+async function gitPost<T>(token: string, op: string, payload: any): Promise<T> {
+  const res = await fetch(`${RUNNER_URL}/git/${op}`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    let msg = `git ${op}: ${res.status}`;
+    try { msg = (await res.json()).error || msg; } catch { /* non-json */ }
+    throw new Error(msg);
+  }
+  return res.json();
+}
+
+// Ensure the repo is cloned on the machine (clones if missing, else fetches); returns status.
+export const gitClone = (token: string, repo: GitRepo, ghToken?: string) =>
+  gitPost<GitStatus>(token, "clone", { ...repo, token: ghToken });
+// Local clone vs upstream (ahead/behind/dirty); fetches first by default.
+export const gitStatus = (token: string, repo: GitRepo, ghToken?: string, fetch = true) =>
+  gitPost<GitStatus>(token, "status", { ...repo, token: ghToken, fetch });
+export const gitPull = (token: string, repo: GitRepo, ghToken?: string) =>
+  gitPost<GitPullResult>(token, "pull", { ...repo, token: ghToken });
+// Files changed between `from` (Nova's baseline sha) and HEAD. `changed: null`
+// means the baseline isn't in the clone's history — caller should full-refresh.
+export const gitChanged = (token: string, repo: GitRepo, from?: string) =>
+  gitPost<{ changed: GitChange[] | null }>(token, "changed", { ...repo, from });
+export const gitTree = (token: string, repo: GitRepo) =>
+  gitPost<{ path: string; files: string[] }>(token, "tree", repo);
+export const gitRead = (token: string, repo: GitRepo, path: string, encoding?: "base64") =>
+  gitPost<{ content: string; encoding?: "base64" }>(token, "read", { ...repo, path, encoding });
+export const gitWriteFiles = (token: string, repo: GitRepo, files: { path: string; content: string; encoding?: "base64" }[]) =>
+  gitPost<{ ok: boolean }>(token, "write", { ...repo, files });
+export const gitCommit = (token: string, repo: GitRepo, message: string, ident?: { name?: string; email?: string }) =>
+  gitPost<{ head: string; output: string }>(token, "commit", { ...repo, message, ...ident });
+export const gitPush = (token: string, repo: GitRepo, ghToken?: string) =>
+  gitPost<{ ok: boolean; output: string }>(token, "push", { ...repo, token: ghToken });
