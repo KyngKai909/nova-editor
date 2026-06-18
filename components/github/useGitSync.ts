@@ -8,6 +8,7 @@ import { importRepoFilesAuth, getBranchHeadSha } from "@/lib/githubApi";
 import { mergeThreeWay } from "@/lib/merge";
 import { diff3Strings, conflictCount, buildResolved } from "@/lib/diff3";
 import { useConflicts, type FileConflict } from "@/store/conflictsStore";
+import { saveProjectToDevice } from "@/lib/deviceProject";
 
 // Shared GitHub sync state + the "Pull & merge" action, used by both the GitBar
 // (branch menu) and the status footer (at-a-glance sync). Owns the cheap
@@ -26,9 +27,10 @@ export function useGitSync() {
   const [busy, setBusy] = useState(false);
 
   const gh = project?.github;
-  // Nova-managed pull is for in-browser github projects; device-backed clones
-  // sync through the real folder on disk (the user's own git), so skip them.
-  const canPull = !!gh && !!token && project?.storage !== "device";
+  // Pull applies to any GitHub-connected project. Device-backed projects keep a
+  // Nova-copied folder on disk, so the pull also writes the merged files there
+  // (it never pushes). Browser-backed projects just update the in-memory copy.
+  const canPull = !!gh && !!token;
 
   useEffect(() => {
     let alive = true;
@@ -58,7 +60,7 @@ export function useGitSync() {
       const remoteByPath = new Map(remote.map((f) => [f.path, f]));
 
       const trueConflicts: FileConflict[] = [];
-      let autoMerged = 0;
+      const autoMergedPaths: string[] = [];
       const finalFiles = result.files.map((f) => {
         if (!result.conflicts.includes(f.path)) return f;
         const L = local.find((x) => x.path === f.path);
@@ -70,16 +72,29 @@ export function useGitSync() {
           return f;
         }
         const regions = diff3Strings(mine, baseTxt, R.content);
-        if (conflictCount(regions) === 0) { autoMerged++; return { ...f, content: buildResolved(regions, []) }; }
+        if (conflictCount(regions) === 0) { autoMergedPaths.push(f.path); return { ...f, content: buildResolved(regions, []) }; }
         trueConflicts.push({ path: f.path, base: baseTxt, mine, theirs: R.content });
         return f;
       });
+      const autoMerged = autoMergedPaths.length;
 
       const baseHref = baseHrefFor(gh.branch);
       loadFiles(finalFiles, assets, baseHref, project.id);
       updateProject(project.id, { github: { ...gh, commitSha }, baseHref, files: finalFiles });
       setConflicts(project.id, trueConflicts);
       setBehind(false);
+
+      // Device-backed projects keep a real copy on disk — write the pulled,
+      // added & auto-merged files there too so the folder matches the new state.
+      // (Local-only edits are already on disk via auto-save; conflicts land after
+      // they're resolved. This never pushes.)
+      if (project.storage === "device") {
+        const changed = new Set([...result.pulled, ...result.added, ...autoMergedPaths]);
+        const toWrite = finalFiles
+          .filter((f) => changed.has(f.path))
+          .map((f) => ({ path: f.path, content: f.content }));
+        if (toWrite.length) await saveProjectToDevice(project.id, toWrite);
+      }
 
       const bits: string[] = [];
       if (result.pulled.length) bits.push(`${result.pulled.length} updated`);
