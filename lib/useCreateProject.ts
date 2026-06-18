@@ -32,9 +32,12 @@ export function useCreateProject() {
 
   return async ({ name, kind, files, assets = {}, baseHref = null, repoUrl, github, deviceHandle, allFiles }: CreateArgs) => {
     let handle = deviceHandle ?? null;
+    let deviceDir: string | undefined; // set only when NOVA creates the folder
     if (!handle && fsSupported() && (await hasWorkspace())) {
       try {
-        handle = await createProjectFolder(name, files, allFiles); // full clone if provided
+        const created = await createProjectFolder(name, files, allFiles); // full clone if provided
+        handle = created.handle;
+        deviceDir = created.dirName;
       } catch {
         handle = null; // fall back to browser storage
       }
@@ -49,6 +52,7 @@ export function useCreateProject() {
       repoUrl,
       github,
       storage,
+      deviceDir, // undefined for user-opened folders → never auto-deleted from disk
       status: { published: false, github: !!github },
     });
     if (handle) await saveHandle(rec.id, handle);

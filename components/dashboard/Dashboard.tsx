@@ -16,6 +16,12 @@ import { useOpenProject } from "@/components/editor/useOpenProject";
 import { toSourceFiles } from "@/lib/importUtils";
 import { deleteProjectAssets } from "@/lib/assetStore";
 import { deleteHistory } from "@/lib/historyStore";
+import { deleteHandle } from "@/lib/handleStore";
+import { deleteProjectFolder } from "@/lib/workspace";
+import { useEnvVars } from "@/store/envStore";
+import { useComments } from "@/store/commentsStore";
+import { useConflicts } from "@/store/conflictsStore";
+import { pushDelete } from "@/lib/cloudSync";
 import { useAuth } from "@/store/authStore";
 import { mySharedProjects, type SharedProject } from "@/lib/collab";
 import ProjectCard from "./ProjectCard";
@@ -56,6 +62,29 @@ export default function Dashboard() {
     window.history.replaceState({}, "", "/dashboard");
     alert(msg);
   }, []);
+
+  // Delete a project everywhere it lives: the record + per-project browser stores,
+  // the cloud copy (tombstoned so it can't re-sync back), and — only when NOVA
+  // created the folder — the files on disk. A folder the user opened themselves
+  // (no deviceDir) is left untouched.
+  const deleteProject = async (p: ProjectRecord) => {
+    const onDisk = !!p.deviceDir;
+    const ok = confirm(
+      onDisk
+        ? `Delete "${p.name}"?\n\nThis removes it from Nova and deletes its folder from your Nova Editor projects folder on disk. Your GitHub repo (if connected) is not affected.`
+        : `Delete "${p.name}" from Nova?\n\nA folder you opened yourself, and any code already pushed to GitHub, are not touched.`
+    );
+    if (!ok) return;
+    removeProject(p.id);
+    deleteProjectAssets(p.id);
+    deleteHistory(p.id);
+    deleteHandle(p.id);
+    useEnvVars.setState((s) => { const byProject = { ...s.byProject }; delete byProject[p.id]; return { byProject }; });
+    useComments.setState((s) => { const byProject = { ...s.byProject }; delete byProject[p.id]; return { byProject }; });
+    useConflicts.getState().clear(p.id);
+    pushDelete(p.id).catch(() => {}); // tombstone cloud copy (no-op if not signed in / unsynced)
+    if (p.deviceDir) await deleteProjectFolder(p.deviceDir).catch(() => {});
+  };
 
   const openShared = (sp: SharedProject) => {
     const rec = sp.data;
@@ -162,7 +191,7 @@ export default function Dashboard() {
               <ProjectCard
                 project={p}
                 onOpen={() => openProject(p)}
-                onDelete={() => { removeProject(p.id); deleteProjectAssets(p.id); deleteHistory(p.id); }}
+                onDelete={() => deleteProject(p)}
                 onTogglePublish={() => updateProject(p.id, { status: { ...p.status, published: !p.status.published } })}
                 onDuplicate={() =>
                   addProject({

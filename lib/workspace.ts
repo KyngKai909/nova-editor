@@ -36,7 +36,7 @@ export async function createProjectFolder(
   name: string,
   files: SourceFile[],
   all?: { path: string; content: string | Uint8Array }[]
-): Promise<any> {
+): Promise<{ handle: any; dirName: string }> {
   const ws = await getWorkspace();
   if (!ws) throw new Error("No projects folder set.");
   if (!(await verifyPermission(ws, true))) throw new Error("Permission to the projects folder was denied.");
@@ -45,7 +45,20 @@ export async function createProjectFolder(
   const dirName = await uniqueDirName(ws, base);
   const dir = await ws.getDirectoryHandle(dirName, { create: true });
   await writeFiles(dir, all ?? files.map((f) => ({ path: f.path, content: f.content })));
-  return dir;
+  return { handle: dir, dirName };
+}
+
+// Delete a Nova-created project subfolder from the workspace. Only ever called
+// with a dirName Nova itself created (tracked as project.deviceDir) — NEVER a
+// folder the user opened directly, so this can't nuke someone's real repo.
+export async function deleteProjectFolder(dirName: string): Promise<void> {
+  if (!dirName) return;
+  const ws = await getWorkspace();
+  if (!ws) return;
+  try {
+    if (!(await verifyPermission(ws, true))) return;
+    await ws.removeEntry(dirName, { recursive: true });
+  } catch { /* already gone / denied — best-effort */ }
 }
 
 async function uniqueDirName(ws: any, base: string): Promise<string> {

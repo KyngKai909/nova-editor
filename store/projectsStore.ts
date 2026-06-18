@@ -20,6 +20,9 @@ export interface ProjectRecord {
   // publishes against overwriting commits made since import.
   github?: { owner: string; repo: string; branch: string; commitSha?: string };
   storage?: "device"; // backed by a real folder on disk (handle in IndexedDB)
+  // The workspace subfolder Nova created for this project (only set when NOVA made
+  // it, never for a folder the user opened). Lets delete remove it from disk safely.
+  deviceDir?: string;
   status: { published: boolean; github: boolean };
 }
 
