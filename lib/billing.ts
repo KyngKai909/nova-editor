@@ -7,7 +7,7 @@ export function isBillingConfigured(): boolean {
   return !!process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY;
 }
 
-async function authedPost(path: string, body?: unknown): Promise<{ url?: string }> {
+async function authedPost(path: string, body?: unknown): Promise<any> {
   if (!supabase) throw new Error("Billing is not configured.");
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -28,8 +28,22 @@ export async function startCheckout(plan: "pro" | "studio" = "pro"): Promise<voi
   if (url) window.location.href = url;
 }
 
-// Open the Stripe Customer Portal to manage or cancel the subscription.
+// Open the Stripe Customer Portal (for payment method / invoices).
 export async function openBillingPortal(): Promise<void> {
   const { url } = await authedPost("/api/stripe/portal");
   if (url) window.location.href = url;
+}
+
+// ── in-app subscription changes (existing subscribers, no card re-entry) ──────
+// Switch an existing subscription between Pro and Studio (prorated).
+export async function changePlan(plan: "pro" | "studio"): Promise<void> {
+  await authedPost("/api/stripe/subscription", { action: "change", plan });
+}
+// Cancel at period end — keeps access until the current period closes.
+export async function cancelPlan(): Promise<void> {
+  await authedPost("/api/stripe/subscription", { action: "cancel" });
+}
+// Undo a pending cancel.
+export async function resumePlan(): Promise<void> {
+  await authedPost("/api/stripe/subscription", { action: "resume" });
 }

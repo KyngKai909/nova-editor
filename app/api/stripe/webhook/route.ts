@@ -66,7 +66,8 @@ export async function POST(req: Request) {
         await setPlan(sub.customer as string, {
           userId: sub.metadata?.user_id || undefined,
           plan: PRO_STATUSES.has(sub.status) ? planForPrice(priceId) : "free",
-          status: sub.status,
+          // keep paid access until the period ends, but surface a pending cancel
+          status: sub.cancel_at_period_end ? "canceling" : sub.status,
         });
         break;
       }

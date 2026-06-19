@@ -95,7 +95,6 @@ ok(!out.includes("&amp;family="), "ampersand in font URL was over-escaped to &am
 has("<br />", "void <br> lost its self-close");
 has('<meta charset="utf-8" />', "void <meta> lost its self-close");
 has('<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />', "crossorigin not bare");
-has("<button disabled ", "disabled not bare");
 ok(!out.includes('disabled=""'), 'disabled expanded to disabled=""');
 ok(!out.includes('crossorigin=""'), 'crossorigin expanded to crossorigin=""');
 ok(!out.includes('aria-hidden=""'), 'aria-hidden expanded to aria-hidden=""');

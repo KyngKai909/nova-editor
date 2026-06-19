@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 import { Sparkles, LogOut, Plus, Copy, Check, Loader2, Ticket, Zap, CreditCard } from "lucide-react";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
-import { isBillingConfigured, startCheckout, openBillingPortal } from "@/lib/billing";
+import { isBillingConfigured, openBillingPortal, cancelPlan, resumePlan } from "@/lib/billing";
 import { useAuth } from "@/store/authStore";
+import { confirmDialog } from "@/store/dialogStore";
+import PlanModal from "@/components/billing/PlanModal";
 
 interface Invite {
   code: string;
@@ -26,6 +28,7 @@ export default function AccountSettings() {
   const [billingBusy, setBillingBusy] = useState(false);
   const [billingErr, setBillingErr] = useState<string | null>(null);
   const [billingNote, setBillingNote] = useState<string | null>(null);
+  const [planOpen, setPlanOpen] = useState(false);
 
   // Handle the redirect back from Stripe Checkout (?billing=success|cancel).
   // On success the webhook may lag a beat, so poll the profile until it flips.
@@ -38,13 +41,14 @@ export default function AccountSettings() {
       return;
     }
     if (result === "success") {
-      setBillingNote("Payment received — activating Pro…");
+      setBillingNote("Payment received — activating your plan…");
       let tries = 0;
       const poll = setInterval(async () => {
         await refreshProfile();
-        if (++tries >= 6 || useAuth.getState().profile?.plan === "pro") {
+        const plan = useAuth.getState().profile?.plan;
+        if (++tries >= 6 || (plan && plan !== "free")) {
           clearInterval(poll);
-          setBillingNote(useAuth.getState().profile?.plan === "pro" ? "You're on Pro 🎉" : null);
+          setBillingNote(plan && plan !== "free" ? `You're on ${plan[0].toUpperCase()}${plan.slice(1)} 🎉` : null);
         }
       }, 1500);
       return () => clearInterval(poll);
@@ -83,17 +87,26 @@ export default function AccountSettings() {
   const isPro = profile.plan === "pro" || isStudio;
   const planLabel = isStudio ? "Studio" : profile.plan === "pro" ? "Pro" : "Free";
 
-  const upgrade = async (plan: "pro" | "studio" = "pro") => {
-    setBillingErr(null);
-    setBillingBusy(true);
-    // On success this redirects to Stripe, so we only clear busy on failure.
-    try { await startCheckout(plan); } catch (e: any) { setBillingErr(e?.message || "Could not start checkout."); setBillingBusy(false); }
-  };
+  const canceling = profile.plan_status === "canceling";
 
   const manage = async () => {
     setBillingErr(null);
     setBillingBusy(true);
     try { await openBillingPortal(); } catch (e: any) { setBillingErr(e?.message || "Could not open billing."); setBillingBusy(false); }
+  };
+
+  const doCancel = async () => {
+    const ok = await confirmDialog({ title: "Cancel your plan?", tone: "danger", confirmLabel: "Cancel plan", message: "You'll keep your plan until the end of the billing period, then drop to Free. Cloud projects stay in your account." });
+    if (!ok) return;
+    setBillingErr(null);
+    setBillingBusy(true);
+    try { await cancelPlan(); await refreshProfile(); } catch (e: any) { setBillingErr(e?.message || "Could not cancel."); } finally { setBillingBusy(false); }
+  };
+
+  const doResume = async () => {
+    setBillingErr(null);
+    setBillingBusy(true);
+    try { await resumePlan(); await refreshProfile(); } catch (e: any) { setBillingErr(e?.message || "Could not resume."); } finally { setBillingBusy(false); }
   };
 
   return (
@@ -125,30 +138,36 @@ export default function AccountSettings() {
                   <Zap size={14} className="text-accent" /> {isPro ? `${planLabel} plan` : "Upgrade your plan"}
                 </div>
                 <div className="mt-0.5 max-w-md text-[12.5px] leading-relaxed text-ink-3">
-                  {isStudio
-                    ? "Cloud sync + invite editor collaborators to work on your projects."
+                  {canceling
+                    ? `Your ${planLabel} plan is set to cancel at the end of the billing period.`
+                    : isStudio
+                    ? "Cloud sync + unlimited editor collaborators on your projects."
                     : profile.plan === "pro"
-                    ? "Cloud sync is active. Upgrade to Studio to invite editor collaborators."
-                    : "Pro ($8/mo) adds cloud backup + sync. Studio adds editor collaboration."}
+                    ? "Cloud sync is active. Upgrade to Studio for unlimited editor collaborators."
+                    : "Pro ($8/mo) adds cloud backup + sync. Studio ($40/mo) adds unlimited editor collaboration."}
                 </div>
               </div>
               {profile.is_admin ? (
                 <span className="shrink-0 rounded-full border border-line bg-bg px-2.5 py-1 text-[12px] text-accent">Studio · admin</span>
               ) : (
                 <div className="flex shrink-0 items-center gap-1.5">
-                  {isPro && (
-                    <button onClick={manage} disabled={billingBusy} className="flex items-center gap-1.5 rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-raise disabled:opacity-60">
-                      {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />} Manage
-                    </button>
-                  )}
-                  {!isStudio && !isPro && (
-                    <button onClick={() => upgrade("pro")} disabled={billingBusy} className="rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-raise disabled:opacity-60">
-                      Pro · $8/mo
-                    </button>
-                  )}
-                  {!isStudio && (
-                    <button onClick={() => upgrade("studio")} disabled={billingBusy} className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-60">
-                      {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <Zap size={13} />} {isPro ? "Get Studio" : "Studio"}
+                  {isPro ? (
+                    <>
+                      <button onClick={() => setPlanOpen(true)} disabled={billingBusy} className="rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink transition-colors hover:bg-raise disabled:opacity-60">Change plan</button>
+                      {canceling ? (
+                        <button onClick={doResume} disabled={billingBusy} className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-ink transition-opacity hover:opacity-90 disabled:opacity-60">
+                          {billingBusy ? <Loader2 size={13} className="animate-spin" /> : null} Resume
+                        </button>
+                      ) : (
+                        <button onClick={doCancel} disabled={billingBusy} className="rounded-md border border-line px-3 py-1.5 text-[12px] font-medium text-ink-2 transition-colors hover:bg-raise hover:text-red-400 disabled:opacity-60">Cancel</button>
+                      )}
+                      <button onClick={manage} disabled={billingBusy} title="Payment method & invoices" className="grid h-8 w-8 place-items-center rounded-md border border-line text-ink-3 transition-colors hover:bg-raise hover:text-ink disabled:opacity-60">
+                        {billingBusy ? <Loader2 size={13} className="animate-spin" /> : <CreditCard size={13} />}
+                      </button>
+                    </>
+                  ) : (
+                    <button onClick={() => setPlanOpen(true)} className="flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-[12px] font-semibold text-accent-ink transition-opacity hover:opacity-90">
+                      <Zap size={13} /> Upgrade
                     </button>
                   )}
                 </div>
@@ -158,6 +177,7 @@ export default function AccountSettings() {
             {billingErr && <p className="mt-2 text-[12px] text-red-400">{billingErr}</p>}
           </div>
         )}
+        {planOpen && <PlanModal onClose={() => setPlanOpen(false)} />}
 
         {/* invites */}
         <div className="py-4">
