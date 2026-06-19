@@ -15,6 +15,7 @@ import { downloadZip } from "@/lib/zip";
 import { saveProjectToDevice } from "@/lib/deviceProject";
 import { commitFiles, commitToNewBranchAndPR, getBranchHeadSha } from "@/lib/githubApi";
 import { probeRunner, gitClone, gitStatus, gitWriteFiles, gitCommit, gitPush } from "@/lib/localRunner";
+import { confirmDialog } from "@/store/dialogStore";
 import ConnectModal from "@/components/github/ConnectModal";
 import PublishModal from "@/components/github/PublishModal";
 
@@ -89,7 +90,7 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
         const repo = { owner: gh.owner, repo: gh.repo, branch: gh.branch };
         await gitClone(rtoken, repo, token);
         const st = await gitStatus(rtoken, repo, token, true);
-        if ((st.behind || 0) > 0 && !confirm(`${gh.branch} has new commits on GitHub.\n\nSync (pull) them first to avoid a rejected push. Push anyway?`)) {
+        if ((st.behind || 0) > 0 && !(await confirmDialog({ title: "Branch moved upstream", tone: "danger", confirmLabel: "Push anyway", message: `${gh.branch} has new commits on GitHub. Sync (pull) them first to avoid a rejected push. Push anyway?` }))) {
           setBusy(null);
           return;
         }
@@ -110,9 +111,12 @@ export default function ExportPanel({ onClose }: { onClose: () => void }) {
         const head = await getBranchHeadSha(token, gh.owner, gh.repo, gh.branch);
         if (
           head !== gh.commitSha &&
-          !confirm(
-            `${gh.branch} has new commits on GitHub since you imported.\n\nPushing now will overwrite upstream changes to any files you also edited. We recommend closing this and using Pull & merge first.\n\nPush anyway?`
-          )
+          !(await confirmDialog({
+            title: "Branch moved upstream",
+            tone: "danger",
+            confirmLabel: "Push anyway",
+            message: `${gh.branch} has new commits on GitHub since you imported. Pushing now will overwrite upstream changes to any files you also edited — we recommend Pull & merge first.`,
+          }))
         ) {
           setBusy(null);
           return;

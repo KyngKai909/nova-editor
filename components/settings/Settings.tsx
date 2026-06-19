@@ -13,6 +13,7 @@ import { useAi } from "@/store/aiStore";
 import { PROVIDERS, modelLabel, providerById, type ProviderDef } from "@/lib/aiProviders";
 import { fsSupported } from "@/lib/fileSystem";
 import { pickWorkspace, clearWorkspace } from "@/lib/workspace";
+import { confirmDialog } from "@/store/dialogStore";
 import ConnectModal from "@/components/github/ConnectModal";
 import AccountSettings from "@/components/auth/AccountSettings";
 import LocalRunnerSettings from "@/components/settings/LocalRunnerSettings";
@@ -130,8 +131,8 @@ export default function Settings() {
     }
   };
 
-  const clearAll = () => {
-    if (!confirm("Remove all projects from this browser? Files already saved to disk or GitHub are not affected.")) return;
+  const clearAll = async () => {
+    if (!(await confirmDialog({ title: "Clear local projects?", message: "Remove all projects from this browser? Files already saved to disk or GitHub are not affected.", confirmLabel: "Clear", tone: "danger" }))) return;
     useProjects.setState({ projects: [] });
   };
 

@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 import AuthGate from "@/components/auth/AuthGate";
 import { RouteTransition } from "@/components/transition/RouteTransition";
+import DialogHost from "@/components/ui/Dialog";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -89,6 +90,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <RouteTransition>
           <AuthGate>{children}</AuthGate>
         </RouteTransition>
+        <DialogHost />
       </body>
     </html>
   );

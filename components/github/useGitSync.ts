@@ -10,6 +10,7 @@ import { diff3Strings, conflictCount, buildResolved } from "@/lib/diff3";
 import { useConflicts, type FileConflict } from "@/store/conflictsStore";
 import { saveProjectToDevice } from "@/lib/deviceProject";
 import { useRunner } from "@/store/runnerStore";
+import { alertDialog } from "@/store/dialogStore";
 import { probeRunner, gitClone, gitStatus, gitPull, gitChanged, gitTree, gitRead } from "@/lib/localRunner";
 import { fileKind, classifyFile } from "@/lib/importUtils";
 import type { SourceFile } from "@/lib/types";
@@ -173,7 +174,7 @@ export function useGitSync() {
           : `Pulled ${gh.branch} · ${summary}`
       );
     } catch (e: any) {
-      alert(e.message);
+      alertDialog({ title: "Sync failed", message: e.message, tone: "danger" });
     } finally {
       setBusy(false);
     }

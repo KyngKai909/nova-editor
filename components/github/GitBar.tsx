@@ -7,6 +7,7 @@ import { useProjects } from "@/store/projectsStore";
 import { listBranches, createBranch, importRepoFilesAuth } from "@/lib/githubApi";
 import { useConflicts } from "@/store/conflictsStore";
 import { useGitSync } from "./useGitSync";
+import { confirmDialog, alertDialog } from "@/store/dialogStore";
 
 // Branch picker + GitHub "Pull & merge" for connected projects. Sync state and
 // the pull come from useGitSync (shared with the status footer). Committing,
@@ -42,7 +43,7 @@ export default function GitBar() {
 
   const switchBranch = async (branch: string) => {
     if (branch === gh.branch) return setMenu(false);
-    if (changed && !confirm("Switching branches discards unsaved edits. Continue?")) return;
+    if (changed && !(await confirmDialog({ title: "Switch branch?", message: "Switching branches discards unsaved edits. Continue?", confirmLabel: "Switch", tone: "danger" }))) return;
     setBusy(true);
     try {
       const { files: f, assets, commitSha } = await importRepoFilesAuth(token, gh.owner, gh.repo, branch);
@@ -51,7 +52,7 @@ export default function GitBar() {
       loadFiles(f, assets, base, project!.id);
       setBehind(false);
     } catch (e: any) {
-      alert(e.message);
+      alertDialog({ title: "GitHub", message: e.message, tone: "danger" });
     } finally { setBusy(false); setMenu(false); }
   };
 
@@ -65,7 +66,7 @@ export default function GitBar() {
       setCreating(false);
       setNewName("");
     } catch (e: any) {
-      alert(e.message);
+      alertDialog({ title: "GitHub", message: e.message, tone: "danger" });
     } finally { setBusy(false); setMenu(false); }
   };
 

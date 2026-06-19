@@ -22,6 +22,7 @@ import { useEnvVars } from "@/store/envStore";
 import { useComments } from "@/store/commentsStore";
 import { useConflicts } from "@/store/conflictsStore";
 import { pushDelete } from "@/lib/cloudSync";
+import { confirmDialog, alertDialog } from "@/store/dialogStore";
 import { useAuth } from "@/store/authStore";
 import { mySharedProjects, type SharedProject } from "@/lib/collab";
 import ProjectCard from "./ProjectCard";
@@ -60,7 +61,7 @@ export default function Dashboard() {
       ? "GitHub is already linked to your account — click Connect GitHub again to refresh access, or paste a token in Settings → GitHub."
       : (q.get("error_description") || h.get("error_description") || "Couldn't connect GitHub.").replace(/\+/g, " ");
     window.history.replaceState({}, "", "/dashboard");
-    alert(msg);
+    alertDialog({ title: "GitHub", message: msg });
   }, []);
 
   // Delete a project everywhere it lives: the record + per-project browser stores,
@@ -69,11 +70,14 @@ export default function Dashboard() {
   // (no deviceDir) is left untouched.
   const deleteProject = async (p: ProjectRecord) => {
     const onDisk = !!p.deviceDir;
-    const ok = confirm(
-      onDisk
-        ? `Delete "${p.name}"?\n\nThis removes it from Nova and deletes its folder from your Nova Editor projects folder on disk. Your GitHub repo (if connected) is not affected.`
-        : `Delete "${p.name}" from Nova?\n\nA folder you opened yourself, and any code already pushed to GitHub, are not touched.`
-    );
+    const ok = await confirmDialog({
+      title: "Delete project",
+      tone: "danger",
+      confirmLabel: "Delete",
+      message: onDisk
+        ? `Delete "${p.name}"? This removes it from Nova and deletes its folder from your Nova Editor projects folder on disk. Your GitHub repo (if connected) is not affected.`
+        : `Delete "${p.name}" from Nova? A folder you opened yourself, and any code already pushed to GitHub, are not touched.`,
+    });
     if (!ok) return;
     removeProject(p.id);
     deleteProjectAssets(p.id);
@@ -88,7 +92,7 @@ export default function Dashboard() {
 
   const openShared = (sp: SharedProject) => {
     const rec = sp.data;
-    if (!rec?.files?.length) { alert("This shared project hasn't synced yet — ask the owner to open it once."); return; }
+    if (!rec?.files?.length) { alertDialog({ message: "This shared project hasn't synced yet — ask the owner to open it once." }); return; }
     loadFiles(rec.files, {}, rec.baseHref ?? null, sp.project_id);
     setCollab(sp.owner_id, sp.role);
     navigate(`/editor/${sp.project_id}`);
@@ -101,7 +105,7 @@ export default function Dashboard() {
       navigate(`/editor/${p.id}`);
     } catch (e) {
       setOpening(null);
-      alert((e as Error).message);
+      alertDialog({ title: "Couldn't open", message: (e as Error).message, tone: "danger" });
     }
   };
 
@@ -113,7 +117,7 @@ export default function Dashboard() {
       loadFiles(files, {}, null, rec.id);
       navigate(`/editor/${rec.id}`);
     } catch (e) {
-      alert((e as Error).message);
+      alertDialog({ title: "Couldn't open", message: (e as Error).message, tone: "danger" });
     }
   };
 
