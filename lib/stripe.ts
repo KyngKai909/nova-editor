@@ -6,7 +6,8 @@ import Stripe from "stripe";
 // reach the browser.
 const secret = process.env.STRIPE_SECRET_KEY;
 
-export const STRIPE_PRICE_ID = process.env.STRIPE_PRICE_ID;            // Pro
+// Pro price — prefer the symmetric STRIPE_PRO_PRICE_ID, fall back to the legacy name.
+export const STRIPE_PRICE_ID = process.env.STRIPE_PRO_PRICE_ID || process.env.STRIPE_PRICE_ID;
 export const STRIPE_STUDIO_PRICE_ID = process.env.STRIPE_STUDIO_PRICE_ID; // Studio
 export const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
 
