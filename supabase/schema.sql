@@ -180,8 +180,12 @@ create or replace function public.can_edit_project(p_owner uuid, p_project text)
 returns boolean language sql security definer stable set search_path = public as $$
   select p_owner = auth.uid() or exists (
     select 1 from public.project_collaborators pc
+    join public.profiles o on o.id = p_owner
     where pc.owner_id = p_owner and pc.project_id = p_project
-      and pc.collaborator_id = auth.uid() and pc.status = 'active' and pc.role = 'editor');
+      and pc.collaborator_id = auth.uid() and pc.status = 'active' and pc.role = 'editor'
+      -- editor collaborators can edit only while the OWNER is on Studio; if the
+      -- owner's plan lapses they drop to comment-only (auto-restores on resubscribe)
+      and (o.plan = 'studio' or coalesce(o.is_admin, false)));
 $$;
 create or replace function public.can_comment_project(p_owner uuid, p_project text)
 returns boolean language sql security definer stable set search_path = public as $$
@@ -288,9 +292,16 @@ grant execute on function public.link_collaborations() to authenticated;
 create or replace function public.my_shared_projects()
 returns table (owner_id uuid, project_id text, role text, name text, data jsonb, rev bigint, updated_at timestamptz)
 language sql security definer stable set search_path = public as $$
-  select pc.owner_id, pc.project_id, pc.role, cp.name, cp.data, cp.rev, cp.updated_at
+  select pc.owner_id, pc.project_id,
+    -- effective role: an editor drops to comment-only when the owner isn't on
+    -- Studio (non-destructive — the stored role stays 'editor' and restores when
+    -- the owner resubscribes), so the dashboard + editor reflect the real access.
+    case when pc.role = 'editor' and not (o.plan = 'studio' or coalesce(o.is_admin, false))
+         then 'commentor' else pc.role end as role,
+    cp.name, cp.data, cp.rev, cp.updated_at
   from public.project_collaborators pc
   join public.cloud_projects cp on cp.user_id = pc.owner_id and cp.id = pc.project_id and not cp.deleted
+  join public.profiles o on o.id = pc.owner_id
   where pc.collaborator_id = auth.uid() and pc.status = 'active';
 $$;
 grant execute on function public.my_shared_projects() to authenticated;
