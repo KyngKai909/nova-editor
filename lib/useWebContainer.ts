@@ -102,17 +102,26 @@ export default function NovaPreview() {
 `;
 }
 
-// One WebContainer boot per page (the API allows only one).
-let wcBootPromise: Promise<any> | null = null;
+// WebContainer is a singleton per page. Each Run boot tears down the previous
+// instance first — otherwise switching projects (or restarting) leaves the old
+// project's files + dev server alive and Run shows the wrong app until a hard
+// refresh. Boots are serialized so a teardown can't race the next boot.
+let wcInstance: any = null;
+let wcBoot: Promise<any> | null = null;
 async function bootContainer() {
-  if (!wcBootPromise) {
-    wcBootPromise = (async () => {
-      const { WebContainer } = await import("@webcontainer/api");
-      // credentialless lets the running app pull CORP-less CDNs (Tailwind/fonts/…).
-      return WebContainer.boot({ coep: "credentialless" });
-    })();
-  }
-  return wcBootPromise;
+  const prev = wcBoot;
+  wcBoot = (async () => {
+    try { await prev; } catch { /* ignore a failed prior boot */ }
+    if (wcInstance) {
+      try { await wcInstance.teardown(); } catch { /* already gone */ }
+      wcInstance = null;
+    }
+    const { WebContainer } = await import("@webcontainer/api");
+    // credentialless lets the running app pull CORP-less CDNs (Tailwind/fonts/…).
+    wcInstance = await WebContainer.boot({ coep: "credentialless" });
+    return wcInstance;
+  })();
+  return wcBoot;
 }
 
 const DEMO_TREE: Record<string, any> = {
