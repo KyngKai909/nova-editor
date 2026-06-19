@@ -228,6 +228,7 @@ export default function Dashboard() {
                   <Users size={18} className="text-ink-3" />
                   <div>
                     <div className="truncate font-display text-[16px] font-semibold tracking-tight text-ink">{sp.name || "Untitled project"}</div>
+                    {sp.downgraded && <div className="mt-1 text-[11px] leading-snug text-amber-300/90">View &amp; comment — owner&rsquo;s plan changed</div>}
                     <div className="mt-1 flex items-center gap-1 text-[12px] text-ink-3 transition-colors group-hover:text-accent">Open <ArrowRight size={13} /></div>
                   </div>
                 </button>

@@ -24,6 +24,9 @@ export interface SharedProject {
   data: ProjectRecord;
   rev: number;
   updated_at: string;
+  // true when this is an editor invite currently capped to comment-only because
+  // the owner isn't on Studio (auto-restores when they resubscribe).
+  downgraded?: boolean;
 }
 
 // Invite (or re-role) a collaborator. Throws with the server message — e.g. the
@@ -70,4 +73,18 @@ export async function mySharedProjects(): Promise<SharedProject[]> {
   const { data, error } = await supabase.rpc("my_shared_projects");
   if (error) return [];
   return (data as SharedProject[]) || [];
+}
+
+// How many editor collaborators the current user OWNS — used to warn a lapsed
+// owner that their editors are paused until they resubscribe to Studio.
+export async function myEditorCollaboratorCount(): Promise<number> {
+  if (!supabase) return 0;
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return 0;
+  const { count } = await supabase
+    .from("project_collaborators")
+    .select("*", { count: "exact", head: true })
+    .eq("owner_id", auth.user.id)
+    .eq("role", "editor");
+  return count || 0;
 }

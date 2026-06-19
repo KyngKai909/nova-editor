@@ -6,6 +6,7 @@ import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 import { isBillingConfigured, openBillingPortal, cancelPlan, resumePlan } from "@/lib/billing";
 import { useAuth } from "@/store/authStore";
 import { confirmDialog } from "@/store/dialogStore";
+import { myEditorCollaboratorCount } from "@/lib/collab";
 import PlanModal from "@/components/billing/PlanModal";
 
 interface Invite {
@@ -29,6 +30,7 @@ export default function AccountSettings() {
   const [billingErr, setBillingErr] = useState<string | null>(null);
   const [billingNote, setBillingNote] = useState<string | null>(null);
   const [planOpen, setPlanOpen] = useState(false);
+  const [editorCount, setEditorCount] = useState(0);
 
   // Handle the redirect back from Stripe Checkout (?billing=success|cancel).
   // On success the webhook may lag a beat, so poll the profile until it flips.
@@ -62,6 +64,14 @@ export default function AccountSettings() {
       .select("code, used_by, created_at")
       .order("created_at", { ascending: false })
       .then(({ data }) => setInvites((data as Invite[]) || []));
+  }, [profile]);
+
+  // If the owner isn't on Studio, find out whether any of their editor invites
+  // are currently paused (comment-only) so we can nudge them to resubscribe.
+  useEffect(() => {
+    if (!supabase || !profile) return;
+    if (profile.plan === "studio" || profile.is_admin) { setEditorCount(0); return; }
+    myEditorCollaboratorCount().then(setEditorCount).catch(() => {});
   }, [profile]);
 
   // Render nothing until auth is turned on.
@@ -175,6 +185,12 @@ export default function AccountSettings() {
             </div>
             {billingNote && <p className="mt-2 text-[12px] text-accent">{billingNote}</p>}
             {billingErr && <p className="mt-2 text-[12px] text-red-400">{billingErr}</p>}
+            {!isStudio && editorCount > 0 && (
+              <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/[0.06] px-3 py-2 text-[12px] leading-relaxed text-amber-300/90">
+                <Zap size={13} className="mt-0.5 shrink-0" />
+                <span>{editorCount} editor {editorCount === 1 ? "collaborator is" : "collaborators are"} paused (comment-only) until you&rsquo;re on Studio. Upgrade to restore their edit access.</span>
+              </p>
+            )}
           </div>
         )}
         {planOpen && <PlanModal onClose={() => setPlanOpen(false)} />}

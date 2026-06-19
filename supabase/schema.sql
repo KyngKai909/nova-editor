@@ -289,8 +289,10 @@ $$;
 grant execute on function public.link_collaborations() to authenticated;
 
 -- Projects shared WITH the current user (for the dashboard, with role + data).
+-- (the return signature gained `downgraded`, so drop the old one first)
+drop function if exists public.my_shared_projects();
 create or replace function public.my_shared_projects()
-returns table (owner_id uuid, project_id text, role text, name text, data jsonb, rev bigint, updated_at timestamptz)
+returns table (owner_id uuid, project_id text, role text, name text, data jsonb, rev bigint, updated_at timestamptz, downgraded boolean)
 language sql security definer stable set search_path = public as $$
   select pc.owner_id, pc.project_id,
     -- effective role: an editor drops to comment-only when the owner isn't on
@@ -298,7 +300,9 @@ language sql security definer stable set search_path = public as $$
     -- the owner resubscribes), so the dashboard + editor reflect the real access.
     case when pc.role = 'editor' and not (o.plan = 'studio' or coalesce(o.is_admin, false))
          then 'commentor' else pc.role end as role,
-    cp.name, cp.data, cp.rev, cp.updated_at
+    cp.name, cp.data, cp.rev, cp.updated_at,
+    -- true when an editor invite is currently comment-only because the owner lapsed
+    (pc.role = 'editor' and not (o.plan = 'studio' or coalesce(o.is_admin, false))) as downgraded
   from public.project_collaborators pc
   join public.cloud_projects cp on cp.user_id = pc.owner_id and cp.id = pc.project_id and not cp.deleted
   join public.profiles o on o.id = pc.owner_id
