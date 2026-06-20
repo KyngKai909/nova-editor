@@ -169,6 +169,31 @@ async function errText(res: Response): Promise<string> {
   return `API error ${res.status}: ${String(msg).slice(0, 220)}`;
 }
 
+// Read an SSE response body and yield each `data:` payload as it arrives.
+async function* sseEvents(res: Response): AsyncGenerator<string> {
+  if (!res.body) throw new Error("No response stream.");
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (line.startsWith("data:")) yield line.slice(5).trim();
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+}
+
+type OnDelta = (blocks: AiBlock[]) => void;
+
 // ── Anthropic (canonical format maps almost 1:1) ──────────────────────────────
 function toAnthropic(m: AiMessage) {
   return {
@@ -181,7 +206,7 @@ function toAnthropic(m: AiMessage) {
   };
 }
 
-async function callAnthropic(key: string, model: string, messages: AiMessage[], baseURL: string, signal?: AbortSignal): Promise<AiBlock[]> {
+async function callAnthropic(key: string, model: string, messages: AiMessage[], baseURL: string, signal?: AbortSignal, onDelta?: OnDelta): Promise<AiBlock[]> {
   const res = await fetch(`${baseURL}/messages`, {
     method: "POST",
     signal,
@@ -191,13 +216,40 @@ async function callAnthropic(key: string, model: string, messages: AiMessage[], 
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     },
-    body: JSON.stringify({ model, max_tokens: MAX_TOKENS, system: SYSTEM, tools: TOOLS, messages: messages.map(toAnthropic) }),
+    body: JSON.stringify({ model, max_tokens: MAX_TOKENS, system: SYSTEM, tools: TOOLS, messages: messages.map(toAnthropic), stream: true }),
   });
   if (!res.ok) throw new Error(await errText(res));
-  const data = await res.json();
-  return (data.content || []).map((b: any) =>
-    b.type === "tool_use" ? { type: "tool_use", id: b.id, name: b.name, input: b.input } : { type: "text", text: b.text }
-  );
+
+  // Assemble content blocks as they stream in, indexed by content-block index.
+  const blocks: AiBlock[] = [];
+  const partialJson: Record<number, string> = {};
+  const live = () => blocks.filter(Boolean);
+
+  for await (const data of sseEvents(res)) {
+    if (data === "[DONE]") break;
+    let ev: any;
+    try { ev = JSON.parse(data); } catch { continue; }
+    if (ev.type === "content_block_start") {
+      const cb = ev.content_block || {};
+      if (cb.type === "tool_use") { blocks[ev.index] = { type: "tool_use", id: cb.id, name: cb.name, input: {} }; partialJson[ev.index] = ""; }
+      else blocks[ev.index] = { type: "text", text: cb.text || "" };
+      onDelta?.(live());
+    } else if (ev.type === "content_block_delta") {
+      const d = ev.delta || {};
+      if (d.type === "text_delta") {
+        const b = blocks[ev.index];
+        if (b) { b.text = (b.text || "") + d.text; onDelta?.(live()); }
+      } else if (d.type === "input_json_delta") {
+        partialJson[ev.index] = (partialJson[ev.index] || "") + (d.partial_json || "");
+      }
+    } else if (ev.type === "content_block_stop") {
+      const b = blocks[ev.index];
+      if (b?.type === "tool_use") { try { b.input = JSON.parse(partialJson[ev.index] || "{}"); } catch { b.input = {}; } onDelta?.(live()); }
+    } else if (ev.type === "error") {
+      throw new Error(ev.error?.message || "Streaming error.");
+    }
+  }
+  return live();
 }
 
 // ── OpenAI (adapter to/from canonical Anthropic-style transcript) ─────────────
@@ -215,7 +267,7 @@ function toOpenAI(m: AiMessage): any[] {
   return [out];
 }
 
-async function callOpenAI(key: string, model: string, messages: AiMessage[], baseURL: string, signal?: AbortSignal): Promise<AiBlock[]> {
+async function callOpenAI(key: string, model: string, messages: AiMessage[], baseURL: string, signal?: AbortSignal, onDelta?: OnDelta): Promise<AiBlock[]> {
   const oa = [{ role: "system", content: SYSTEM }, ...messages.flatMap(toOpenAI)];
   const res = await fetch(`${baseURL}/chat/completions`, {
     method: "POST",
@@ -232,23 +284,43 @@ async function callOpenAI(key: string, model: string, messages: AiMessage[], bas
       messages: oa,
       tools: TOOLS.map((t) => ({ type: "function", function: { name: t.name, description: t.description, parameters: t.input_schema } })),
       tool_choice: "auto",
+      stream: true,
     }),
   });
   if (!res.ok) throw new Error(await errText(res));
-  const data = await res.json();
-  const msg = data.choices?.[0]?.message || {};
-  const blocks: AiBlock[] = [];
-  if (msg.content) blocks.push({ type: "text", text: msg.content });
-  for (const tc of msg.tool_calls || []) {
-    let input: any = {};
-    try {
-      input = JSON.parse(tc.function?.arguments || "{}");
-    } catch {
-      /* leave empty */
+
+  // Accumulate streamed text + tool_calls (which arrive in indexed fragments).
+  let text = "";
+  const calls: Record<number, { id?: string; name?: string; args: string }> = {};
+  const snapshot = (): AiBlock[] => {
+    const out: AiBlock[] = [];
+    if (text) out.push({ type: "text", text });
+    for (const i of Object.keys(calls).map(Number).sort((a, b) => a - b)) {
+      const c = calls[i];
+      let input: any = {};
+      try { input = JSON.parse(c.args || "{}"); } catch { /* still streaming */ }
+      out.push({ type: "tool_use", id: c.id, name: c.name, input });
     }
-    blocks.push({ type: "tool_use", id: tc.id, name: tc.function?.name, input });
+    return out;
+  };
+
+  for await (const data of sseEvents(res)) {
+    if (data === "[DONE]") break;
+    let ev: any;
+    try { ev = JSON.parse(data); } catch { continue; }
+    const delta = ev.choices?.[0]?.delta;
+    if (!delta) continue;
+    if (delta.content) { text += delta.content; onDelta?.(snapshot()); }
+    for (const tc of delta.tool_calls || []) {
+      const i = tc.index ?? 0;
+      const c = (calls[i] ||= { args: "" });
+      if (tc.id) c.id = tc.id;
+      if (tc.function?.name) c.name = tc.function.name;
+      if (tc.function?.arguments) c.args += tc.function.arguments;
+      onDelta?.(snapshot());
+    }
   }
-  return blocks;
+  return snapshot();
 }
 
 // ── the agentic loop ──────────────────────────────────────────────────────────
@@ -276,12 +348,39 @@ export async function runAgent(opts: {
 
   for (let step = 0; step < MAX_STEPS; step++) {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
-    const blocks =
-      prov.transport === "anthropic"
-        ? await callAnthropic(key, model, messages, prov.baseURL, signal)
-        : await callOpenAI(key, model, messages, prov.baseURL, signal);
 
-    messages = [...messages, { role: "assistant", content: blocks }];
+    // Stream this turn into a live assistant message. Throttle commits to ~50ms
+    // (matches the on-device path) so the canvas/UI stays smooth.
+    const base = messages;
+    let lastPartial: AiBlock[] = [];
+    let lastFlush = 0;
+    const onDelta: OnDelta = (partial) => {
+      lastPartial = partial;
+      const now = Date.now();
+      if (now - lastFlush < 50) return;
+      lastFlush = now;
+      messages = [...base, { role: "assistant", content: partial }];
+      commit();
+    };
+
+    let blocks: AiBlock[];
+    try {
+      blocks =
+        prov.transport === "anthropic"
+          ? await callAnthropic(key, model, base, prov.baseURL, signal, onDelta)
+          : await callOpenAI(key, model, base, prov.baseURL, signal, onDelta);
+    } catch (e: any) {
+      // On abort, keep the partial TEXT but drop any half-formed tool_use — a
+      // tool_use with no matching tool_result would corrupt the next turn.
+      if (e?.name === "AbortError") {
+        const textOnly = lastPartial.filter((b) => b.type === "text" && b.text?.trim());
+        messages = textOnly.length ? [...base, { role: "assistant", content: textOnly }] : base;
+        commit();
+      }
+      throw e;
+    }
+
+    messages = [...base, { role: "assistant", content: blocks }];
     commit();
 
     const toolUses = blocks.filter((b) => b.type === "tool_use");
