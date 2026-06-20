@@ -1,4 +1,4 @@
-# Nova
+# Nova Editor
 
 **The last-mile visual editor for AI-generated web apps.** Browser-based,
 Git-native, no lock-in.
