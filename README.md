@@ -90,7 +90,7 @@ an FAQ. The local-runner agent has its own [README](./runner/README.md).
 ## Status & roadmap
 
 Working today: import (GitHub / folder / paste / clone), visual + code editing,
-the AI assistant, live run (in-browser or local agent) + click-to-edit, GitHub
-OAuth + publish (REST or real git), cloud sync (Pro), and editor collaboration
-(Studio). On the roadmap: managed Nova AI tiers, streaming AI responses, and
-broader framework coverage.
+the streaming AI assistant (BYOK or on-device), live run (in-browser or local
+agent) + click-to-edit, GitHub OAuth + publish (REST or real git), cloud sync
+(Pro), and editor collaboration (Studio). On the roadmap: managed Nova AI tiers
+and broader framework coverage.
