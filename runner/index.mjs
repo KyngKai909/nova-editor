@@ -13,7 +13,7 @@ import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 const PORT = Number(process.env.NOVA_RUNNER_PORT || 4319);
 const PROXY_PORT = PORT + 1; // serves the running app WITH the bridge injected
 // Origins allowed to talk to the agent. Add your own with NOVA_ORIGIN=...
@@ -158,6 +158,9 @@ function cors(req, res) {
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Headers", "authorization, content-type");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    // Chrome Private Network Access: a public HTTPS page (novaeditor.org) calling a
+    // local address (127.0.0.1) is preflighted and blocked unless we ACK this.
+    res.setHeader("Access-Control-Allow-Private-Network", "true");
     return true;
   }
   return !origin; // allow no-origin (curl / same-process), block other web origins

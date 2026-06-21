@@ -1,6 +1,6 @@
 {
   "name": "@novaeditor/runner",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Nova local runner — run your project's dev server natively on your machine, driven by Nova in the browser. Local-first: 127.0.0.1 only, origin-locked, token-paired.",
   "type": "module",
   "bin": { "nova-runner": "./index.mjs" },
