@@ -45,12 +45,23 @@ const URL_RE = /(https?:\/\/(?:localhost|127\.0\.0\.1|0\.0\.0\.0)(?::\d+)?[^\s]*
 
 // Write one project file under `root`. Text rides as a string; binary assets
 // (images/fonts/…) ride base64 so they survive the JSON transport intact.
+// True only when `p` is inside `root`. Handles ../ escapes AND sibling-prefix
+// tricks (root="/a/x" + "/a/x-evil") that a bare startsWith() would wave through.
+function within(root, p) {
+  const rel = path.relative(root, p);
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
 function writeProjectFile(root, f) {
-  const p = path.join(root, f.path);
-  if (!p.startsWith(root)) return; // no path traversal
+  const p = path.resolve(root, f.path || "");
+  if (!within(root, p)) return; // no path traversal
   fs.mkdirSync(path.dirname(p), { recursive: true });
   fs.writeFileSync(p, f.encoding === "base64" ? Buffer.from(f.content || "", "base64") : (f.content ?? ""));
 }
+// Reject owner/repo/branch values that could smuggle a git flag (leading "-")
+// or escape the expected charset. Defense-in-depth: these are token-gated and
+// normally come straight from GitHub, but git args from input get validated.
+const safeSlug = (s) => typeof s === "string" && /^[A-Za-z0-9._-]+$/.test(s);
+const safeRef = (s) => typeof s === "string" && s.length > 0 && s.length < 256 && !s.startsWith("-") && /^[A-Za-z0-9._/-]+$/.test(s);
 
 // ── git engine ────────────────────────────────────────────────────────────────
 // Real git, run on the user's machine in a real clone. The GitHub token rides as
@@ -153,10 +164,15 @@ function cors(req, res) {
 }
 // token may come as a Bearer header (fetch) or a ?token= query param (the SSE
 // log stream, since EventSource can't set headers).
+// Constant-time compare so the token can't be recovered byte-by-byte via timing.
+function safeEqual(a, b) {
+  const ab = Buffer.from(String(a)), bb = Buffer.from(String(b));
+  return ab.length === bb.length && crypto.timingSafeEqual(ab, bb);
+}
 function authed(req, url) {
   const h = req.headers.authorization || "";
   const t = h.startsWith("Bearer ") ? h.slice(7) : (url && url.searchParams.get("token")) || "";
-  return t === TOKEN;
+  return safeEqual(t, TOKEN);
 }
 const json = (res, code, obj) => { res.writeHead(code, { "content-type": "application/json" }); res.end(JSON.stringify(obj)); };
 function body(req) { return new Promise((resolve) => { let b = ""; req.on("data", (c) => (b += c)); req.on("end", () => { try { resolve(JSON.parse(b || "{}")); } catch { resolve({}); } }); }); }
@@ -220,7 +236,7 @@ const server = http.createServer(async (req, res) => {
   // commands; it is never written into the clone's config or the remote URL.
   if (p === "/git/clone" && req.method === "POST") {
     const { owner, repo, branch = "main", token } = await body(req);
-    if (!owner || !repo) return json(res, 400, { error: "owner and repo required" });
+    if (!safeSlug(owner) || !safeSlug(repo) || !safeRef(branch)) return json(res, 400, { error: "invalid owner/repo/branch" });
     const dir = repoDir(owner, repo);
     try {
       if (isCloned(owner, repo)) {
