@@ -27,10 +27,14 @@ const csp = [
   "font-src 'self' data: https://fonts.gstatic.com https://cdn.jsdelivr.net",
   "worker-src 'self' blob:",
   "child-src 'self' blob:",
-  "frame-src 'self' blob: data: https:",
+  // http://127.0.0.1:* / localhost lets the Run preview iframe load the local
+  // runner agent's bridge proxy (127.0.0.1:4320).
+  "frame-src 'self' blob: data: https: http://127.0.0.1:* http://localhost:*",
   // BYO-key calls go direct to the user's chosen provider, and custom endpoints
   // are allowed, so connect-src stays broad (this is the trade-off of "any model").
-  "connect-src 'self' blob: data: https: wss: ws:",
+  // http://127.0.0.1:* / localhost is the local runner agent (detection + SSE on
+  // :4319) — it's the user's own machine, and the agent is origin-locked + token-gated.
+  "connect-src 'self' blob: data: https: wss: ws: http://127.0.0.1:* http://localhost:* ws://127.0.0.1:* ws://localhost:*",
 ].join("; ");
 
 const securityHeaders = [
