@@ -21,7 +21,7 @@ on micro-tweaks, nothing to install, your Git stays the source of truth.
   files, with your own key for **any** provider (Anthropic, OpenAI, Google, xAI,
   DeepSeek, Mistral, Groq, OpenRouter, or a custom model).
 - **Run it live** — boot the real app in the browser (WebContainers), or run it on
-  your own machine with the optional local-runner agent (`npx @nova/runner`) for
+  your own machine with the optional local-runner agent (`npx @novaeditor/runner`) for
   full Node + real `git`. Either way, click-to-edit it as it runs.
 - **Git-native** — import a public repo or a full clone, edit, review a clean diff,
   then commit, push, or open a PR. Triggers your existing Vercel/Netlify deploy.

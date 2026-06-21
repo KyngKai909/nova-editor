@@ -5,7 +5,7 @@ import { Cpu, Loader2, Check, Copy, RefreshCw, Lock } from "lucide-react";
 import { useRunner } from "@/store/runnerStore";
 import { probeRunner, verifyToken } from "@/lib/localRunner";
 
-const INSTALL_CMD = "npx @nova/runner";
+const INSTALL_CMD = "npx @novaeditor/runner";
 
 // Settings card for the local runner companion agent: detect it, paste the
 // pairing token, show Connected. The agent itself uses your machine; this just

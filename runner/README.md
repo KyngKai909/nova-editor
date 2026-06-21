@@ -5,7 +5,7 @@ A tiny companion agent that runs your project's dev server **natively on your ma
 ## Run it
 
 ```bash
-npx @nova/runner
+npx @novaeditor/runner
 # or, from a clone:
 node runner/index.mjs
 ```
