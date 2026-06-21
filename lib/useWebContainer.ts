@@ -857,6 +857,12 @@ export function useWebContainer({
             else runArgs = ["run", script, "--", "--webpack"];
             append("\n[nova] Next.js 16+ detected — using --webpack (Turbopack needs native bindings WebContainers don't have).");
           }
+          // Next 16's App Router relies on AsyncLocalStorage that the in-browser
+          // WebContainer runtime doesn't fully preserve, so it can throw a
+          // "workStore" error mid-render. Point users at the agent (real Node).
+          if (nextMajor >= 16 && routerRef.current?.kind === "app") {
+            append("\n[nova] Note: Next 16's App Router can hit a runtime error in the in-browser runtime (a WebContainer limitation, not your code). If the canvas shows a Next.js error, switch to the local runner — Run ▸ On your machine — which runs real Node.");
+          }
         } catch { /* keep `npm run <script>` */ }
         const runLabel = [runBin, ...runArgs].join(" ");
 
