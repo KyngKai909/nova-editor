@@ -840,8 +840,24 @@ export function useWebContainer({
           if (code !== 0) throw new Error(`npm install exited with code ${code}.`);
         }
 
+        // Next.js 16 defaults `next dev` to Turbopack, which needs native bindings
+        // WebContainers (WASM) don't have — it crashes on boot. Force the webpack
+        // dev server here. (The local-runner agent runs natively and keeps Turbopack.)
+        let runBin = "npm";
+        let runArgs: string[] = ["run", script];
+        try {
+          const pkgRaw = await wc.fs.readFile(`${appBase}package.json`, "utf-8");
+          const cmd = String(JSON.parse(pkgRaw)?.scripts?.[script] || "");
+          if (script === "dev" && /\bnext\b/.test(cmd) && !/--webpack\b/.test(cmd)) {
+            if (/--turbo(pack)?\b/.test(cmd)) { runBin = "npx"; runArgs = ["next", "dev", "--webpack"]; }
+            else runArgs = ["run", script, "--", "--webpack"];
+            append("\n[nova] Next.js detected — using --webpack (Turbopack needs native bindings WebContainers don't have).");
+          }
+        } catch { /* keep `npm run <script>` */ }
+        const runLabel = [runBin, ...runArgs].join(" ");
+
         setPhase("starting");
-        append(`\n$ npm run ${script}`);
+        append(`\n$ ${runLabel}`);
         let becameReady = false;
         let recovered = false;
         wc.on("server-ready", (_port: number, serverUrl: string) => {
@@ -865,7 +881,7 @@ export function useWebContainer({
         // fix on this browser), drop the bad snapshot, disable the cache, do a
         // clean install once, and retry — so the run still succeeds.
         const startDev = async () => {
-          const dev = await wc.spawn("npm", ["run", script], spawnOpts);
+          const dev = await wc.spawn(runBin, runArgs, spawnOpts);
           dev.output.pipeTo(new WritableStream({ write: (d: string) => { if (!cancelled) append(d); } }));
           dev.exit.then(async (code: number) => {
             if (cancelled || becameReady) return; // a healthy server keeps running
@@ -881,7 +897,7 @@ export function useWebContainer({
               if ((await inst.exit) !== 0) { if (!cancelled) { setError("npm install failed during recovery."); setPhase("error"); } return; }
               restored = false;
               setPhase("starting");
-              append(`\n$ npm run ${script}`);
+              append(`\n$ ${runLabel}`);
               startDev();
             } else if (!cancelled) {
               setError(`The dev server exited (code ${code}) before it was ready. Check the console for the cause.`);
