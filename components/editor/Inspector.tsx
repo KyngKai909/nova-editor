@@ -215,8 +215,9 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
       {rail}
 
       {tab === "interactions" ? (
-        usesTailwind ? (
+        (usesTailwind || isHtml) ? (
           <>
+            {usesTailwind && (
             <Section title="Hover" defaultOpen>
               <p className="text-[11px] leading-relaxed text-ink-3">Applied on <span className="font-mono text-ink-2">:hover</span> with a smooth transition.</p>
               <Field label="Background"><ColorField value={fxVal(/^hover:bg-\[(.+)\]$/)} onChange={(v) => fxSet(/^hover:bg-\[/, v ? `hover:bg-[${cleanColor(v)}]` : null)} /></Field>
@@ -227,15 +228,30 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
               </div>
               <Field label="Opacity"><Slider value={parseInt(fxVal(/^hover:opacity-(\d+)$/) || "100", 10)} min={0} max={100} suffix="%" onChange={(v) => fxSet(/^hover:opacity-/, v < 100 ? `hover:opacity-${v}` : null)} /></Field>
             </Section>
+            )}
+            {usesTailwind && (
             <Section title="Press" defaultOpen={false}>
               <p className="text-[11px] leading-relaxed text-ink-3">Feedback while pressed (<span className="font-mono text-ink-2">:active</span>).</p>
               <Field label="Scale"><TextInput value={fxVal(/^active:scale-\[(.+)\]$/)} onCommit={(v) => fxSet(/^active:scale-\[/, v ? `active:scale-[${v}]` : null)} placeholder="0.97" /></Field>
               <Field label="Opacity"><Slider value={parseInt(fxVal(/^active:opacity-(\d+)$/) || "100", 10)} min={0} max={100} suffix="%" onChange={(v) => fxSet(/^active:opacity-/, v < 100 ? `active:opacity-${v}` : null)} /></Field>
             </Section>
+            )}
+            {isHtml && (
+            <Section title="Scroll" defaultOpen={!usesTailwind}>
+              <p className="text-[11px] leading-relaxed text-ink-3">Animate in when scrolled into view — degrades to visible where unsupported.</p>
+              <Field label="Effect">
+                <Select
+                  value={node.attributes?.["data-reveal"] || ""}
+                  onChange={(v) => useEditor.getState().setReveal(node.id, v)}
+                  options={[{ value: "fade", label: "Fade in" }, { value: "fade-up", label: "Fade up" }, { value: "fade-down", label: "Fade down" }, { value: "zoom", label: "Zoom in" }]}
+                />
+              </Field>
+            </Section>
+            )}
           </>
         ) : (
           <div className="px-3.5 py-6 text-[12px] leading-relaxed text-ink-3">
-            Interactions emit Tailwind <span className="font-mono text-ink-2">hover:</span> / <span className="font-mono text-ink-2">active:</span> classes, so they need a Tailwind project — this one doesn&rsquo;t use Tailwind.
+            Hover &amp; press effects need a Tailwind project; scroll reveals need an HTML page — this one is neither.
           </div>
         )
       ) : tab === "settings" ? (

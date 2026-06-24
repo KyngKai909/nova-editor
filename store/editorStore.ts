@@ -104,6 +104,7 @@ interface EditorState {
   removeProp: (id: string, name: string) => void;
   updateAttr: (id: string, name: string, value: string) => void;
   removeAttr: (id: string, name: string) => void;
+  setReveal: (id: string, effect: string) => void; // scroll-into-view animation (HTML pages)
   addAsset: (file: File) => string;
   applyAsset: (repoPath: string, as?: "auto" | "src" | "background") => void;
 
@@ -602,6 +603,48 @@ export const useEditor = create<EditorState>((set, get) => ({
     if (!file) return;
     if (file.kind === "jsx") get().removeProp(id, name);
     else get().updateAttr(id, name, "");
+  },
+
+  // Scroll-into-view reveal for HTML pages. Marks the element with data-reveal and
+  // injects one shared stylesheet using CSS scroll-driven animations. Wrapped in
+  // @supports + prefers-reduced-motion so browsers without view() timelines (or
+  // reduced-motion users) simply show the content — it's never left hidden.
+  setReveal: (id, effect) => {
+    if (!get().canEditDoc()) return;
+    const { files, activePath, tree, htmlDoc } = get();
+    const file = files.find((f) => f.path === activePath);
+    if (!file || file.kind !== "html" || !htmlDoc) return;
+    const el = htmlDoc.querySelector(`[data-wfc-id="${id}"]`) as HTMLElement | null;
+    if (!el) return;
+    if (effect) el.setAttribute("data-reveal", effect);
+    else el.removeAttribute("data-reveal");
+    if (effect && htmlDoc.head && !htmlDoc.getElementById("nova-reveal-styles")) {
+      const style = htmlDoc.createElement("style");
+      style.id = "nova-reveal-styles";
+      style.textContent =
+        "@supports (animation-timeline: view()) { @media (prefers-reduced-motion: no-preference) {" +
+        "[data-reveal]{opacity:0;animation:nova-fade linear both;animation-timeline:view();animation-range:entry 0% cover 25%}" +
+        "[data-reveal=fade]{animation-name:nova-fade}" +
+        "[data-reveal=fade-up]{animation-name:nova-fade-up}" +
+        "[data-reveal=fade-down]{animation-name:nova-fade-down}" +
+        "[data-reveal=zoom]{animation-name:nova-zoom}" +
+        "} }" +
+        "@keyframes nova-fade{from{opacity:0}to{opacity:1}}" +
+        "@keyframes nova-fade-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}" +
+        "@keyframes nova-fade-down{from{opacity:0;transform:translateY(-24px)}to{opacity:1;transform:none}}" +
+        "@keyframes nova-zoom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}";
+      htmlDoc.head.appendChild(style);
+    }
+    const node = findNode(tree, id);
+    if (node) {
+      const attrs = { ...node.attributes };
+      if (effect) attrs["data-reveal"] = effect;
+      else delete attrs["data-reveal"];
+      node.attributes = attrs;
+    }
+    saveHtml(set, files, activePath, htmlDoc);
+    // reload the canvas so the injected stylesheet + marker take effect
+    set({ tree: [...tree], reloadKey: get().reloadKey + 1 });
   },
 
   // Register a user-uploaded asset (blob URL) under a repo-relative path.
