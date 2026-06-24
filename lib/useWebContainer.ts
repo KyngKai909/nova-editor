@@ -13,6 +13,7 @@ import { spliceJsx, setJsxProp, removeJsxProp } from "@/lib/jsxEdit";
 import { makeWcBackend } from "@/lib/aiBackend";
 import { runProject, streamLogs, stopRun as stopLocalRun, writeFiles as writeLocalFiles, attachRun, runnerProxyUrl } from "@/lib/localRunner";
 import { useRunner } from "@/store/runnerStore";
+import { useEditor } from "@/store/editorStore";
 import { classifyFile, fileKind } from "@/lib/importUtils";
 import { toTokens, toClassName } from "@/lib/runStyle";
 import type { EditorSurface } from "@/lib/editorSurface";
@@ -304,6 +305,10 @@ export function useWebContainer({
   const post = useCallback((msg: any) => iframeRef.current?.contentWindow?.postMessage(msg, "*"), []);
 
   const writeThrough = useCallback(async (path: string, content: string) => {
+    // Mirror the edit into the editor store so Publish (which diffs useEditor.files)
+    // picks up Run-mode edits, exactly like canvas edits do. setFileContent no-ops
+    // for untracked paths, so nested/monorepo path differences can't add bad entries.
+    try { useEditor.getState().setFileContent(path, content); } catch { /* store may be empty on the standalone /run page */ }
     // local runner: patch the agent's copy (→ HMR) and the on-disk folder (persist)
     if (localRunIdRef.current && runnerTokenRef.current) {
       localFilesRef.current.set(path, content);
