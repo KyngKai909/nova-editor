@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import {
   Copy, Trash2, X, Plus, Component as ComponentIcon,
-  Paintbrush2, Settings2, MessageSquare, Send, Check, KeyRound,
+  Paintbrush2, Settings2, MessageSquare, Send, Check, KeyRound, Zap,
 } from "lucide-react";
 import EnvPanel from "./EnvPanel";
 import { useEditor } from "@/store/editorStore";
@@ -20,6 +20,7 @@ import { useCanvasSurface } from "./useCanvasSurface";
 const RIGHT_TABS = [
   { id: "style", icon: <Paintbrush2 size={15} />, label: "Style" },
   { id: "settings", icon: <Settings2 size={15} />, label: "Settings" },
+  { id: "interactions", icon: <Zap size={15} />, label: "Interactions" },
   { id: "comments", icon: <MessageSquare size={15} />, label: "Comments" },
 ] as const;
 type RightTab = (typeof RIGHT_TABS)[number]["id"] | "env";
@@ -190,18 +191,18 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
     setS((cur) => ({ ...cur, [prop]: v }));
   };
 
-  // ── hover interactions ──────────────────────────────────────────────────────
-  // Emit curated `hover:` utility classes (Tailwind only) + an auto transition.
-  // Read-back parses the class list, so the controls reflect the current effect.
-  const hoverSet = (group: RegExp, cls: string | null) => {
+  // ── interactions ────────────────────────────────────────────────────────────
+  // Emit curated state utility classes (hover:/active:/…, Tailwind only) + an auto
+  // transition. Read-back parses the class list so controls reflect the effect.
+  const fxSet = (group: RegExp, cls: string | null) => {
     const list = node.classList.filter((c) => !group.test(c));
     if (cls) list.push(cls);
-    const hasFx = list.some((c) => c.startsWith("hover:"));
+    const hasFx = list.some((c) => /^(hover|focus|focus-visible|active):/.test(c));
     const hasTransition = list.some((c) => c === "transition" || /^(transition|duration)(-|$)/.test(c));
     if (hasFx && !hasTransition) list.push("transition");
     updateClassList(node.id, list);
   };
-  const hoverVal = (re: RegExp) => { const c = node.classList.find((x) => re.test(x)); return c ? c.match(re)![1] ?? "" : ""; };
+  const fxVal = (re: RegExp) => { const c = node.classList.find((x) => re.test(x)); return c ? c.match(re)![1] ?? "" : ""; };
   const cleanColor = (v: string) => v.replace(/\s+/g, ""); // arbitrary values can't contain spaces
 
   const display = baseKeyword(s.display);
@@ -213,7 +214,31 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
     <div className="scroll-thin h-full overflow-y-auto pb-24">
       {rail}
 
-      {tab === "settings" ? (
+      {tab === "interactions" ? (
+        usesTailwind ? (
+          <>
+            <Section title="Hover" defaultOpen>
+              <p className="text-[11px] leading-relaxed text-ink-3">Applied on <span className="font-mono text-ink-2">:hover</span> with a smooth transition.</p>
+              <Field label="Background"><ColorField value={fxVal(/^hover:bg-\[(.+)\]$/)} onChange={(v) => fxSet(/^hover:bg-\[/, v ? `hover:bg-[${cleanColor(v)}]` : null)} /></Field>
+              <Field label="Text"><ColorField value={fxVal(/^hover:text-\[(.+)\]$/)} onChange={(v) => fxSet(/^hover:text-\[/, v ? `hover:text-[${cleanColor(v)}]` : null)} /></Field>
+              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+                <Field label="Scale"><TextInput value={fxVal(/^hover:scale-\[(.+)\]$/)} onCommit={(v) => fxSet(/^hover:scale-\[/, v ? `hover:scale-[${v}]` : null)} placeholder="1.05" /></Field>
+                <Field label="Lift"><TextInput value={fxVal(/^hover:-translate-y-\[(.+)\]$/)} onCommit={(v) => fxSet(/^hover:-translate-y-\[/, v ? `hover:-translate-y-[${v.replace(/px$/, "")}px]` : null)} placeholder="4px" /></Field>
+              </div>
+              <Field label="Opacity"><Slider value={parseInt(fxVal(/^hover:opacity-(\d+)$/) || "100", 10)} min={0} max={100} suffix="%" onChange={(v) => fxSet(/^hover:opacity-/, v < 100 ? `hover:opacity-${v}` : null)} /></Field>
+            </Section>
+            <Section title="Press" defaultOpen={false}>
+              <p className="text-[11px] leading-relaxed text-ink-3">Feedback while pressed (<span className="font-mono text-ink-2">:active</span>).</p>
+              <Field label="Scale"><TextInput value={fxVal(/^active:scale-\[(.+)\]$/)} onCommit={(v) => fxSet(/^active:scale-\[/, v ? `active:scale-[${v}]` : null)} placeholder="0.97" /></Field>
+              <Field label="Opacity"><Slider value={parseInt(fxVal(/^active:opacity-(\d+)$/) || "100", 10)} min={0} max={100} suffix="%" onChange={(v) => fxSet(/^active:opacity-/, v < 100 ? `active:opacity-${v}` : null)} /></Field>
+            </Section>
+          </>
+        ) : (
+          <div className="px-3.5 py-6 text-[12px] leading-relaxed text-ink-3">
+            Interactions emit Tailwind <span className="font-mono text-ink-2">hover:</span> / <span className="font-mono text-ink-2">active:</span> classes, so they need a Tailwind project — this one doesn&rsquo;t use Tailwind.
+          </div>
+        )
+      ) : tab === "settings" ? (
         <SettingsPanel
           node={node}
           isHtml={!!isHtml}
@@ -513,19 +538,6 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
               <TextInput value={s.aspectRatio && s.aspectRatio !== "auto" ? s.aspectRatio : ""} onCommit={(v) => set("aspectRatio", v)} placeholder="16 / 9" />
             </Field>
           </Section>
-
-          {usesTailwind && (
-            <Section title="Interactions" defaultOpen={false}>
-              <p className="text-[11px] leading-relaxed text-ink-3">Hover effects — applied on <span className="font-mono text-ink-2">:hover</span> with a smooth transition.</p>
-              <Field label="Background"><ColorField value={hoverVal(/^hover:bg-\[(.+)\]$/)} onChange={(v) => hoverSet(/^hover:bg-\[/, v ? `hover:bg-[${cleanColor(v)}]` : null)} /></Field>
-              <Field label="Text"><ColorField value={hoverVal(/^hover:text-\[(.+)\]$/)} onChange={(v) => hoverSet(/^hover:text-\[/, v ? `hover:text-[${cleanColor(v)}]` : null)} /></Field>
-              <div className="grid grid-cols-2 gap-x-3 gap-y-2">
-                <Field label="Scale"><TextInput value={hoverVal(/^hover:scale-\[(.+)\]$/)} onCommit={(v) => hoverSet(/^hover:scale-\[/, v ? `hover:scale-[${v}]` : null)} placeholder="1.05" /></Field>
-                <Field label="Lift"><TextInput value={hoverVal(/^hover:-translate-y-\[(.+)\]$/)} onCommit={(v) => hoverSet(/^hover:-translate-y-\[/, v ? `hover:-translate-y-[${v.replace(/px$/, "")}px]` : null)} placeholder="4px" /></Field>
-              </div>
-              <Field label="Opacity"><Slider value={parseInt(hoverVal(/^hover:opacity-(\d+)$/) || "100", 10)} min={0} max={100} suffix="%" onChange={(v) => hoverSet(/^hover:opacity-/, v < 100 ? `hover:opacity-${v}` : null)} /></Field>
-            </Section>
-          )}
 
           <Section title="Classes" defaultOpen={!isHtml}>
             <textarea
