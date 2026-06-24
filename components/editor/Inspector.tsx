@@ -27,7 +27,7 @@ type RightTab = (typeof RIGHT_TABS)[number]["id"] | "env";
 const EMPTY_COMMENTS: Comment[] = [];
 import { componentNameFromPath } from "@/lib/jsxEdit";
 import { extractComponentProps } from "@/lib/componentProps";
-import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox, TransitionEditor } from "./controls";
+import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox, TransitionEditor, GradientField, isSimpleGradient } from "./controls";
 
 // Stacked field (label above a full-width control) — used in 2-column grids so
 // the input has the whole column width and the value stays readable.
@@ -407,6 +407,12 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
             <Field label="Image">
               <TextInput value={s.backgroundImage === "none" ? "" : s.backgroundImage} onCommit={(v) => set("backgroundImage", v)} placeholder="url(...) / gradient" />
             </Field>
+            {isSimpleGradient(s.backgroundImage) && (
+              <div className="rounded-lg border border-line bg-bg/40 p-2.5">
+                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-ink-3">Gradient</div>
+                <GradientField value={s.backgroundImage === "none" ? "" : s.backgroundImage} onChange={(v) => set("backgroundImage", v)} />
+              </div>
+            )}
             {imageAssets.length > 0 && (
               <div>
                 <div className="mb-1.5 text-[10px] text-ink-3">From assets</div>

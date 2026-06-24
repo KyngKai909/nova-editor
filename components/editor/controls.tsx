@@ -512,6 +512,33 @@ export function TransitionEditor({ value, onChange }: { value: string; onChange:
   );
 }
 
+/* ── Linear-gradient builder ─────────────────────────────────────────────── */
+const GRAD_RE = /^linear-gradient\(\s*(-?\d+(?:\.\d+)?)deg\s*,\s*(.+?)\s*,\s*([^,]+?)\s*\)$/i;
+// True for values the builder can safely model (empty, or a simple 2-stop linear
+// gradient). For anything else (url(), conic, multi-stop) the caller keeps the raw
+// text field so we never clobber a value we can't round-trip.
+export function isSimpleGradient(v?: string): boolean {
+  const s = (v || "").trim();
+  return !s || s === "none" || GRAD_RE.test(s);
+}
+export function GradientField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const m = (value || "").trim().match(GRAD_RE);
+  const angle = m ? m[1] : "180";
+  const c1 = m ? m[2].trim() : "#6366f1";
+  const c2 = m ? m[3].trim() : "#ec4899";
+  const emit = (a: string, x: string, y: string) => onChange(`linear-gradient(${a}deg, ${x}, ${y})`);
+  return (
+    <div className="space-y-1.5">
+      <Field label="Angle">
+        <Slider value={parseFloat(angle) || 0} min={0} max={360} suffix="°" onChange={(v) => emit(String(v), c1, c2)} />
+      </Field>
+      <Field label="From"><ColorField value={c1} onChange={(v) => emit(angle, v, c2)} /></Field>
+      <Field label="To"><ColorField value={c2} onChange={(v) => emit(angle, c1, v)} /></Field>
+      <div className="h-6 rounded-md border border-line" style={{ backgroundImage: `linear-gradient(${angle}deg, ${c1}, ${c2})` }} />
+    </div>
+  );
+}
+
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 function splitValue(v: string): { num: string; unit: string } {
   if (!v || v === "auto" || v === "none" || v === "normal") return { num: "", unit: "px" };
