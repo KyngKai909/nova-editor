@@ -194,9 +194,9 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
   // ── interactions ────────────────────────────────────────────────────────────
   // Emit curated state utility classes (hover:/active:/…, Tailwind only) + an auto
   // transition. Read-back parses the class list so controls reflect the effect.
-  const fxSet = (group: RegExp, cls: string | null) => {
+  const fxSet = (group: RegExp, cls: string | string[] | null) => {
     const list = node.classList.filter((c) => !group.test(c));
-    if (cls) list.push(cls);
+    if (cls) for (const c of Array.isArray(cls) ? cls : [cls]) list.push(c);
     const hasFx = list.some((c) => /^(hover|focus|focus-visible|active):/.test(c));
     const hasTransition = list.some((c) => c === "transition" || /^(transition|duration)(-|$)/.test(c));
     if (hasFx && !hasTransition) list.push("transition");
@@ -234,6 +234,14 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
               <p className="text-[11px] leading-relaxed text-ink-3">Feedback while pressed (<span className="font-mono text-ink-2">:active</span>).</p>
               <Field label="Scale"><TextInput value={fxVal(/^active:scale-\[(.+)\]$/)} onCommit={(v) => fxSet(/^active:scale-\[/, v ? `active:scale-[${v}]` : null)} placeholder="0.97" /></Field>
               <Field label="Opacity"><Slider value={parseInt(fxVal(/^active:opacity-(\d+)$/) || "100", 10)} min={0} max={100} suffix="%" onChange={(v) => fxSet(/^active:opacity-/, v < 100 ? `active:opacity-${v}` : null)} /></Field>
+            </Section>
+            )}
+            {usesTailwind && (
+            <Section title="Focus" defaultOpen={false}>
+              <p className="text-[11px] leading-relaxed text-ink-3">Applied on <span className="font-mono text-ink-2">:focus</span> — for inputs &amp; buttons.</p>
+              <Field label="Ring"><ColorField value={fxVal(/^focus:ring-\[(.+)\]$/)} onChange={(v) => fxSet(/^focus:ring(-|\[|$)/, v ? ["focus:ring-2", `focus:ring-[${cleanColor(v)}]`] : null)} /></Field>
+              <Field label="Background"><ColorField value={fxVal(/^focus:bg-\[(.+)\]$/)} onChange={(v) => fxSet(/^focus:bg-\[/, v ? `focus:bg-[${cleanColor(v)}]` : null)} /></Field>
+              <Field label="Border"><ColorField value={fxVal(/^focus:border-\[(.+)\]$/)} onChange={(v) => fxSet(/^focus:border-\[/, v ? `focus:border-[${cleanColor(v)}]` : null)} /></Field>
             </Section>
             )}
             {isHtml && (
