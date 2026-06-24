@@ -187,9 +187,13 @@ export function instrument(
   }
 
   // Tailwind JIT so visually-added utility classes (incl. arbitrary values like
-  // p-[18px]) render live. For full docs that already have their own Tailwind
-  // build, disable preflight so we don't reset the page's base styles.
-  if (fragment || tailwind) {
+  // p-[18px]) render live. But if the page already ships its OWN Tailwind CDN +
+  // config (e.g. a custom fontFamily theme), DON'T re-inject — our config assigns
+  // tailwind.config wholesale and would clobber theirs (breaking fonts/theme), and
+  // a second CDN is redundant since their runtime already JITs new classes. Only
+  // inject for pages that use TW utility classes without shipping a runtime.
+  const ownsTailwind = !!clone.querySelector('script[src*="tailwindcss.com"]');
+  if (!ownsTailwind && (fragment || tailwind)) {
     const tw = clone.createElement("script");
     tw.src = "https://cdn.tailwindcss.com";
     tw.setAttribute("data-wfc-injected", "1");
