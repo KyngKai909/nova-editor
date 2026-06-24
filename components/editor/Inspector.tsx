@@ -458,8 +458,11 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
                 onChange={(v) => set("opacity", String(v / 100))}
               />
             </Field>
-            <Field label="Radius blur">
+            <Field label="Filter">
               <TextInput value={s.filter === "none" ? "" : s.filter} onCommit={(v) => set("filter", v)} placeholder="blur(8px)" />
+            </Field>
+            <Field label="Backdrop">
+              <TextInput value={s.backdropFilter === "none" ? "" : (s.backdropFilter || "")} onCommit={(v) => set("backdropFilter", v)} placeholder="blur(12px)" />
             </Field>
             <Field label="Shadow">
               <TextInput value={s.boxShadow === "none" ? "" : s.boxShadow} onCommit={(v) => set("boxShadow", v)} placeholder="0 8px 24px rgba(0,0,0,.3)" mono />
@@ -469,6 +472,17 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
             </Field>
             <Field label="Transition">
               <TextInput value={isDefaultTransition(s.transition) ? "" : s.transition} onCommit={(v) => set("transition", v)} placeholder="all .2s ease" mono />
+            </Field>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+              <Field label="Blend">
+                <Select value={s.mixBlendMode === "normal" ? "" : (s.mixBlendMode || "")} onChange={(v) => set("mixBlendMode", v)} options={kw(["multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "difference", "exclusion", "hue", "luminosity"])} />
+              </Field>
+              <Field label="Fit">
+                <Select value={s.objectFit === "fill" ? "" : (s.objectFit || "")} onChange={(v) => set("objectFit", v)} options={kw(["cover", "contain", "fill", "none", "scale-down"])} />
+              </Field>
+            </div>
+            <Field label="Ratio">
+              <TextInput value={s.aspectRatio && s.aspectRatio !== "auto" ? s.aspectRatio : ""} onCommit={(v) => set("aspectRatio", v)} placeholder="16 / 9" />
             </Field>
           </Section>
 
