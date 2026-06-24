@@ -521,6 +521,11 @@ export function isSimpleGradient(v?: string): boolean {
   const s = (v || "").trim();
   return !s || s === "none" || GRAD_RE.test(s);
 }
+// True only when the value IS a simple linear gradient (not empty / not a url).
+export function hasGradient(v?: string): boolean {
+  return GRAD_RE.test((v || "").trim());
+}
+export const DEFAULT_GRADIENT = "linear-gradient(180deg, #6366f1, #ec4899)";
 export function GradientField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const m = (value || "").trim().match(GRAD_RE);
   const angle = m ? m[1] : "180";

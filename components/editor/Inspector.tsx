@@ -27,7 +27,7 @@ type RightTab = (typeof RIGHT_TABS)[number]["id"] | "env";
 const EMPTY_COMMENTS: Comment[] = [];
 import { componentNameFromPath } from "@/lib/jsxEdit";
 import { extractComponentProps } from "@/lib/componentProps";
-import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox, TransitionEditor, GradientField, isSimpleGradient, TransformEditor } from "./controls";
+import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox, TransitionEditor, GradientField, hasGradient, DEFAULT_GRADIENT, TransformEditor } from "./controls";
 
 // Stacked field (label above a full-width control) — used in 2-column grids so
 // the input has the whole column width and the value stays readable.
@@ -407,12 +407,11 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
             <Field label="Image">
               <TextInput value={s.backgroundImage === "none" ? "" : s.backgroundImage} onCommit={(v) => set("backgroundImage", v)} placeholder="url(...) / gradient" />
             </Field>
-            {isSimpleGradient(s.backgroundImage) && (
-              <div className="rounded-lg border border-line bg-bg/40 p-2.5">
-                <div className="mb-1.5 text-[10px] uppercase tracking-wide text-ink-3">Gradient</div>
-                <GradientField value={s.backgroundImage === "none" ? "" : s.backgroundImage} onChange={(v) => set("backgroundImage", v)} />
-              </div>
-            )}
+            {hasGradient(s.backgroundImage) ? (
+              <GradientField value={s.backgroundImage} onChange={(v) => set("backgroundImage", v)} />
+            ) : (!s.backgroundImage || s.backgroundImage === "none") ? (
+              <button onClick={() => set("backgroundImage", DEFAULT_GRADIENT)} className="text-[11px] text-ink-3 transition-colors hover:text-accent">+ Add gradient</button>
+            ) : null}
             {imageAssets.length > 0 && (
               <div>
                 <div className="mb-1.5 text-[10px] text-ink-3">From assets</div>
