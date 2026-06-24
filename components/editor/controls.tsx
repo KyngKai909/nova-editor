@@ -539,6 +539,49 @@ export function GradientField({ value, onChange }: { value: string; onChange: (v
   );
 }
 
+/* ── Transform editor ────────────────────────────────────────────────────── */
+export function parseTransform(v: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (!v || v === "none") return out;
+  const re = /(\w+)\(([^)]*)\)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(v))) out[m[1]] = m[2].trim();
+  return out;
+}
+const TF_ORDER = ["perspective", "translate", "translateX", "translateY", "translateZ", "translate3d", "scale", "scaleX", "scaleY", "rotate", "rotateX", "rotateY", "rotateZ", "rotate3d", "skew", "skewX", "skewY", "matrix", "matrix3d"];
+export function composeTransform(map: Record<string, string>): string {
+  return Object.keys(map)
+    .filter((k) => map[k] !== "" && map[k] != null)
+    .sort((a, b) => (TF_ORDER.indexOf(a) + 1 || 99) - (TF_ORDER.indexOf(b) + 1 || 99))
+    .map((k) => `${k}(${map[k]})`)
+    .join(" ");
+}
+const numOnly = (v?: string) => (v || "").replace(/(px|deg|%)$/i, "");
+
+export function TransformEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const map = parseTransform(value);
+  // composeTransform re-emits every function it was given, so functions we don't
+  // surface here (translate3d, matrix, skew…) are preserved, not dropped.
+  const set = (k: string, raw: string, unit: string) => {
+    const next = { ...map };
+    if (raw === "") delete next[k];
+    else next[k] = `${raw}${unit}`;
+    onChange(composeTransform(next));
+  };
+  const has3d = Object.keys(map).some((k) => !["translateX", "translateY", "rotate", "scale"].includes(k));
+  return (
+    <div className="space-y-1.5">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+        <Field label="Move X"><TextInput value={numOnly(map.translateX)} onCommit={(v) => set("translateX", v, "px")} placeholder="0" /></Field>
+        <Field label="Move Y"><TextInput value={numOnly(map.translateY)} onCommit={(v) => set("translateY", v, "px")} placeholder="0" /></Field>
+        <Field label="Rotate"><TextInput value={numOnly(map.rotate)} onCommit={(v) => set("rotate", v, "deg")} placeholder="0" /></Field>
+        <Field label="Scale"><TextInput value={map.scale || ""} onCommit={(v) => set("scale", v, "")} placeholder="1" /></Field>
+      </div>
+      {has3d && <p className="text-[10px] text-ink-3">+ advanced transform preserved</p>}
+    </div>
+  );
+}
+
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 function splitValue(v: string): { num: string; unit: string } {
   if (!v || v === "auto" || v === "none" || v === "normal") return { num: "", unit: "px" };

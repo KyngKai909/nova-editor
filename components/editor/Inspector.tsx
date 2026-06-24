@@ -27,7 +27,7 @@ type RightTab = (typeof RIGHT_TABS)[number]["id"] | "env";
 const EMPTY_COMMENTS: Comment[] = [];
 import { componentNameFromPath } from "@/lib/jsxEdit";
 import { extractComponentProps } from "@/lib/componentProps";
-import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox, TransitionEditor, GradientField, isSimpleGradient } from "./controls";
+import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox, TransitionEditor, GradientField, isSimpleGradient, TransformEditor } from "./controls";
 
 // Stacked field (label above a full-width control) — used in 2-column grids so
 // the input has the whole column width and the value stays readable.
@@ -473,9 +473,10 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
             <Field label="Shadow">
               <TextInput value={s.boxShadow === "none" ? "" : s.boxShadow} onCommit={(v) => set("boxShadow", v)} placeholder="0 8px 24px rgba(0,0,0,.3)" mono />
             </Field>
-            <Field label="Transform">
-              <TextInput value={s.transform === "none" ? "" : s.transform} onCommit={(v) => set("transform", v)} placeholder="translateY(-4px) scale(1.02)" mono />
-            </Field>
+            <div>
+              <div className="mb-1.5 text-[11px] text-ink-3">Transform</div>
+              <TransformEditor value={s.transform === "none" ? "" : s.transform} onChange={(v) => set("transform", v)} />
+            </div>
             {(s.transition || "").includes(",") ? (
               <Field label="Transition">
                 <TextInput value={isDefaultTransition(s.transition) ? "" : s.transition} onCommit={(v) => set("transition", v)} placeholder="all .2s ease" mono />
