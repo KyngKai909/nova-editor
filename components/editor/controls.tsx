@@ -474,6 +474,44 @@ export function SpacingBox({
   );
 }
 
+/* ── Transition editor (single transition; caller falls back to raw for multi) */
+const EASINGS = [
+  { value: "ease", label: "ease" },
+  { value: "linear", label: "linear" },
+  { value: "ease-in", label: "ease-in" },
+  { value: "ease-out", label: "ease-out" },
+  { value: "ease-in-out", label: "ease-in-out" },
+  { value: "cubic-bezier(0.4, 0, 0.2, 1)", label: "smooth" },
+  { value: "cubic-bezier(0.34, 1.56, 0.64, 1)", label: "spring" },
+];
+const TRANS_PROPS = ["all", "opacity", "transform", "color", "background-color", "border-color", "box-shadow", "filter"];
+
+export function parseTransition(v: string): { prop: string; dur: string; easing: string; delay: string } {
+  const s = (v || "").trim();
+  const times = s.match(/-?\d*\.?\d+m?s/g) || [];
+  const easing = (s.match(/cubic-bezier\([^)]*\)|steps\([^)]*\)|ease-in-out|ease-in|ease-out|linear|ease/) || [])[0] || "ease";
+  const pm = s.match(/^([a-zA-Z-]+)/);
+  const prop = pm && !/^(cubic-bezier|steps|ease|linear)/.test(pm[1]) ? pm[1] : "all";
+  return { prop, dur: times[0] || "", easing, delay: times[1] || "" };
+}
+export function composeTransition(p: { prop: string; dur: string; easing: string; delay: string }): string {
+  if (!p.dur) return ""; // no duration ⇒ nothing meaningful to apply
+  return [p.prop || "all", p.dur, p.easing || "ease", ...(p.delay && p.delay !== "0s" ? [p.delay] : [])].join(" ");
+}
+
+export function TransitionEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const p = parseTransition(value);
+  const upd = (patch: Partial<typeof p>) => onChange(composeTransition({ ...p, ...patch }));
+  return (
+    <div className="grid grid-cols-2 gap-x-3 gap-y-2">
+      <Field label="Property"><Select value={p.prop} onChange={(v) => upd({ prop: v })} options={TRANS_PROPS.map((v) => ({ value: v }))} /></Field>
+      <Field label="Ease"><Select value={p.easing} onChange={(v) => upd({ easing: v })} options={EASINGS} /></Field>
+      <Field label="Duration"><TextInput value={p.dur} onCommit={(v) => upd({ dur: v })} placeholder="0.2s" /></Field>
+      <Field label="Delay"><TextInput value={p.delay} onCommit={(v) => upd({ delay: v })} placeholder="0s" /></Field>
+    </div>
+  );
+}
+
 /* ── helpers ─────────────────────────────────────────────────────────────── */
 function splitValue(v: string): { num: string; unit: string } {
   if (!v || v === "auto" || v === "none" || v === "normal") return { num: "", unit: "px" };

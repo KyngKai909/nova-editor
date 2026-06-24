@@ -27,7 +27,7 @@ type RightTab = (typeof RIGHT_TABS)[number]["id"] | "env";
 const EMPTY_COMMENTS: Comment[] = [];
 import { componentNameFromPath } from "@/lib/jsxEdit";
 import { extractComponentProps } from "@/lib/componentProps";
-import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox } from "./controls";
+import { Section, Field, TextInput, NumberUnit, Slider, Segmented, Select, ColorField, FontField, SpacingBox, TransitionEditor } from "./controls";
 
 // Stacked field (label above a full-width control) — used in 2-column grids so
 // the input has the whole column width and the value stays readable.
@@ -470,9 +470,16 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
             <Field label="Transform">
               <TextInput value={s.transform === "none" ? "" : s.transform} onCommit={(v) => set("transform", v)} placeholder="translateY(-4px) scale(1.02)" mono />
             </Field>
-            <Field label="Transition">
-              <TextInput value={isDefaultTransition(s.transition) ? "" : s.transition} onCommit={(v) => set("transition", v)} placeholder="all .2s ease" mono />
-            </Field>
+            {(s.transition || "").includes(",") ? (
+              <Field label="Transition">
+                <TextInput value={isDefaultTransition(s.transition) ? "" : s.transition} onCommit={(v) => set("transition", v)} placeholder="all .2s ease" mono />
+              </Field>
+            ) : (
+              <div>
+                <div className="mb-1.5 text-[11px] text-ink-3">Transition</div>
+                <TransitionEditor value={isDefaultTransition(s.transition) ? "" : s.transition} onChange={(v) => set("transition", v)} />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-x-3 gap-y-2">
               <Field label="Blend">
                 <Select value={s.mixBlendMode === "normal" ? "" : (s.mixBlendMode || "")} onChange={(v) => set("mixBlendMode", v)} options={kw(["multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "difference", "exclusion", "hue", "luminosity"])} />
