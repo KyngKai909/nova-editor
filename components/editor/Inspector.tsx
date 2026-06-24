@@ -215,7 +215,6 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
       {rail}
 
       {tab === "interactions" ? (
-        (usesTailwind || isHtml) ? (
           <>
             {usesTailwind && (
             <Section title="Hover" defaultOpen>
@@ -244,7 +243,7 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
               <Field label="Border"><ColorField value={fxVal(/^focus:border-\[(.+)\]$/)} onChange={(v) => fxSet(/^focus:border-\[/, v ? `focus:border-[${cleanColor(v)}]` : null)} /></Field>
             </Section>
             )}
-            {isHtml && (
+            {!isComponentInstance && (
             <Section title="Scroll" defaultOpen={!usesTailwind}>
               <p className="text-[11px] leading-relaxed text-ink-3">Animate in when scrolled into view — degrades to visible where unsupported.</p>
               <Field label="Effect">
@@ -256,12 +255,12 @@ export function InspectorView({ surface, env }: { surface: EditorSurface; env?: 
               </Field>
             </Section>
             )}
+            {!usesTailwind && isComponentInstance && (
+              <div className="px-3.5 py-6 text-[12px] leading-relaxed text-ink-3">
+                Interactions apply to plain elements — hover/press/focus need a Tailwind project, and scroll reveals work on any element.
+              </div>
+            )}
           </>
-        ) : (
-          <div className="px-3.5 py-6 text-[12px] leading-relaxed text-ink-3">
-            Hover &amp; press effects need a Tailwind project; scroll reveals need an HTML page — this one is neither.
-          </div>
-        )
       ) : tab === "settings" ? (
         <SettingsPanel
           node={node}

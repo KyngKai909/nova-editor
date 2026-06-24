@@ -25,6 +25,25 @@ export const DEVICE_WIDTH: Record<Device, number> = {
   mobile: 390,
 };
 
+// Shared scroll-reveal stylesheet. CSS scroll-driven animations + @supports /
+// prefers-reduced-motion fallback, so browsers without view() timelines (and
+// reduced-motion users) simply show the content — it's never left hidden.
+// Injected once per project: a <style> for HTML pages, appended to the global
+// CSS file for React/JSX apps. REVEAL_MARKER makes the inject idempotent.
+const REVEAL_MARKER = "nova-reveal-styles";
+const REVEAL_CSS =
+  "@supports (animation-timeline: view()) { @media (prefers-reduced-motion: no-preference) {" +
+  "[data-reveal]{opacity:0;animation:nova-fade linear both;animation-timeline:view();animation-range:entry 0% cover 25%}" +
+  "[data-reveal=fade]{animation-name:nova-fade}" +
+  "[data-reveal=fade-up]{animation-name:nova-fade-up}" +
+  "[data-reveal=fade-down]{animation-name:nova-fade-down}" +
+  "[data-reveal=zoom]{animation-name:nova-zoom}" +
+  "} }" +
+  "@keyframes nova-fade{from{opacity:0}to{opacity:1}}" +
+  "@keyframes nova-fade-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}" +
+  "@keyframes nova-fade-down{from{opacity:0;transform:translateY(-24px)}to{opacity:1;transform:none}}" +
+  "@keyframes nova-zoom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}";
+
 // A point-in-time copy of the editable document state, for undo/redo.
 interface HistorySnapshot {
   files: SourceFile[];
@@ -605,34 +624,40 @@ export const useEditor = create<EditorState>((set, get) => ({
     else get().updateAttr(id, name, "");
   },
 
-  // Scroll-into-view reveal for HTML pages. Marks the element with data-reveal and
-  // injects one shared stylesheet using CSS scroll-driven animations. Wrapped in
-  // @supports + prefers-reduced-motion so browsers without view() timelines (or
-  // reduced-motion users) simply show the content — it's never left hidden.
+  // Scroll-into-view reveal. Marks the element with data-reveal and injects the
+  // shared REVEAL_CSS once. HTML pages: a <style> in <head>. React/JSX: a prop on
+  // the element + the keyframes appended to the project's global stylesheet (we
+  // can't add a <head> <style> from inside a component).
   setReveal: (id, effect) => {
     if (!get().canEditDoc()) return;
     const { files, activePath, tree, htmlDoc } = get();
     const file = files.find((f) => f.path === activePath);
-    if (!file || file.kind !== "html" || !htmlDoc) return;
+    if (!file) return;
+
+    if (file.kind === "jsx") {
+      if (effect) get().updateProp(id, "data-reveal", effect);
+      else get().removeProp(id, "data-reveal");
+      // re-read after the prop edit, then append the keyframes to a global CSS file
+      const fresh = get().files;
+      if (effect && !fresh.some((f) => f.content.includes(REVEAL_MARKER))) {
+        const css =
+          fresh.find((f) => /(^|\/)(globals?|index|app|main|styles)\.css$/i.test(f.path)) ||
+          fresh.find((f) => f.path.endsWith(".css"));
+        if (css) updateContent(set, fresh, css.path, `${css.content.trimEnd()}\n\n/* ${REVEAL_MARKER} */\n${REVEAL_CSS}\n`);
+      }
+      set({ reloadKey: get().reloadKey + 1 });
+      return;
+    }
+
+    if (file.kind !== "html" || !htmlDoc) return;
     const el = htmlDoc.querySelector(`[data-wfc-id="${id}"]`) as HTMLElement | null;
     if (!el) return;
     if (effect) el.setAttribute("data-reveal", effect);
     else el.removeAttribute("data-reveal");
-    if (effect && htmlDoc.head && !htmlDoc.getElementById("nova-reveal-styles")) {
+    if (effect && htmlDoc.head && !htmlDoc.getElementById(REVEAL_MARKER)) {
       const style = htmlDoc.createElement("style");
-      style.id = "nova-reveal-styles";
-      style.textContent =
-        "@supports (animation-timeline: view()) { @media (prefers-reduced-motion: no-preference) {" +
-        "[data-reveal]{opacity:0;animation:nova-fade linear both;animation-timeline:view();animation-range:entry 0% cover 25%}" +
-        "[data-reveal=fade]{animation-name:nova-fade}" +
-        "[data-reveal=fade-up]{animation-name:nova-fade-up}" +
-        "[data-reveal=fade-down]{animation-name:nova-fade-down}" +
-        "[data-reveal=zoom]{animation-name:nova-zoom}" +
-        "} }" +
-        "@keyframes nova-fade{from{opacity:0}to{opacity:1}}" +
-        "@keyframes nova-fade-up{from{opacity:0;transform:translateY(24px)}to{opacity:1;transform:none}}" +
-        "@keyframes nova-fade-down{from{opacity:0;transform:translateY(-24px)}to{opacity:1;transform:none}}" +
-        "@keyframes nova-zoom{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:none}}";
+      style.id = REVEAL_MARKER;
+      style.textContent = REVEAL_CSS;
       htmlDoc.head.appendChild(style);
     }
     const node = findNode(tree, id);
